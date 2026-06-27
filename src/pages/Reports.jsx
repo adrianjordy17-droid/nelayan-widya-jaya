@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { TrendingUp, Download, BarChart3, FileSpreadsheet } from 'lucide-react'
+import { TrendingUp, BarChart3, FileSpreadsheet, MessageSquare, Send } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { generateDailyReport, sendToWhatsApp } from '../lib/whatsapp'
 
 const INIT_ORDERS = [
   { id: 'ORD-001', client: 'Pasar Ikan Muara Baru', date: '2026-06-24', status: 'selesai', catatan: '', items: [{ name: 'Tongkol', qty: 50, unit: 'kg', price: 45000 }] },
@@ -48,6 +49,25 @@ export default function Reports() {
   const [stock]   = useLocalStorage('nwj_stock',   INIT_STOCK)
   const [clients] = useLocalStorage('nwj_clients', INIT_CLIENTS)
   const [period, setPeriod] = useState('6bulan')
+  const [waStatus, setWaStatus] = useState({ loading: false, msg: '', ok: null })
+
+  async function kirimWA() {
+    const cfg = JSON.parse(localStorage.getItem('nwj_wa_config') || '{}')
+    if (!cfg.token || !cfg.target) {
+      setWaStatus({ loading: false, msg: 'Isi token & nomor WA di Pengaturan dulu', ok: false })
+      setTimeout(() => setWaStatus({ loading: false, msg: '', ok: null }), 4000)
+      return
+    }
+    setWaStatus({ loading: true, msg: 'Mengirim...', ok: null })
+    try {
+      const message = generateDailyReport(orders, stock, [])
+      await sendToWhatsApp({ token: cfg.token, target: cfg.target, message })
+      setWaStatus({ loading: false, msg: 'Berhasil terkirim!', ok: true })
+    } catch (err) {
+      setWaStatus({ loading: false, msg: err.message, ok: false })
+    }
+    setTimeout(() => setWaStatus({ loading: false, msg: '', ok: null }), 5000)
+  }
 
   // Build monthly summary from orders
   const monthlyMap = {}
@@ -183,10 +203,21 @@ export default function Reports() {
             </button>
           ))}
         </div>
-        <button onClick={exportExcel}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
-          <FileSpreadsheet size={16} /> Export Excel
-        </button>
+        <div className="flex items-center gap-2">
+          {waStatus.msg && (
+            <span className={`text-sm font-medium ${waStatus.ok ? 'text-green-600' : 'text-red-500'}`}>
+              {waStatus.ok ? '✅' : '❌'} {waStatus.msg}
+            </span>
+          )}
+          <button onClick={kirimWA} disabled={waStatus.loading}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
+            <Send size={15} /> Kirim WA
+          </button>
+          <button onClick={exportExcel}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
+            <FileSpreadsheet size={16} /> Export Excel
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}

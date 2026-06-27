@@ -1,7 +1,10 @@
 import { useState } from 'react'
-import { Save, User, Building, Bell, Users, Trash2, Plus, Check, X, Edit2 } from 'lucide-react'
+import { Save, User, Building, Bell, Users, Trash2, Plus, Check, X, Edit2, MessageSquare, Send, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { generateDailyReport, sendToWhatsApp } from '../lib/whatsapp'
+
+const INIT_WA_CONFIG = { token: '', target: '', sendTime: '18:00', enabled: false }
 
 const INIT_COMPANY = {
   name: 'UD. Nelayan Widya Jaya',
@@ -48,6 +51,10 @@ export default function Settings() {
   const [notifs, setNotifs]       = useLocalStorage('nwj_notifs', { lowStock: true, newOrder: true, dailyReport: false })
   const [account, setAccount]     = useLocalStorage('nwj_account', { name: profile?.name || '', email: profile?.email || '' })
 
+  const [waConfig, setWaConfig]     = useLocalStorage('nwj_wa_config', INIT_WA_CONFIG)
+  const [waStatus, setWaStatus]     = useState({ loading: false, msg: '', ok: null })
+  const [showToken, setShowToken]   = useState(false)
+
   const [companySaved, setCompanySaved] = useState(false)
   const [accountSaved, setAccountSaved] = useState(false)
   const [userModal, setUserModal] = useState(false)
@@ -75,6 +82,21 @@ export default function Settings() {
       setUsers(prev => [...prev, { id: Date.now(), ...userForm, active: true }])
     }
     setUserModal(false)
+  }
+
+  async function testSendWA() {
+    setWaStatus({ loading: true, msg: 'Mengirim...', ok: null })
+    try {
+      const orders     = JSON.parse(localStorage.getItem('nwj_orders') || '[]')
+      const stock      = JSON.parse(localStorage.getItem('nwj_stock') || '[]')
+      const attendance = JSON.parse(localStorage.getItem('nwj_attendance') || '[]')
+      const message    = generateDailyReport(orders, stock, attendance)
+      await sendToWhatsApp({ token: waConfig.token, target: waConfig.target, message })
+      setWaStatus({ loading: false, msg: 'Berhasil terkirim!', ok: true })
+    } catch (err) {
+      setWaStatus({ loading: false, msg: err.message, ok: false })
+    }
+    setTimeout(() => setWaStatus({ loading: false, msg: '', ok: null }), 5000)
   }
 
   function delUser(id) {
@@ -162,6 +184,89 @@ export default function Settings() {
               </div>
             </div>
           ))}
+        </div>
+      </Section>
+
+      {/* WhatsApp */}
+      <Section icon={MessageSquare} title="Integrasi WhatsApp — Laporan Otomatis">
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 leading-relaxed">
+            <strong>Cara setup:</strong> Daftar di <strong>fonnte.com</strong> → sambungkan WA → salin token ke form ini.
+            Laporan akan dikirim otomatis setiap hari di jam yang ditentukan (tab browser harus terbuka).
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">
+                Fonnte API Token
+              </label>
+              <div className="relative">
+                <input
+                  type={showToken ? 'text' : 'password'}
+                  value={waConfig.token}
+                  onChange={e => setWaConfig(c => ({ ...c, token: e.target.value }))}
+                  placeholder="Token dari fonnte.com"
+                  className={inputCls + ' pr-10'}
+                />
+                <button type="button" onClick={() => setShowToken(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">
+                Nomor WA Tujuan
+              </label>
+              <input
+                value={waConfig.target}
+                onChange={e => setWaConfig(c => ({ ...c, target: e.target.value }))}
+                placeholder="6281234567890 (tanpa +)"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">
+                Jam Kirim Laporan
+              </label>
+              <input
+                type="time"
+                value={waConfig.sendTime || '18:00'}
+                onChange={e => setWaConfig(c => ({ ...c, sendTime: e.target.value }))}
+                className={inputCls}
+              />
+            </div>
+            <div className="flex flex-col justify-end">
+              <label className="block text-slate-600 text-[13px] font-semibold mb-2">
+                Laporan Otomatis
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div
+                  onClick={() => setWaConfig(c => ({ ...c, enabled: !c.enabled }))}
+                  className={`w-11 h-6 rounded-full transition cursor-pointer ${waConfig.enabled ? 'bg-green-500' : 'bg-slate-200'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full m-1 shadow transition-transform ${waConfig.enabled ? 'translate-x-5' : ''}`} />
+                </div>
+                <span className={`text-sm font-semibold ${waConfig.enabled ? 'text-green-600' : 'text-slate-400'}`}>
+                  {waConfig.enabled ? `Aktif — pukul ${waConfig.sendTime || '18:00'}` : 'Nonaktif'}
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              onClick={testSendWA}
+              disabled={waStatus.loading || !waConfig.token || !waConfig.target}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
+              <Send size={15} />
+              {waStatus.loading ? 'Mengirim...' : 'Test Kirim Laporan Sekarang'}
+            </button>
+            {waStatus.msg && (
+              <span className={`text-sm font-medium ${waStatus.ok ? 'text-green-600' : 'text-red-500'}`}>
+                {waStatus.ok ? '✅' : '❌'} {waStatus.msg}
+              </span>
+            )}
+          </div>
         </div>
       </Section>
 
