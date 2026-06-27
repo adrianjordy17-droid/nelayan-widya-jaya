@@ -3,14 +3,30 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
+/* 32 deterministic stars */
+const STARS = Array.from({ length: 32 }, (_, i) => ({
+  top:   `${((Math.sin(i * 137.5 + 1) + 1) / 2) * 82 + 4}%`,
+  left:  `${((Math.cos(i * 97.3 + 2) + 1) / 2) * 88 + 4}%`,
+  size:  i % 5 === 0 ? 3 : i % 3 === 0 ? 2.5 : 1.8,
+  dur:   `${2.2 + (i % 7) * 0.4}s`,
+  delay: `${(i % 9) * 0.35}s`,
+}))
+
+const DEMO_USERS = [
+  { label: 'Jordy (Owner)', email: 'jordy@nelayan.id' },
+  { label: 'April (Admin)', email: 'april@nelayan.id' },
+  { label: 'Bimbim (Staff)', email: 'bimbim@nelayan.id' },
+  { label: 'Wowo (Staff)',   email: 'wowo@nelayan.id' },
+]
+
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail]     = useState('')
   const [password, setPassword] = useState('')
-  const [showPw, setShowPw] = useState(false)
+  const [showPw, setShowPw]   = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const { signIn } = useAuth()
-  const navigate = useNavigate()
+  const [error, setError]     = useState('')
+  const { signIn }  = useAuth()
+  const navigate    = useNavigate()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -25,164 +41,266 @@ export default function LoginPage() {
     }
   }
 
-  return (
-    <div className="min-h-screen flex">
-      {/* ── LEFT PANEL ── */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden flex-col justify-between p-10"
-        style={{ background: 'linear-gradient(160deg, #0d1b3e 0%, #0a2a5e 40%, #0e4d8a 80%, #1a6ea8 100%)' }}>
+  const canSubmit = email && password && !loading
 
+  return (
+    <div className="min-h-screen flex overflow-hidden">
+
+      {/* ══════════════════════ LEFT PANEL ══════════════════════ */}
+      <div
+        className="hidden lg:flex lg:w-[52%] relative flex-col overflow-hidden"
+        style={{ background: 'linear-gradient(155deg, #040e2b 0%, #071a4a 30%, #093070 60%, #0e4d8c 85%, #1a6aaa 100%)' }}
+      >
         {/* Stars */}
-        {[...Array(28)].map((_, i) => (
-          <div key={i} className="absolute rounded-full bg-white"
+        {STARS.map((s, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full bg-white star-twinkle"
             style={{
-              width: i % 4 === 0 ? 3 : 2,
-              height: i % 4 === 0 ? 3 : 2,
-              top: `${Math.sin(i * 137.5) * 40 + 45}%`,
-              left: `${Math.cos(i * 97.3) * 45 + 50}%`,
-              opacity: 0.3 + (i % 5) * 0.12,
+              top: s.top, left: s.left,
+              width: s.size, height: s.size,
+              '--dur': s.dur, '--delay': s.delay,
             }}
           />
         ))}
 
         {/* Moon */}
-        <div className="absolute top-16 right-20 w-20 h-20 rounded-full"
-          style={{ background: 'radial-gradient(circle at 35% 35%, #ffd97a, #f4a820)', boxShadow: '0 0 40px 10px rgba(244,168,32,0.25)' }} />
+        <div
+          className="absolute moon-glow rounded-full"
+          style={{
+            top: '9%', right: '18%',
+            width: 76, height: 76,
+            background: 'radial-gradient(circle at 38% 38%, #ffe08a, #f4a820 55%, #d4820a)',
+          }}
+        />
+        {/* Moon shadow crater */}
+        <div
+          className="absolute rounded-full"
+          style={{
+            top: 'calc(9% + 14px)', right: 'calc(18% + 8px)',
+            width: 18, height: 18,
+            background: 'rgba(0,0,0,0.12)',
+          }}
+        />
 
-        {/* Header */}
-        <div className="relative z-10">
-          <p className="text-white font-bold tracking-[0.25em] text-sm uppercase">UD. Nelayan Widya Jaya</p>
-          <p className="text-blue-300 text-xs tracking-widest mt-0.5">Supplier</p>
-        </div>
+        {/* Content wrapper — full height flex column */}
+        <div className="relative z-10 flex flex-col h-full px-10 py-9">
 
-        {/* Badge + Hero text */}
-        <div className="relative z-10 space-y-5">
-          <div className="inline-block">
-            <span className="bg-white/10 border border-white/20 text-white/80 text-xs px-4 py-1.5 rounded-full tracking-wide">
-              Shrimp Supplier Management System
-            </span>
-          </div>
-          <div>
-            <p className="text-blue-300 text-xs tracking-[0.3em] uppercase mb-3">Sistem Manajemen Terintegrasi</p>
-            <h1 className="text-white font-extrabold text-4xl leading-tight">
-              Kelola Bisnis Udang<br />Lebih Mudah &amp;<br />Efisien
-            </h1>
-            <p className="text-blue-200/70 text-sm mt-4 leading-relaxed max-w-xs">
-              Pantau stok, pengiriman, penjualan, dan absensi karyawan dalam satu platform.
+          {/* Brand — top */}
+          <div className="anim-slide-right" style={{ animationDelay: '0.1s' }}>
+            <p className="text-white font-black tracking-[0.22em] text-[11px] uppercase">
+              UD. Nelayan Widya Jaya
             </p>
-          </div>
-        </div>
-
-        {/* Ocean waves bottom */}
-        <div className="absolute bottom-0 left-0 right-0 h-36 overflow-hidden">
-          <svg viewBox="0 0 1440 144" preserveAspectRatio="none" className="absolute bottom-0 w-full h-full opacity-30">
-            <path fill="#1a6ea8" d="M0,80 C360,140 1080,20 1440,80 L1440,144 L0,144 Z"/>
-          </svg>
-          <svg viewBox="0 0 1440 144" preserveAspectRatio="none" className="absolute bottom-0 w-full h-full opacity-20">
-            <path fill="#0e9fd4" d="M0,100 C480,40 960,120 1440,60 L1440,144 L0,144 Z"/>
-          </svg>
-          {/* Fish */}
-          <div className="absolute bottom-6 left-8 text-3xl" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }}>🦐</div>
-          <div className="absolute bottom-10 left-20 text-xl opacity-60">🐟</div>
-        </div>
-      </div>
-
-      {/* ── RIGHT PANEL ── */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-between bg-white px-8 py-10 sm:px-16">
-        <div />
-
-        <div className="max-w-sm w-full mx-auto space-y-7">
-          {/* Icon */}
-          <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-2xl shadow-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #1a56db, #3b82f6)' }}>
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <path d="M8 22 Q16 10 24 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-                <circle cx="16" cy="10" r="4" fill="white" opacity="0.9"/>
-              </svg>
-            </div>
+            <p className="text-blue-300 text-[9px] tracking-[0.35em] mt-0.5 uppercase">Supplier</p>
           </div>
 
-          {/* Title */}
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-slate-800">Masuk ke Dashboard</h2>
-            <p className="text-slate-400 text-sm mt-1">UD. Nelayan Widya Jaya</p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="contoh@nelayan.id"
-                required
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition bg-slate-50"
-              />
+          {/* Hero — vertical center */}
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="anim-badge-pop" style={{ animationDelay: '0.3s' }}>
+              <span
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] text-white/75 tracking-wide"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-300 inline-block" />
+                Shrimp Supplier Management System
+              </span>
             </div>
 
-            <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-2">Kata Sandi</label>
-              <div className="relative">
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Masukkan kata sandi"
-                  required
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition bg-slate-50"
-                />
-                <button type="button" onClick={() => setShowPw(!showPw)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
-                  {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
-                </button>
-              </div>
-              <div className="text-right mt-1.5">
-                <button type="button" className="text-blue-600 text-xs font-medium hover:underline">
-                  Lupa kata sandi?
-                </button>
-              </div>
+            <div className="mt-5 anim-fade-up" style={{ animationDelay: '0.45s' }}>
+              <p className="text-blue-300/80 text-[10px] tracking-[0.32em] uppercase mb-3 font-semibold">
+                Sistem Manajemen Terintegrasi
+              </p>
+              <h1 className="text-white font-extrabold text-[38px] leading-[1.15] tracking-tight">
+                Kelola Bisnis<br />Udang Lebih<br />Mudah &amp; Efisien
+              </h1>
+              <p className="text-blue-200/60 text-[13px] mt-4 leading-relaxed max-w-[280px]">
+                Pantau stok, pengiriman, penjualan, dan absensi karyawan dalam satu platform terpadu.
+              </p>
             </div>
 
-            {error && (
-              <p className="text-red-500 text-sm bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">{error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading || !email || !password}
-              className="w-full py-3 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 mt-1"
-              style={{
-                background: email && password && !loading ? 'linear-gradient(135deg, #1a56db, #3b82f6)' : '#e2e8f0',
-                color: email && password && !loading ? 'white' : '#94a3b8',
-              }}
+            {/* Feature pills */}
+            <div
+              className="flex flex-wrap gap-2 mt-7 anim-fade-up"
+              style={{ animationDelay: '0.6s' }}
             >
-              {loading && <Loader2 size={16} className="animate-spin" />}
-              Masuk
-            </button>
-          </form>
-
-          {/* Demo accounts */}
-          <div className="pt-2 border-t border-slate-100">
-            <p className="text-slate-400 text-xs text-center mb-3">Demo akun — password: <span className="font-mono font-semibold text-slate-600">demo1234</span></p>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: 'Jordy (Owner)', email: 'jordy@nelayan.id' },
-                { label: 'April (Admin)', email: 'april@nelayan.id' },
-                { label: 'Bimbim (Staff)', email: 'bimbim@nelayan.id' },
-                { label: 'Wowo (Staff)', email: 'wowo@nelayan.id' },
-              ].map(u => (
-                <button key={u.email} onClick={() => { setEmail(u.email); setPassword('demo1234') }}
-                  className="text-left px-3 py-2 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition text-xs text-slate-600">
-                  {u.label}
-                </button>
+              {['Manajemen Order', 'Stok Real-time', 'Absensi', 'Laporan'].map(f => (
+                <span key={f}
+                  className="text-[10px] text-blue-200/70 px-3 py-1 rounded-full"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  {f}
+                </span>
               ))}
             </div>
           </div>
+
+          {/* Bottom — waves + shrimp */}
+          <div className="relative h-28 -mx-10 -mb-9 mt-4">
+            <svg viewBox="0 0 800 120" preserveAspectRatio="none"
+              className="absolute inset-0 w-full h-full wave-1"
+              style={{ opacity: 0.25 }}>
+              <path fill="#1a7bc4"
+                d="M0,70 C100,30 200,90 300,60 C400,30 500,80 600,55 C700,30 750,75 800,60 L800,120 L0,120 Z"/>
+            </svg>
+            <svg viewBox="0 0 800 120" preserveAspectRatio="none"
+              className="absolute inset-0 w-full h-full wave-2"
+              style={{ opacity: 0.18 }}>
+              <path fill="#0e9fd4"
+                d="M0,85 C150,55 250,100 400,75 C550,50 650,95 800,70 L800,120 L0,120 Z"/>
+            </svg>
+            {/* Shrimp */}
+            <div
+              className="absolute bottom-5 left-10 text-[32px] shrimp-float"
+              style={{ filter: 'drop-shadow(0 3px 10px rgba(0,0,0,0.5))', animationDelay: '0.5s' }}>
+              🦐
+            </div>
+            <div
+              className="absolute bottom-8 left-24 text-[18px] shrimp-float opacity-50"
+              style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))', animationDelay: '1.2s' }}>
+              🐟
+            </div>
+            <div
+              className="absolute bottom-4 left-36 text-[14px] shrimp-float opacity-35"
+              style={{ animationDelay: '0.8s' }}>
+              🦑
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════ RIGHT PANEL ══════════════════════ */}
+      <div className="flex-1 flex flex-col bg-white">
+
+        {/* Mobile brand bar */}
+        <div
+          className="lg:hidden px-6 py-4 text-white"
+          style={{ background: 'linear-gradient(90deg, #040e2b, #0e4d8c)' }}>
+          <p className="font-black tracking-[0.2em] text-[11px] uppercase">UD. Nelayan Widya Jaya</p>
         </div>
 
-        <p className="text-center text-slate-300 text-xs">2025 UD. Nelayan Widya Jaya</p>
+        {/* Form area */}
+        <div className="flex-1 flex flex-col justify-center px-8 py-10 sm:px-14 lg:px-16">
+          <div className="max-w-[360px] w-full mx-auto">
+
+            {/* Icon */}
+            <div className="flex justify-center mb-6 anim-fade-up" style={{ animationDelay: '0.2s' }}>
+              <div
+                className="w-[62px] h-[62px] rounded-[18px] flex items-center justify-center shadow-lg"
+                style={{ background: 'linear-gradient(135deg, #1a4dbf 0%, #2563eb 50%, #3b82f6 100%)' }}>
+                <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                  <circle cx="15" cy="11" r="5" fill="white" opacity="0.95"/>
+                  <path d="M6 26 Q15 16 24 26" stroke="white" strokeWidth="2.8" strokeLinecap="round" fill="none"/>
+                </svg>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="text-center mb-7 anim-fade-up" style={{ animationDelay: '0.3s' }}>
+              <h2 className="text-[22px] font-bold text-slate-800 tracking-tight">Masuk ke Dashboard</h2>
+              <p className="text-slate-400 text-sm mt-1">UD. Nelayan Widya Jaya</p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4 anim-fade-up" style={{ animationDelay: '0.4s' }}>
+              {/* Email */}
+              <div>
+                <label className="block text-slate-700 text-[13px] font-semibold mb-1.5">Email</label>
+                <input
+                  type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="contoh@nelayan.id" required
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder-slate-300 bg-slate-50 transition-all outline-none"
+                  style={{ boxShadow: 'none' }}
+                  onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={e  => e.target.style.borderColor = '#e2e8f0'}
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-slate-700 text-[13px] font-semibold mb-1.5">Kata Sandi</label>
+                <div className="relative">
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={password} onChange={e => setPassword(e.target.value)}
+                    placeholder="Masukkan kata sandi" required
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm text-slate-800 placeholder-slate-300 bg-slate-50 transition-all outline-none"
+                    onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                    onBlur={e  => e.target.style.borderColor = '#e2e8f0'}
+                  />
+                  <button type="button" onClick={() => setShowPw(!showPw)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div className="text-right mt-1.5">
+                  <button type="button" className="text-blue-500 text-xs font-medium hover:text-blue-700 transition-colors">
+                    Lupa kata sandi?
+                  </button>
+                </div>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2.5 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <p className="text-red-500 text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Submit */}
+              <button
+                type="submit" disabled={!canSubmit}
+                className="w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all mt-1"
+                style={{
+                  background: canSubmit
+                    ? 'linear-gradient(135deg, #1a4dbf 0%, #2563eb 60%, #3b82f6 100%)'
+                    : '#e2e8f0',
+                  color: canSubmit ? 'white' : '#94a3b8',
+                  boxShadow: canSubmit ? '0 4px 14px rgba(37,99,235,0.35)' : 'none',
+                  transform: canSubmit ? 'translateY(0)' : undefined,
+                }}
+                onMouseEnter={e => { if (canSubmit) e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}
+              >
+                {loading && <Loader2 size={16} className="animate-spin" />}
+                {loading ? 'Memproses...' : 'Masuk'}
+              </button>
+            </form>
+
+            {/* Demo accounts */}
+            <div className="mt-6 pt-5 border-t border-slate-100 anim-fade-up" style={{ animationDelay: '0.55s' }}>
+              <p className="text-slate-400 text-xs text-center mb-3">
+                Demo akun — password: <span className="font-mono font-bold text-slate-600">demo1234</span>
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {DEMO_USERS.map(u => (
+                  <button key={u.email}
+                    onClick={() => { setEmail(u.email); setPassword('demo1234') }}
+                    className="text-left px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-600 transition-all"
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = '#bfdbfe'
+                      e.currentTarget.style.background  = '#eff6ff'
+                      e.currentTarget.style.color = '#1d4ed8'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = '#e2e8f0'
+                      e.currentTarget.style.background  = 'white'
+                      e.currentTarget.style.color = '#475569'
+                    }}
+                  >
+                    {u.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-slate-300 text-[11px] pb-5">
+          © 2025 UD. Nelayan Widya Jaya
+        </p>
       </div>
     </div>
   )
