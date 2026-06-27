@@ -1,63 +1,45 @@
-import { useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
-import { Bell, Search } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
-const PAGE_TITLES = {
-  '/dashboard': 'Dashboard',
-  '/dashboard/orders': 'Order Penjualan',
-  '/dashboard/stock': 'Manajemen Stok',
-  '/dashboard/reports': 'Laporan',
-  '/dashboard/attendance': 'Absensi Selfie',
-  '/dashboard/clients': 'Database Klien',
-  '/dashboard/settings': 'Pengaturan',
-}
-
 export default function DashboardLayout() {
-  const [collapsed, setCollapsed] = useState(false)
-  const location = useLocation()
-  const { profile, demoMode } = useAuth()
-  const title = PAGE_TITLES[location.pathname] || 'Dashboard'
+  const { profile, signOut } = useAuth()
+  const initials = (profile?.name || 'U').slice(0, 2).toUpperCase()
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+    <div className="flex h-screen overflow-hidden" style={{ background: '#e8effa' }}>
+      <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-4 shadow-sm">
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">{title}</h1>
-            <p className="text-xs text-slate-500">UD. Nelayan Widya Jaya</p>
+        <header className="flex items-center justify-end gap-3 px-8 py-4"
+          style={{ background: 'linear-gradient(90deg, #0d1b4b 0%, #1a2d6b 100%)' }}>
+          {/* Icon buttons */}
+          {[0,1,2].map(i => (
+            <div key={i} className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center">
+              {i === 1 && <div className="w-2 h-2 rounded-full bg-blue-300" />}
+            </div>
+          ))}
+
+          {/* Avatar + name */}
+          <div className="flex items-center gap-2 bg-white/10 border border-white/15 rounded-xl px-3 py-2 ml-1">
+            <div className="w-7 h-7 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {initials}
+            </div>
+            <span className="text-white text-sm font-medium">{profile?.name}</span>
           </div>
 
-          {demoMode && (
-            <span className="ml-2 bg-amber-100 text-amber-700 text-xs px-2.5 py-1 rounded-full font-medium border border-amber-200">
-              Demo Mode
-            </span>
-          )}
-
-          <div className="ml-auto flex items-center gap-3">
-            <div className="relative hidden sm:block">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                placeholder="Cari..."
-                className="bg-slate-100 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-400 w-48"
-              />
-            </div>
-            <button className="relative p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition">
-              <Bell size={20} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-            <div className="w-9 h-9 rounded-full bg-cyan-500 flex items-center justify-center text-white font-bold text-sm">
-              {profile?.name?.[0] || '?'}
-            </div>
-          </div>
+          {/* Logout */}
+          <button onClick={signOut}
+            className="w-9 h-9 rounded-xl bg-purple-700/60 border border-purple-500/30 flex items-center justify-center hover:bg-purple-600/60 transition">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"/>
+            </svg>
+          </button>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto ocean-scrollbar p-6">
+        <main className="flex-1 overflow-y-auto ocean-scrollbar p-8">
           <Outlet />
         </main>
       </div>
