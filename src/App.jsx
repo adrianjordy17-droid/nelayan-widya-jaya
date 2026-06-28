@@ -9,6 +9,7 @@ import Reports from './pages/Reports'
 import Attendance from './pages/Attendance'
 import Clients from './pages/Clients'
 import Settings from './pages/Settings'
+import Deliveries from './pages/Deliveries'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -55,6 +56,7 @@ function AppRoutes() {
       >
         <Route index element={<DashboardHome />} />
         <Route path="orders" element={<FeatureRoute feature="orders"><Orders /></FeatureRoute>} />
+        <Route path="deliveries" element={<FeatureRoute feature="deliveries"><Deliveries /></FeatureRoute>} />
         <Route path="stock" element={<FeatureRoute feature="stock"><Stock /></FeatureRoute>} />
         <Route path="reports" element={<FeatureRoute feature="reports"><Reports /></FeatureRoute>} />
         <Route path="attendance" element={<FeatureRoute feature="attendance"><Attendance /></FeatureRoute>} />
