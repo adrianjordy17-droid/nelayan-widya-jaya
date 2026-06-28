@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   User, Building2, Bell, Users, Trash2, Plus, Check, X, Edit2,
   MessageSquare, Send, Eye, EyeOff, ChevronRight,
-  Phone, MapPin, Mail, Hash, FileText, Clock, Shield,
+  Phone, MapPin, Mail, Hash, FileText, Clock, Shield, Lock,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocalStorage } from '../hooks/useLocalStorage'
@@ -265,6 +265,8 @@ export default function Settings() {
   const [userForm, setUserForm]       = useState({ name: '', email: '', role: 'staff' })
   const [editUserId, setEditUserId]   = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [showNewPw, setShowNewPw]     = useState(false)
 
   function saveCompany() { setCompanySaved(true); setTimeout(() => setCompanySaved(false), 2500) }
   function saveAccount()  { setAccountSaved(true); setTimeout(() => setAccountSaved(false), 2500) }
@@ -338,20 +340,63 @@ export default function Settings() {
 
       {/* ── Profil Akun ── */}
       <Group label="Profil Akun">
-        <InputRow icon={User} iconBg="#007aff" label="Nama" value={account.name}
-          onChange={e => setAccount(a => ({ ...a, name: e.target.value }))}
-          placeholder="Nama lengkap" />
-        <InputRow icon={Mail} iconBg="#34aadc" label="Email" type="email" value={account.email}
-          onChange={e => setAccount(a => ({ ...a, email: e.target.value }))}
-          placeholder="email@domain.com" />
-        <InputRow icon={Shield} iconBg="#8e8e93" label="Jabatan"
-          value={ROLE_CFG[profile?.role]?.label || profile?.role || ''}
-          disabled last />
-        <SaveRow onSave={saveAccount} saved={accountSaved} />
+        {isRole('owner') ? (
+          <>
+            <InputRow icon={User} iconBg="#007aff" label="Nama" value={account.name}
+              onChange={e => setAccount(a => ({ ...a, name: e.target.value }))}
+              placeholder="Nama lengkap" />
+            <InputRow icon={Mail} iconBg="#34aadc" label="Email" type="email" value={account.email}
+              onChange={e => setAccount(a => ({ ...a, email: e.target.value }))}
+              placeholder="email@domain.com" />
+            <InputRow icon={Shield} iconBg="#8e8e93" label="Jabatan"
+              value={ROLE_CFG[profile?.role]?.label || profile?.role || ''}
+              disabled last />
+            <SaveRow onSave={saveAccount} saved={accountSaved} />
+          </>
+        ) : (
+          <>
+            <InputRow icon={Shield} iconBg="#8e8e93" label="Jabatan"
+              value={ROLE_CFG[profile?.role]?.label || profile?.role || ''}
+              disabled />
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 13,
+              padding: '11px 16px', background: 'white',
+            }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#ff9500',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Lock size={15} color="white" strokeWidth={1.9} />
+              </div>
+              <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flexShrink: 0, minWidth: 110, fontWeight: 400 }}>
+                Kata Sandi Baru
+              </p>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                <input
+                  type={showNewPw ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="Masukkan kata sandi baru"
+                  style={{
+                    border: 'none', outline: 'none', textAlign: 'right', fontSize: 15,
+                    color: '#3c3c43', background: 'transparent', padding: 0,
+                    fontFamily: 'inherit', width: '100%', maxWidth: 220,
+                  }}
+                />
+                <button type="button" onClick={() => setShowNewPw(v => !v)} style={{
+                  background: 'none', border: 'none', cursor: 'pointer', color: '#c7c7cc', padding: 0, display: 'flex',
+                }}>
+                  {showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+            <SaveRow onSave={saveAccount} saved={accountSaved} />
+          </>
+        )}
       </Group>
 
       {/* ── Profil Perusahaan ── */}
-      {(isRole('owner') || isRole('admin')) && (
+      {isRole('owner') && (
         <Group label="Profil Perusahaan">
           <InputRow icon={Building2} iconBg="#5856d6" label="Nama" value={company.name}
             onChange={e => setCompany(c => ({ ...c, name: e.target.value }))}
@@ -376,21 +421,23 @@ export default function Settings() {
       )}
 
       {/* ── Notifikasi ── */}
-      <Group label="Notifikasi">
-        <ToggleRow icon={Bell} iconBg="#ff9500" label="Stok Rendah"
-          desc="Peringatan saat stok di bawah minimum"
-          on={notifs.lowStock} onChange={() => setNotifs(p => ({ ...p, lowStock: !p.lowStock }))} />
-        <ToggleRow icon={Bell} iconBg="#007aff" label="Order Masuk Baru"
-          desc="Notifikasi real-time saat ada pesanan baru"
-          on={notifs.newOrder} onChange={() => setNotifs(p => ({ ...p, newOrder: !p.newOrder }))} />
-        <ToggleRow icon={Bell} iconBg="#5856d6" label="Laporan Harian"
-          desc="Ringkasan operasional setiap pukul 18.00"
-          on={notifs.dailyReport} onChange={() => setNotifs(p => ({ ...p, dailyReport: !p.dailyReport }))}
-          last />
-      </Group>
+      {isRole('owner') && (
+        <Group label="Notifikasi">
+          <ToggleRow icon={Bell} iconBg="#ff9500" label="Stok Rendah"
+            desc="Peringatan saat stok di bawah minimum"
+            on={notifs.lowStock} onChange={() => setNotifs(p => ({ ...p, lowStock: !p.lowStock }))} />
+          <ToggleRow icon={Bell} iconBg="#007aff" label="Order Masuk Baru"
+            desc="Notifikasi real-time saat ada pesanan baru"
+            on={notifs.newOrder} onChange={() => setNotifs(p => ({ ...p, newOrder: !p.newOrder }))} />
+          <ToggleRow icon={Bell} iconBg="#5856d6" label="Laporan Harian"
+            desc="Ringkasan operasional setiap pukul 18.00"
+            on={notifs.dailyReport} onChange={() => setNotifs(p => ({ ...p, dailyReport: !p.dailyReport }))}
+            last />
+        </Group>
+      )}
 
       {/* ── WhatsApp ── */}
-      <Group
+      {isRole('owner') && <Group
         label="WhatsApp — Laporan Otomatis"
         footer="Daftar di fonnte.com → sambungkan nomor WA → salin token ke form ini. Browser harus aktif agar laporan otomatis terkirim."
       >
@@ -455,10 +502,10 @@ export default function Settings() {
             </p>
           </div>
         )}
-      </Group>
+      </Group>}
 
       {/* ── Manajemen Pengguna ── */}
-      {(isRole('owner') || isRole('admin')) && (
+      {isRole('owner') && (
         <Group label="Pengguna">
           {users.map((u, idx) => {
             const rc = ROLE_CFG[u.role] || ROLE_CFG.staff
