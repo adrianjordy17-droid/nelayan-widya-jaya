@@ -531,64 +531,97 @@ export default function Documents() {
     }))
   }
 
+  async function pushDocToDB(doc, isNew) {
+    const payload = {
+      type: doc.type, date: doc.date, status: doc.status,
+      client_name: doc.clientName, client_address: doc.clientAddress || null, client_phone: doc.clientPhone || null,
+      ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
+      items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
+      due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
+      bank_name: doc.bankName || null, account_number: doc.accountNumber || null, account_name: doc.accountName || null,
+      notes: doc.notes || null,
+    }
+    if (isNew) {
+      const { error } = await supabase.from('documents').insert({ id: doc.id, number: doc.number, created_by: user?.id, created_by_name: doc.createdByName, ...payload })
+      if (error) throw new Error(error.message)
+    } else {
+      const { error } = await supabase.from('documents').update(payload).eq('id', doc.id)
+      if (error) throw new Error(error.message)
+    }
+  }
+
+  function buildDoc(overrides) {
+    return {
+      type: form.type, date: form.date, status: form.status,
+      clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(),
+      clientPoNumber: form.clientPoNumber.trim(),
+      refNumber: form.refNumber.trim(), driverName: form.driverName.trim(), vehicle: form.vehicle.trim(),
+      items: form.items.filter(it => it.name.trim()),
+      subtotal: form.subtotal || null, taxPct: form.taxPct || null, discount: form.discount || null, total: form.total || null,
+      dueDate: form.dueDate || null, paymentTerms: form.paymentTerms.trim(),
+      bankName: form.bankName.trim(), accountNumber: form.accountNumber.trim(), accountName: form.accountName.trim(),
+      notes: form.notes.trim(),
+      ...overrides,
+    }
+  }
+
+  async function autoCreateDO(soDoc) {
+    const doId = newId()
+    const doNumber = await getNextNumber('DO')
+    const doDoc = {
+      id: doId, number: doNumber,
+      type: 'DO', date: soDoc.date, status: 'dispatched',
+      clientName: soDoc.clientName, clientAddress: soDoc.clientAddress || '',
+      clientPhone: soDoc.clientPhone || '', clientPoNumber: soDoc.clientPoNumber || '',
+      refNumber: soDoc.number, driverName: '', vehicle: '',
+      items: soDoc.items.map(it => ({ ...it, price: null, total: null })),
+      subtotal: null, taxPct: null, discount: null, total: null,
+      dueDate: null, paymentTerms: '',
+      bankName: '', accountNumber: '', accountName: '',
+      notes: soDoc.notes || '', createdByName: soDoc.createdByName || '',
+      createdAt: new Date().toISOString(),
+    }
+    setDocs(prev => [doDoc, ...prev])
+    if (!demoMode) {
+      const { error } = await supabase.from('documents').insert({
+        id: doId, number: doNumber, type: 'DO', date: doDoc.date, status: 'dispatched',
+        client_name: doDoc.clientName, client_address: doDoc.clientAddress || null,
+        client_phone: doDoc.clientPhone || null,
+        ref_number: soDoc.number, driver_name: null, vehicle: null,
+        items: doDoc.items, subtotal: null, tax_pct: null, discount: null, total: null,
+        due_date: null, payment_terms: null, bank_name: null, account_number: null, account_name: null,
+        notes: doDoc.notes || null, created_by: user?.id, created_by_name: doDoc.createdByName,
+      })
+      if (error) console.error('Auto-DO creation failed:', error)
+    }
+  }
+
   async function save() {
     if (!form.clientName.trim()) return
     setSaving(true)
     try {
       if (form.editId) {
         const orig = docs.find(d => d.id === form.editId) || {}
-        const doc = {
-          id: form.editId, number: orig.number || '',
-          type: form.type, date: form.date, status: form.status,
-          clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(), clientPoNumber: form.clientPoNumber.trim(),
-          refNumber: form.refNumber.trim(), driverName: form.driverName.trim(), vehicle: form.vehicle.trim(),
-          items: form.items.filter(it => it.name.trim()),
-          subtotal: form.subtotal || null, taxPct: form.taxPct || null, discount: form.discount || null, total: form.total || null,
-          dueDate: form.dueDate || null, paymentTerms: form.paymentTerms.trim(),
-          bankName: form.bankName.trim(), accountNumber: form.accountNumber.trim(), accountName: form.accountName.trim(),
-          notes: form.notes.trim(), createdByName: orig.createdByName || profile?.name || '', createdAt: orig.createdAt || new Date().toISOString(),
-        }
+        const doc = buildDoc({ id: form.editId, number: orig.number || '', createdByName: orig.createdByName || profile?.name || '', createdAt: orig.createdAt || new Date().toISOString() })
         setDocs(prev => prev.map(d => d.id === form.editId ? doc : d))
-        if (!demoMode) {
-          await supabase.from('documents').update({
-            type: doc.type, date: doc.date, status: doc.status,
-            client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone, client_po_number: doc.clientPoNumber || null,
-            ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
-            items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
-            due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
-            bank_name: doc.bankName || null, account_number: doc.accountNumber || null, account_name: doc.accountName || null,
-            notes: doc.notes || null,
-          }).eq('id', form.editId)
+        if (!demoMode) await pushDocToDB(doc, false)
+        if (doc.type === 'SO' && doc.status === 'confirmed' && orig.status !== 'confirmed') {
+          await autoCreateDO(doc)
         }
       } else {
         const id = newId()
         const number = await getNextNumber(form.type)
-        const doc = {
-          id, number,
-          type: form.type, date: form.date, status: form.status,
-          clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(), clientPoNumber: form.clientPoNumber.trim(),
-          refNumber: form.refNumber.trim(), driverName: form.driverName.trim(), vehicle: form.vehicle.trim(),
-          items: form.items.filter(it => it.name.trim()),
-          subtotal: form.subtotal || null, taxPct: form.taxPct || null, discount: form.discount || null, total: form.total || null,
-          dueDate: form.dueDate || null, paymentTerms: form.paymentTerms.trim(),
-          bankName: form.bankName.trim(), accountNumber: form.accountNumber.trim(), accountName: form.accountName.trim(),
-          notes: form.notes.trim(), createdByName: profile?.name || '', createdAt: new Date().toISOString(),
-        }
+        const doc = buildDoc({ id, number, createdByName: profile?.name || '', createdAt: new Date().toISOString() })
         setDocs(prev => [doc, ...prev])
-        if (!demoMode) {
-          await supabase.from('documents').insert({
-            id, type: doc.type, number: doc.number, date: doc.date, status: doc.status,
-            client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone, client_po_number: doc.clientPoNumber || null,
-            ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
-            items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
-            due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
-            bank_name: doc.bankName || null, account_number: doc.accountNumber || null, account_name: doc.accountName || null,
-            notes: doc.notes || null, created_by: user?.id, created_by_name: doc.createdByName,
-          })
+        if (!demoMode) await pushDocToDB(doc, true)
+        if (doc.type === 'SO' && doc.status === 'confirmed') {
+          await autoCreateDO(doc)
         }
       }
       setSaved(true)
       setTimeout(() => { setSaved(false); setForm(null) }, 900)
+    } catch (err) {
+      alert('Gagal menyimpan: ' + err.message)
     } finally { setSaving(false) }
   }
 
@@ -770,9 +803,9 @@ export default function Documents() {
                     <input value={form.clientName} onChange={e => setF({ clientName: e.target.value })} placeholder="Nama restoran / klien" style={inputR} />
                   )}
                 </FieldRow>
-                {(clients.length === 0 || form.clientName === '__manual__') && (
+                {clients.length > 0 && form.clientName === '__manual__' && (
                   <FieldRow label="Nama Klien">
-                    <input value={form.clientName === '__manual__' ? '' : form.clientName} onChange={e => setF({ clientName: e.target.value })} placeholder="Ketik nama klien" style={inputR} />
+                    <input value="" onChange={e => setF({ clientName: e.target.value })} placeholder="Ketik nama klien" style={inputR} />
                   </FieldRow>
                 )}
                 <FieldRow label="No PO Klien">
