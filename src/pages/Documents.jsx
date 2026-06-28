@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Plus, Printer, X, Check, Trash2, FileText,
   ClipboardList, Truck, PackageCheck, Receipt, ChevronDown,
@@ -388,12 +389,14 @@ function Card({ children }) {
 
 // ── Main ──
 export default function Documents() {
+  const location = useLocation()
   const { user, profile, demoMode, isRole } = useAuth()
   const canEdit = isRole('admin') || isRole('owner')
+  const isStaff = isRole('staff')
 
   const [docs, setDocs]   = useState([])
   const [clients, setClients] = useState([])
-  const [tab, setTab]     = useState('all')
+  const [tab, setTab]     = useState(isStaff ? 'DO' : 'all')
   const [menu, setMenu]   = useState(false)
   const [form, setForm]   = useState(null)
   const [saving, setSaving] = useState(false)
@@ -407,6 +410,14 @@ export default function Documents() {
     supabase.from('documents').select('*').order('created_at', { ascending: false })
       .then(({ data }) => data && setDocs(data.map(dbToDoc)))
   }, [demoMode])
+
+  // Auto-open creation if navigated from Orders page
+  useEffect(() => {
+    if (location.state?.createType) {
+      openCreate(location.state.createType)
+      window.history.replaceState({}, document.title)
+    }
+  }, [])
 
   useEffect(() => {
     if (demoMode) return
@@ -512,7 +523,8 @@ export default function Documents() {
     } finally { setSaving(false) }
   }
 
-  const filtered = tab === 'all' ? docs : docs.filter(d => d.type === tab)
+  const visibleDocs = isStaff ? docs.filter(d => d.type === 'DO') : docs
+  const filtered = tab === 'all' ? visibleDocs : visibleDocs.filter(d => d.type === tab)
   const soList = docs.filter(d => d.type === 'SO')
   const doList = docs.filter(d => d.type === 'DO')
 
@@ -522,7 +534,9 @@ export default function Documents() {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>Dokumen</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>
+          {isStaff ? 'Tugas Pengiriman' : 'Dokumen'}
+        </h2>
         {canEdit && (
           <div style={{ position: 'relative' }}>
             <button onClick={() => setMenu(v => !v)} style={{
@@ -559,18 +573,20 @@ export default function Documents() {
         )}
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {[['all', 'Semua'], ...Object.entries(DOC_CFG).map(([k, v]) => [k, v.label])].map(([val, label]) => (
-          <button key={val} onClick={() => setTab(val)} style={{
-            padding: '6px 14px', borderRadius: 99, border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: tab === val ? 600 : 400, ...FF,
-            background: tab === val ? '#1c1c1e' : 'white',
-            color: tab === val ? 'white' : '#3c3c43',
-            boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)',
-          }}>{label}</button>
-        ))}
-      </div>
+      {/* Tabs — hidden for staff (they only see DO) */}
+      {!isStaff && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[['all', 'Semua'], ...Object.entries(DOC_CFG).map(([k, v]) => [k, v.label])].map(([val, label]) => (
+            <button key={val} onClick={() => setTab(val)} style={{
+              padding: '6px 14px', borderRadius: 99, border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: tab === val ? 600 : 400, ...FF,
+              background: tab === val ? '#1c1c1e' : 'white',
+              color: tab === val ? 'white' : '#3c3c43',
+              boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)',
+            }}>{label}</button>
+          ))}
+        </div>
+      )}
 
       {/* List */}
       {filtered.length === 0 ? (
@@ -812,12 +828,14 @@ export default function Documents() {
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button onClick={() => printDocument(detail)} style={{
-                  display: 'flex', alignItems: 'center', gap: 6, background: '#1c1c1e', color: 'white',
-                  border: 'none', borderRadius: 9, padding: '8px 14px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', ...FF,
-                }}>
-                  <Printer size={14} /> Cetak
-                </button>
+                {canEdit && (
+                  <button onClick={() => printDocument(detail)} style={{
+                    display: 'flex', alignItems: 'center', gap: 6, background: '#1c1c1e', color: 'white',
+                    border: 'none', borderRadius: 9, padding: '8px 14px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', ...FF,
+                  }}>
+                    <Printer size={14} /> Cetak
+                  </button>
+                )}
                 <button onClick={() => setDetail(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
                   <X size={22} />
                 </button>
@@ -868,15 +886,15 @@ export default function Documents() {
                         )}
                       </div>
                       <p style={{ fontSize: 13.5, color: '#3c3c43', margin: 0, flexShrink: 0 }}>{it.qty} {it.unit}</p>
-                      {it.price != null && <p style={{ fontSize: 13.5, color: '#8e8e93', margin: 0, flexShrink: 0 }}>× {fmtRp(it.price)}</p>}
-                      {it.total != null && <p style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e', margin: 0, flexShrink: 0, minWidth: 80, textAlign: 'right' }}>{fmtRp(it.total)}</p>}
+                      {!isStaff && it.price != null && <p style={{ fontSize: 13.5, color: '#8e8e93', margin: 0, flexShrink: 0 }}>× {fmtRp(it.price)}</p>}
+                      {!isStaff && it.total != null && <p style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e', margin: 0, flexShrink: 0, minWidth: 80, textAlign: 'right' }}>{fmtRp(it.total)}</p>}
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Totals */}
-              {detail.total != null && (
+              {/* Totals — hidden from staff */}
+              {!isStaff && detail.total != null && (
                 <div>
                   <SLabel text="Total" />
                   <Card>
@@ -888,8 +906,8 @@ export default function Documents() {
                 </div>
               )}
 
-              {/* Bank (Invoice) */}
-              {detail.bankName && (
+              {/* Bank (Invoice) — hidden from staff */}
+              {!isStaff && detail.bankName && (
                 <div>
                   <SLabel text="Info Pembayaran" />
                   <Card>
