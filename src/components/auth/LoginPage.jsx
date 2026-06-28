@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Eye, EyeOff, CheckCircle2, ArrowRight, Waves, Fish } from 'lucide-react'
 
@@ -18,18 +19,28 @@ const FEATURES = [
 
 export default function LoginPage() {
   const { signIn, loading } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw]     = useState(false)
   const [error, setError]       = useState('')
+  const [busy, setBusy]         = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    setBusy(true)
     try {
-      await signIn(email, password)
+      const result = await signIn(email, password)
+      if (result?.error) {
+        setError(result.error.message || 'Email atau password salah')
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
     } catch (err) {
       setError(err.message || 'Email atau password salah')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -315,25 +326,25 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={busy}
               style={{
                 width: '100%', padding: '11px',
-                background: loading
+                background: busy
                   ? '#93C5FD'
                   : 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
                 border: 'none', borderRadius: 10,
                 color: 'white', fontWeight: 600, fontSize: 14,
-                cursor: loading ? 'not-allowed' : 'pointer',
+                cursor: busy ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center',
                 justifyContent: 'center', gap: 8,
-                boxShadow: loading ? 'none' : '0 4px 16px rgba(37,99,235,0.35)',
+                boxShadow: busy ? 'none' : '0 4px 16px rgba(37,99,235,0.35)',
                 transition: 'opacity 0.2s',
                 letterSpacing: '0.01em',
               }}
-              onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = '0.92' }}
+              onMouseEnter={e => { if (!busy) e.currentTarget.style.opacity = '0.92' }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
             >
-              {loading ? 'Memuat...' : <><span>Masuk</span><ArrowRight size={15} strokeWidth={2.5} /></>}
+              {busy ? 'Memuat...' : <><span>Masuk</span><ArrowRight size={15} strokeWidth={2.5} /></>}
             </button>
           </form>
 
