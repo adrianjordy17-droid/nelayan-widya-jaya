@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   User, Building2, Bell, Users, Trash2, Plus, Check, X, Edit2,
   MessageSquare, Send, Eye, EyeOff, ChevronRight,
@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { generateDailyReport, sendToWhatsApp } from '../lib/whatsapp'
+import { supabase } from '../lib/supabase'
 
 const INIT_WA_CONFIG = { token: '', target: '', sendTime: '18:00', enabled: false }
 const INIT_COMPANY = {
@@ -250,12 +251,16 @@ function Modal({ title, onClose, children, onSave }) {
 }
 
 export default function Settings() {
-  const { profile, isRole } = useAuth()
+  const { user, profile, demoMode, isRole, signOut } = useAuth()
   const [company, setCompany]   = useLocalStorage('nwj_company', INIT_COMPANY)
   const [users, setUsers]       = useLocalStorage('nwj_users', INIT_USERS)
   const [notifs, setNotifs]     = useLocalStorage('nwj_notifs', { lowStock: true, newOrder: true, dailyReport: false })
-  const [account, setAccount]   = useLocalStorage('nwj_account', { name: profile?.name || '', email: profile?.email || '' })
+  const [account, setAccount]   = useState({ name: profile?.name || '', email: profile?.email || '' })
   const [waConfig, setWaConfig] = useLocalStorage('nwj_wa_config', INIT_WA_CONFIG)
+
+  useEffect(() => {
+    if (profile) setAccount({ name: profile.name || '', email: profile.email || '' })
+  }, [profile])
 
   const [waStatus, setWaStatus]       = useState({ loading: false, msg: '', ok: null })
   const [showToken, setShowToken]     = useState(false)
@@ -269,7 +274,13 @@ export default function Settings() {
   const [showNewPw, setShowNewPw]     = useState(false)
 
   function saveCompany() { setCompanySaved(true); setTimeout(() => setCompanySaved(false), 2500) }
-  function saveAccount()  { setAccountSaved(true); setTimeout(() => setAccountSaved(false), 2500) }
+  async function saveAccount() {
+    if (!demoMode && user) {
+      await supabase.from('profiles').update({ name: account.name, email: account.email }).eq('id', user.id)
+    }
+    setAccountSaved(true)
+    setTimeout(() => setAccountSaved(false), 2500)
+  }
 
   function openAddUser()    { setUserForm({ name: '', email: '', role: 'staff' }); setEditUserId(null); setUserModal(true) }
   function openEditUser(u)  { setUserForm({ name: u.name, email: u.email, role: u.role }); setEditUserId(u.id); setUserModal(true) }
@@ -520,10 +531,7 @@ export default function Settings() {
 
       {/* ── Danger zone ── */}
       <Group>
-        <ActionRow label="Keluar dari Akun" onClick={() => {
-          localStorage.removeItem('demo_user')
-          window.location.href = '/login'
-        }} destructive color="#ff3b30" last />
+        <ActionRow label="Keluar dari Akun" onClick={signOut} destructive color="#ff3b30" last />
       </Group>
 
       {/* ────── MODAL: Add/Edit User ────── */}
