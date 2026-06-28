@@ -3,13 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Eye, EyeOff, CheckCircle2, ArrowRight, Waves, Fish } from 'lucide-react'
 
-const DEMO_USERS = [
-  { name: 'Jordy',  role: 'Owner', email: 'jordy@nelayan.id' },
-  { name: 'April',  role: 'Admin', email: 'april@nelayan.id' },
-  { name: 'Bimbim', role: 'Staff', email: 'bimbim@nelayan.id' },
-  { name: 'Wowo',   role: 'Staff', email: 'wowo@nelayan.id' },
-]
-
 const FEATURES = [
   'Manajemen order & pengiriman udang',
   'Monitoring stok produk real-time',
@@ -42,12 +35,6 @@ export default function LoginPage() {
     } finally {
       setBusy(false)
     }
-  }
-
-  function fillDemo(u) {
-    setEmail(u.email)
-    setPassword('demo1234')
-    setError('')
   }
 
   return (
@@ -334,53 +321,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0 18px',
-          }}>
-            <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
-            <span style={{ color: '#94A3B8', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.08em' }}>
-              AKUN DEMO
-            </span>
-            <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
-          </div>
-
-          {/* Demo grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {DEMO_USERS.map(u => (
-              <button
-                key={u.email}
-                onClick={() => fillDemo(u)}
-                style={{
-                  padding: '9px 12px',
-                  background: '#F8FAFC',
-                  border: '1.5px solid #E8EDF3',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'border-color 0.15s, background 0.15s',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = '#BFDBFE'
-                  e.currentTarget.style.background = '#EFF6FF'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = '#E8EDF3'
-                  e.currentTarget.style.background = '#F8FAFC'
-                }}
-              >
-                <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: '#1E293B' }}>{u.name}</p>
-                <p style={{ margin: '1px 0 0', fontSize: 11, color: '#64748B' }}>{u.role}</p>
-              </button>
-            ))}
-          </div>
-
-          <p style={{
-            textAlign: 'center', fontSize: 11.5, color: '#94A3B8',
-            marginTop: 14, marginBottom: 0,
-          }}>
-            Password demo: <strong style={{ color: '#475569' }}>demo1234</strong>
-          </p>
         </div>
 
         {/* Footer */}
