@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Camera, CheckCircle, Clock, XCircle, Upload, Plus, Edit2, Trash2, X, Check, UserCheck, UserX, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 
@@ -41,8 +41,8 @@ const inputStyle = {
 }
 
 export default function Attendance() {
-  const { profile, hasPermission } = useAuth()
-  const [log, setLog] = useLocalStorage('nwj_attendance', INIT_LOG)
+  const { profile, hasPermission, demoMode } = useAuth()
+  const [log, setLog] = useState([])
   const [selfie, setSelfie] = useState(null)
   const [submitted, setSubmitted] = useState(false)
   const [dateView, setDateView] = useState(TODAY)
@@ -51,6 +51,12 @@ export default function Attendance() {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const fileRef = useRef()
   const canManage = hasPermission('attendance')
+
+  useEffect(() => {
+    if (demoMode) { setLog(INIT_LOG); return }
+    supabase.from('attendance').select('*').order('created_at', { ascending: false })
+      .then(({ data }) => setLog(data || []))
+  }, [demoMode])
 
   const today   = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
   const nowTime = format(new Date(), 'HH:mm')
@@ -61,7 +67,7 @@ export default function Attendance() {
     setSelfie(URL.createObjectURL(file))
   }
 
-  function submitSelfie() {
+  async function submitSelfie() {
     const entry = {
       id: Date.now(),
       name: profile?.name || 'User',
@@ -76,6 +82,9 @@ export default function Attendance() {
     setLog(prev => [entry, ...prev])
     setSubmitted(true)
     setSelfie(null)
+    if (!demoMode) {
+      await supabase.from('attendance').insert({ ...entry, photo: null })
+    }
   }
 
   function openAdd() {
@@ -86,20 +95,23 @@ export default function Attendance() {
   function openEdit(entry) { setModal('edit'); setForm({ ...entry }) }
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
-  function save() {
+  async function save() {
     if (!form.name) return
     const entry = { ...form, status: form.status || timeStatus(form.time) }
     if (modal === 'edit') {
       setLog(prev => prev.map(e => e.id === form.id ? entry : e))
+      if (!demoMode) await supabase.from('attendance').update(entry).eq('id', form.id)
     } else {
       setLog(prev => [entry, ...prev])
+      if (!demoMode) await supabase.from('attendance').insert(entry)
     }
     setModal(null); setForm(null)
   }
 
-  function del(id) {
+  async function del(id) {
     setLog(prev => prev.filter(e => e.id !== id))
     setDeleteConfirm(null)
+    if (!demoMode) await supabase.from('attendance').delete().eq('id', id)
   }
 
   const viewLog     = log.filter(e => e.date === dateView)

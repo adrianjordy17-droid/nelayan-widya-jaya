@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Search, Phone, MapPin, Star, Edit2, Trash2, X, Check, Users, UserCheck, ShoppingCart, TrendingUp } from 'lucide-react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const INIT_CLIENTS = [
@@ -63,14 +63,20 @@ function Field({ label, children }) {
 const BLANK = { name: '', type: 'Restoran', contact: '', phone: '', address: '', totalOrders: 0, totalSpend: 0, rating: 4, active: true }
 
 export default function Clients() {
-  const [clients, setClients] = useLocalStorage('nwj_clients', INIT_CLIENTS)
+  const [clients, setClients] = useState([])
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('semua')
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const { hasPermission } = useAuth()
+  const { hasPermission, demoMode } = useAuth()
   const canEdit = hasPermission('clients')
+
+  useEffect(() => {
+    if (demoMode) { setClients(INIT_CLIENTS); return }
+    supabase.from('clients').select('*').order('name')
+      .then(({ data }) => setClients(data || []))
+  }, [demoMode])
 
   const allTypes = ['semua', ...TYPES.filter(t => clients.some(c => c.type === t))]
   const filtered = clients.filter(c => {
@@ -83,23 +89,28 @@ export default function Clients() {
   function openEdit(c) { setModal('edit'); setForm({ ...c }) }
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
-  function save() {
+  async function save() {
     if (!form.name || !form.contact) return
     if (modal === 'edit') {
       setClients(prev => prev.map(c => c.id === form.id ? form : c))
+      if (!demoMode) await supabase.from('clients').update(form).eq('id', form.id)
     } else {
       setClients(prev => [...prev, form])
+      if (!demoMode) await supabase.from('clients').insert(form)
     }
     setModal(null); setForm(null)
   }
 
-  function del(id) {
+  async function del(id) {
     setClients(prev => prev.filter(c => c.id !== id))
     setDeleteConfirm(null)
+    if (!demoMode) await supabase.from('clients').delete().eq('id', id)
   }
 
-  function toggleActive(id) {
+  async function toggleActive(id) {
+    const client = clients.find(c => c.id === id)
     setClients(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c))
+    if (!demoMode && client) await supabase.from('clients').update({ active: !client.active }).eq('id', id)
   }
 
   // Stat calculations

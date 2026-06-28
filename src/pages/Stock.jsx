@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Search, AlertTriangle, Package, Edit2, Trash2, X, Check, DollarSign, Tag } from 'lucide-react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const INIT_STOCK = [
@@ -66,14 +66,20 @@ function StockBar({ qty, minQty }) {
 const BLANK = { name: '', category: 'Ikan Laut', qty: '', unit: 'kg', minQty: '', price: '', location: '' }
 
 export default function Stock() {
-  const [stock, setStock] = useLocalStorage('nwj_stock', INIT_STOCK)
+  const [stock, setStock] = useState([])
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('semua')
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const { hasPermission } = useAuth()
+  const { hasPermission, demoMode } = useAuth()
   const canEdit = hasPermission('stock')
+
+  useEffect(() => {
+    if (demoMode) { setStock(INIT_STOCK); return }
+    supabase.from('stock').select('*').order('name')
+      .then(({ data }) => setStock(data || []))
+  }, [demoMode])
 
   const cats = ['semua', ...CATEGORIES]
   const lowStock = stock.filter(s => s.qty <= s.minQty)
@@ -86,21 +92,24 @@ export default function Stock() {
   function openEdit(item) { setModal('edit'); setForm({ ...item }) }
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
-  function save() {
+  async function save() {
     if (!form.name || form.qty === '' || !form.price) return
     const item = { ...form, qty: +form.qty, minQty: +form.minQty || 0, price: +form.price }
     if (modal === 'edit') {
       setStock(prev => prev.map(s => s.id === form.id ? item : s))
+      if (!demoMode) await supabase.from('stock').update(item).eq('id', form.id)
     } else {
       setStock(prev => [...prev, item])
+      if (!demoMode) await supabase.from('stock').insert(item)
     }
     setModal(null)
     setForm(null)
   }
 
-  function del(id) {
+  async function del(id) {
     setStock(prev => prev.filter(s => s.id !== id))
     setDeleteConfirm(null)
+    if (!demoMode) await supabase.from('stock').delete().eq('id', id)
   }
 
   const totalNilai = stock.reduce((a, s) => a + s.qty * s.price, 0)

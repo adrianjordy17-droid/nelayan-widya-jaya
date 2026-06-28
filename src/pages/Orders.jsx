@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Search, Eye, Trash2, X, Edit2, Check, ShoppingBag, Clock, CheckCircle2, TrendingUp } from 'lucide-react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const INIT_ORDERS = [
@@ -87,15 +87,21 @@ const inputStyle = {
 }
 
 export default function Orders() {
-  const [orders, setOrders] = useLocalStorage('nwj_orders', INIT_ORDERS)
+  const [orders, setOrders] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('semua')
   const [view, setView] = useState(null)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const { hasPermission } = useAuth()
+  const { hasPermission, demoMode } = useAuth()
   const canEdit = hasPermission('orders')
+
+  useEffect(() => {
+    if (demoMode) { setOrders(INIT_ORDERS); return }
+    supabase.from('orders').select('*').order('date', { ascending: false })
+      .then(({ data }) => setOrders(data || []))
+  }, [demoMode])
 
   const filtered = orders.filter(o => {
     const q = search.toLowerCase()
@@ -124,26 +130,30 @@ export default function Orders() {
   function addItem() { setForm(f => ({ ...f, items: [...f.items, { ...BLANK_ITEM }] })) }
   function removeItem(idx) { setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) })) }
 
-  function saveOrder() {
+  async function saveOrder() {
     if (!form.client || !form.date || form.items.some(i => !i.name || !i.qty || !i.price)) return
     const order = { ...form, items: form.items.map(i => ({ ...i, qty: +i.qty, price: +i.price })) }
     if (editing) {
       setOrders(prev => prev.map(o => o.id === editing ? order : o))
+      if (!demoMode) await supabase.from('orders').update(order).eq('id', editing)
     } else {
       setOrders(prev => [order, ...prev])
+      if (!demoMode) await supabase.from('orders').insert(order)
     }
     setForm(null)
     setEditing(null)
   }
 
-  function deleteOrder(id) {
+  async function deleteOrder(id) {
     setOrders(prev => prev.filter(o => o.id !== id))
     setDeleteConfirm(null)
     setView(null)
+    if (!demoMode) await supabase.from('orders').delete().eq('id', id)
   }
 
-  function changeStatus(id, status) {
+  async function changeStatus(id, status) {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o))
+    if (!demoMode) await supabase.from('orders').update({ status }).eq('id', id)
   }
 
   // Stat calculations
