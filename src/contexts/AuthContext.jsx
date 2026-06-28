@@ -11,8 +11,8 @@ export const ROLES = {
 }
 
 const ROLE_PERMISSIONS = {
-  owner: ['orders', 'stock', 'reports', 'attendance', 'clients', 'settings', 'users', 'deliveries', 'documents'],
-  admin: ['orders', 'stock', 'reports', 'attendance', 'clients', 'settings', 'deliveries', 'documents'],
+  owner: ['orders', 'stock', 'reports', 'attendance', 'clients', 'settings', 'users', 'deliveries', 'documents', 'jobdesk'],
+  admin: ['orders', 'stock', 'reports', 'attendance', 'clients', 'settings', 'deliveries', 'documents', 'jobdesk'],
   staff: ['attendance', 'deliveries', 'documents'],
 }
 
