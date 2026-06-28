@@ -444,7 +444,6 @@ export default function Deliveries() {
                 {saved ? <><Check size={16} /> Tersimpan — isi resto berikutnya</> : <><Truck size={16} /> Simpan & Resto Berikutnya</>}
               </button>
 
-            </div>
             <div style={{ height: 40 }} />
           </div>
         </div>
