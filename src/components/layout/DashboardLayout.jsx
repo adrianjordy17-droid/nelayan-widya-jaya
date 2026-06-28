@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, ChevronRight, Waves,
+  Bell, LogOut, Waves, ChevronRight,
 } from 'lucide-react'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
 
@@ -18,31 +18,32 @@ const NAV_ITEMS = [
   { path: '/dashboard/settings',   label: 'Pengaturan', icon: Settings2,       feature: 'settings' },
 ]
 
-const ROLE_COLOR  = { owner: '#f59e0b', admin: '#3b82f6', staff: '#10b981' }
-const ROLE_LABEL  = { owner: 'Pemilik', admin: 'Admin', staff: 'Staff' }
-const PAGE_TITLE  = {
+const ROLE_LABEL = { owner: 'Pemilik', admin: 'Admin', staff: 'Staff' }
+const ROLE_COLOR = { owner: '#f59e0b', admin: '#0a84ff', staff: '#30d158' }
+
+const PAGE_TITLE = {
   '/dashboard':            'Beranda',
   '/dashboard/orders':     'Manajemen Order',
   '/dashboard/clients':    'Data Klien',
   '/dashboard/stock':      'Manajemen Stok',
   '/dashboard/reports':    'Laporan & Analitik',
   '/dashboard/attendance': 'Absensi Karyawan',
-  '/dashboard/settings':   'Pengaturan Sistem',
+  '/dashboard/settings':   'Pengaturan',
 }
 
-/* ─── notifications ─── */
+/* ── notifications ── */
 function getNotifications() {
   try {
     const orders = JSON.parse(localStorage.getItem('nwj_orders') || '[]')
     const stock  = JSON.parse(localStorage.getItem('nwj_stock')  || '[]')
     return [
       ...stock.filter(s => s.qty <= s.minQty).map(s => ({
-        id: `s-${s.id}`, type: 'stock', urgent: true,
+        id: `s-${s.id}`, type: 'stock',
         title: `Stok ${s.name} kritis`,
         desc:  `Sisa ${s.qty} ${s.unit} — min. ${s.minQty}`,
       })),
       ...orders.filter(o => o.status === 'pending').map(o => ({
-        id: `o-${o.id}`, type: 'order', urgent: false,
+        id: `o-${o.id}`, type: 'order',
         title: `Order ${o.id} menunggu`,
         desc:  o.client,
       })),
@@ -50,7 +51,7 @@ function getNotifications() {
   } catch { return [] }
 }
 
-/* ─── WA scheduler ─── */
+/* ── WA scheduler ── */
 function useWAScheduler() {
   const sent = useRef('')
   useEffect(() => {
@@ -76,72 +77,112 @@ function useWAScheduler() {
   }, [])
 }
 
-/* ─── Notif Dropdown ─── */
-function NotifPanel({ notifs, onClose }) {
-  const stockNotifs = notifs.filter(n => n.type === 'stock')
-  const orderNotifs = notifs.filter(n => n.type === 'order')
+/* ── Sidebar nav item with hover ── */
+function SidebarLink({ path, label, Icon, feature, hasPermission }) {
+  const [hover, setHover] = useState(false)
+  if (feature && !hasPermission(feature)) return null
   return (
-    <div className="absolute right-0 top-[calc(100%+8px)] w-80 rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden bg-white">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-        <div>
-          <p className="font-bold text-slate-800 text-sm">Notifikasi</p>
-          <p className="text-slate-400 text-[11px] mt-0.5">{notifs.length} pesan baru</p>
-        </div>
+    <NavLink
+      to={path}
+      end={path === '/dashboard'}
+      style={({ isActive }) => ({
+        display: 'flex', alignItems: 'center', gap: 9,
+        padding: '7px 10px', borderRadius: 7, marginBottom: 1,
+        textDecoration: 'none',
+        background: isActive
+          ? '#0a84ff'
+          : hover ? 'rgba(255,255,255,0.07)' : 'transparent',
+        transition: 'background 0.12s',
+      })}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      {({ isActive }) => (
+        <>
+          <Icon
+            size={15}
+            strokeWidth={isActive ? 2.2 : 1.8}
+            color={isActive ? 'white' : 'rgba(255,255,255,0.42)'}
+          />
+          <span style={{
+            fontSize: 13.5,
+            fontWeight: isActive ? 600 : 400,
+            color: isActive ? 'white' : 'rgba(255,255,255,0.58)',
+            letterSpacing: '-0.01em',
+          }}>
+            {label}
+          </span>
+        </>
+      )}
+    </NavLink>
+  )
+}
+
+/* ── Notification Panel ── */
+function NotifPanel({ notifs, onClose }) {
+  const stock  = notifs.filter(n => n.type === 'stock')
+  const orders = notifs.filter(n => n.type === 'order')
+  return (
+    <div style={{
+      position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+      width: 300, zIndex: 50, overflow: 'hidden',
+      background: 'white', borderRadius: 14,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.14), 0 0 0 0.5px rgba(0,0,0,0.08)',
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '13px 16px 11px', borderBottom: '0.5px solid #f0f0f0',
+      }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>Notifikasi</p>
         {notifs.length > 0 && (
-          <span className="text-[10px] bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">{notifs.length}</span>
+          <span style={{
+            background: '#ff3b30', color: 'white', fontSize: 10.5,
+            fontWeight: 700, padding: '1px 6px', borderRadius: 99,
+          }}>{notifs.length}</span>
         )}
       </div>
 
       {notifs.length === 0 ? (
-        <div className="px-5 py-10 text-center">
-          <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
-            <span className="text-2xl">✅</span>
-          </div>
-          <p className="text-slate-500 text-sm font-medium">Semua aman</p>
-          <p className="text-slate-400 text-xs mt-0.5">Tidak ada notifikasi baru</p>
+        <div style={{ padding: '28px 16px', textAlign: 'center' }}>
+          <p style={{ fontSize: 26, marginBottom: 8 }}>✅</p>
+          <p style={{ fontSize: 13.5, color: '#3c3c43', fontWeight: 500, margin: 0 }}>Semua aman</p>
+          <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>Tidak ada notifikasi baru</p>
         </div>
       ) : (
-        <div className="max-h-72 overflow-y-auto">
-          {stockNotifs.length > 0 && (
-            <div className="px-5 py-2 bg-red-50/60 border-b border-red-100/50">
-              <p className="text-red-500 text-[10px] font-bold uppercase tracking-wider">⚠ Stok Kritis</p>
-            </div>
+        <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+          {stock.length > 0 && (
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#ff3b30', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 16px 4px' }}>
+              Stok Kritis
+            </p>
           )}
-          {stockNotifs.map(n => (
-            <div key={n.id} className="flex items-start gap-3 px-5 py-3 hover:bg-red-50/30 transition border-b border-slate-50">
-              <div className="w-8 h-8 bg-red-100 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-                <Package size={14} className="text-red-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-slate-800 text-[13px] font-semibold">{n.title}</p>
-                <p className="text-slate-400 text-xs mt-0.5">{n.desc}</p>
-              </div>
+          {stock.map(n => (
+            <div key={n.id} style={{ padding: '9px 16px', borderBottom: '0.5px solid #f9f9f9' }}>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
-          {orderNotifs.length > 0 && (
-            <div className="px-5 py-2 bg-amber-50/60 border-b border-amber-100/50">
-              <p className="text-amber-600 text-[10px] font-bold uppercase tracking-wider">📋 Order Pending</p>
-            </div>
+          {orders.length > 0 && (
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#ff9500', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 16px 4px' }}>
+              Order Pending
+            </p>
           )}
-          {orderNotifs.map(n => (
-            <div key={n.id} className="flex items-start gap-3 px-5 py-3 hover:bg-amber-50/20 transition border-b border-slate-50">
-              <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-                <ShoppingBag size={14} className="text-amber-600" />
-              </div>
-              <div>
-                <p className="text-slate-800 text-[13px] font-semibold">{n.title}</p>
-                <p className="text-slate-400 text-xs mt-0.5">{n.desc}</p>
-              </div>
+          {orders.map(n => (
+            <div key={n.id} style={{ padding: '9px 16px', borderBottom: '0.5px solid #f9f9f9' }}>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
-        <NavLink to="/dashboard/settings" onClick={onClose}
-          className="flex items-center justify-between text-xs text-blue-500 hover:text-blue-700 font-semibold transition">
-          <span>Atur notifikasi WhatsApp</span>
-          <ChevronRight size={13} />
+      <div style={{ padding: '11px 16px', borderTop: '0.5px solid #f0f0f0' }}>
+        <NavLink to="/dashboard/settings" onClick={onClose} style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          textDecoration: 'none',
+        }}>
+          <span style={{ fontSize: 13, color: '#0a84ff', fontWeight: 500 }}>Atur notifikasi WA</span>
+          <ChevronRight size={13} color="#c7c7cc" />
         </NavLink>
       </div>
     </div>
@@ -150,21 +191,20 @@ function NotifPanel({ notifs, onClose }) {
 
 export default function DashboardLayout() {
   const { profile, signOut, hasPermission } = useAuth()
-  const location  = useLocation()
-  const initials  = (profile?.name || 'U').slice(0, 2).toUpperCase()
-  const roleColor = ROLE_COLOR[profile?.role] || '#3b82f6'
-  const pageTitle = PAGE_TITLE[location.pathname] || 'Dashboard'
+  const location   = useLocation()
+  const initials   = (profile?.name || 'U').slice(0, 2).toUpperCase()
+  const roleColor  = ROLE_COLOR[profile?.role] || '#0a84ff'
+  const pageTitle  = PAGE_TITLE[location.pathname] || 'Dashboard'
 
-  const [notifOpen, setNotifOpen]     = useState(false)
+  const [notifOpen, setNotifOpen]       = useState(false)
   const [notifications, setNotifications] = useState([])
   const notifRef = useRef(null)
 
   useWAScheduler()
-
   useEffect(() => { setNotifications(getNotifications()) }, [])
   useEffect(() => { if (notifOpen) setNotifications(getNotifications()) }, [notifOpen])
   useEffect(() => {
-    const h = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false) }
+    const h = e => { if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
@@ -172,37 +212,42 @@ export default function DashboardLayout() {
   const totalCount = notifications.length
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#f0f4f8' }}>
+    <div style={{
+      display: 'flex', height: '100vh', overflow: 'hidden',
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+    }}>
 
-      {/* ═══════════════ SIDEBAR ═══════════════ */}
-      <aside className="w-56 shrink-0 flex flex-col h-screen relative"
-        style={{ background: 'linear-gradient(180deg, #0a1628 0%, #0f2147 40%, #0d1e3d 100%)' }}>
+      {/* ═══════ SIDEBAR (Apple dark) ═══════ */}
+      <aside style={{
+        width: 220, flexShrink: 0,
+        height: '100vh', overflow: 'hidden',
+        background: '#1c1c1e',
+        display: 'flex', flexDirection: 'column',
+      }}>
 
-        {/* Subtle background glow */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-56 h-56 rounded-full opacity-10"
-            style={{ background: 'radial-gradient(circle, #3b82f6, transparent)' }} />
-          <div className="absolute bottom-0 left-0 right-0 h-32 opacity-5"
-            style={{ background: 'linear-gradient(0deg, #3b82f6, transparent)' }} />
-        </div>
-
-        {/* ── Brand ── */}
-        <div className="relative px-4 pt-5 pb-4">
-          <div className="flex items-center gap-3">
-            {/* Logo mark */}
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, rgba(59,130,246,0.35), rgba(37,99,235,0.18))',
-                border: '1px solid rgba(99,149,255,0.28)',
-                boxShadow: '0 0 14px rgba(59,130,246,0.18)',
-              }}>
-              <Waves size={15} className="text-blue-300" />
+        {/* Brand */}
+        <div style={{ padding: '20px 14px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+              background: '#0a84ff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(10,132,255,0.4)',
+            }}>
+              <Waves size={17} color="white" strokeWidth={2.2} />
             </div>
             <div>
-              <p className="text-white font-bold text-[11.5px] leading-tight tracking-[0.02em]">
+              <p style={{
+                fontSize: 11.5, fontWeight: 600, color: 'white',
+                margin: 0, lineHeight: 1.3, letterSpacing: '-0.01em',
+              }}>
                 UD. Nelayan Widya Jaya
               </p>
-              <p className="text-blue-400/55 text-[9px] tracking-[0.3em] uppercase font-medium mt-0.5">
+              <p style={{
+                fontSize: 9.5, color: 'rgba(255,255,255,0.35)',
+                margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase',
+                marginTop: 2,
+              }}>
                 Shrimp Supplier
               </p>
             </div>
@@ -210,173 +255,148 @@ export default function DashboardLayout() {
         </div>
 
         {/* Divider */}
-        <div className="mx-5 h-px mb-3" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,149,255,0.2), transparent)' }} />
+        <div style={{ height: 0.5, background: 'rgba(255,255,255,0.08)', margin: '0 14px 10px' }} />
 
-        {/* ── Nav label ── */}
-        <div className="px-5 mb-2">
-          <p className="text-[9px] font-bold tracking-[0.3em] uppercase" style={{ color: 'rgba(148,163,184,0.35)' }}>Menu Utama</p>
-        </div>
-
-        {/* ── Nav items ── */}
-        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map(({ path, label, icon: Icon, feature }) => {
-            if (feature && !hasPermission(feature)) return null
-            return (
-              <NavLink
-                key={path}
-                to={path}
-                end={path === '/dashboard'}
-                className={({ isActive }) =>
-                  `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150 relative
-                  ${isActive
-                    ? 'text-white'
-                    : 'text-slate-400/70 hover:text-slate-200'
-                  }`
-                }
-                style={({ isActive }) => isActive ? {
-                  background: 'linear-gradient(135deg, rgba(59,130,246,0.25), rgba(37,99,235,0.12))',
-                  border: '1px solid rgba(99,149,255,0.2)',
-                  boxShadow: '0 2px 12px rgba(37,99,235,0.15)',
-                } : {
-                  border: '1px solid transparent',
-                }}
-              >
-                {({ isActive }) => (
-                  <>
-                    {/* Icon box */}
-                    <div
-                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all"
-                      style={isActive ? {
-                        background: 'rgba(59,130,246,0.35)',
-                        boxShadow: '0 0 10px rgba(59,130,246,0.3)',
-                      } : {
-                        background: 'rgba(255,255,255,0.05)',
-                      }}>
-                      <Icon size={14} className={isActive ? 'text-blue-300' : 'text-slate-500 group-hover:text-slate-300'} />
-                    </div>
-
-                    <span className="flex-1">{label}</span>
-
-                    {/* Active dot */}
-                    {isActive && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"
-                        style={{ boxShadow: '0 0 6px rgba(96,165,250,0.8)' }} />
-                    )}
-                  </>
-                )}
-              </NavLink>
-            )
-          })}
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '0 8px', overflowY: 'auto' }}>
+          {NAV_ITEMS.map(({ path, label, icon: Icon, feature }) => (
+            <SidebarLink
+              key={path}
+              path={path} label={label} Icon={Icon} feature={feature}
+              hasPermission={hasPermission}
+            />
+          ))}
         </nav>
 
-        {/* Divider */}
-        <div className="mx-5 h-px my-3" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,149,255,0.15), transparent)' }} />
-
-        {/* ── User badge ── */}
-        <div className="px-4 pb-5 relative">
-          <div className="flex items-center gap-3 px-3 py-3 rounded-xl"
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
-            }}>
-            {/* Avatar ring */}
-            <div className="relative shrink-0">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                style={{ background: `linear-gradient(135deg, ${roleColor}, ${roleColor}aa)`, boxShadow: `0 0 10px ${roleColor}44` }}>
+        {/* User row */}
+        <div style={{
+          padding: '10px 10px 14px',
+          borderTop: '0.5px solid rgba(255,255,255,0.08)',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 9,
+            padding: '8px 8px', borderRadius: 9,
+            background: 'rgba(255,255,255,0.06)',
+          }}>
+            {/* Avatar */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%',
+                background: `linear-gradient(135deg, ${roleColor}, ${roleColor}bb)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700, color: 'white',
+              }}>
                 {initials}
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-[#0a1628]" />
+              <div style={{
+                position: 'absolute', bottom: 0, right: 0,
+                width: 8, height: 8, borderRadius: '50%',
+                background: '#30d158',
+                border: '1.5px solid #1c1c1e',
+              }} />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-white text-xs font-bold truncate leading-tight">{profile?.name}</p>
-              <p className="text-[10px] mt-0.5 capitalize font-medium" style={{ color: roleColor }}>
+            {/* Name */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontSize: 12, fontWeight: 600, color: 'white',
+                margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {profile?.name}
+              </p>
+              <p style={{ fontSize: 10.5, color: roleColor, margin: 0 }}>
                 {ROLE_LABEL[profile?.role] || profile?.role}
               </p>
             </div>
+            {/* Logout */}
+            <button onClick={signOut} title="Keluar" style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'rgba(255,255,255,0.28)', padding: 4,
+              display: 'flex', alignItems: 'center',
+              flexShrink: 0,
+            }}>
+              <LogOut size={13} />
+            </button>
           </div>
         </div>
       </aside>
 
-      {/* ═══════════════ MAIN AREA ═══════════════ */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* ═══════ MAIN AREA ═══════ */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* ── Topbar ── */}
-        <header className="flex items-center justify-between px-6 py-3.5 shrink-0"
-          style={{
-            background: 'linear-gradient(90deg, #0a1628 0%, #0f2147 60%, #0d1e3d 100%)',
-            borderBottom: '1px solid rgba(99,149,255,0.1)',
+        {/* Topbar — white Apple-style */}
+        <header style={{
+          height: 48, flexShrink: 0,
+          background: 'rgba(255,255,255,0.92)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '0.5px solid rgba(0,0,0,0.1)',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 20px',
+        }}>
+          {/* Title */}
+          <p style={{
+            fontSize: 15, fontWeight: 600, color: '#1c1c1e', margin: 0,
           }}>
+            {pageTitle}
+          </p>
 
-          {/* Page title */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-px h-5 rounded-full bg-blue-500/40" />
-            <div>
-              <p className="text-white text-sm font-bold tracking-wide">{pageTitle}</p>
-              <p className="text-blue-400/50 text-[10px] tracking-widest uppercase mt-0.5">Dashboard</p>
-            </div>
-          </div>
-
-          {/* Right actions */}
-          <div className="flex items-center gap-2">
+          {/* Right: Bell + Avatar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
 
             {/* Bell */}
-            <div className="relative" ref={notifRef}>
+            <div style={{ position: 'relative' }} ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(v => !v)}
-                className="relative w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                 style={{
-                  background: notifOpen ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.06)',
-                  border: notifOpen ? '1px solid rgba(99,149,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                }}
-                title="Notifikasi">
-                <Bell size={15} className={totalCount > 0 ? 'text-blue-300' : 'text-slate-400'} />
+                  width: 32, height: 32, borderRadius: 8,
+                  background: notifOpen ? '#f2f2f7' : 'transparent',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'relative',
+                }}>
+                <Bell size={16} color={totalCount > 0 ? '#ff3b30' : '#3c3c43'} strokeWidth={1.8} />
                 {totalCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 rounded-full text-[9px] text-white font-bold flex items-center justify-center px-0.5 shadow-lg">
-                    {totalCount > 9 ? '9+' : totalCount}
-                  </span>
+                  <span style={{
+                    position: 'absolute', top: 5, right: 5,
+                    width: 7, height: 7, borderRadius: '50%',
+                    background: '#ff3b30', border: '1.5px solid white',
+                  }} />
                 )}
               </button>
               {notifOpen && <NotifPanel notifs={notifications} onClose={() => setNotifOpen(false)} />}
             </div>
 
             {/* Divider */}
-            <div className="w-px h-5 rounded-full mx-0.5" style={{ background: 'rgba(255,255,255,0.1)' }} />
+            <div style={{ width: 0.5, height: 20, background: 'rgba(0,0,0,0.12)' }} />
 
-            {/* Avatar + name */}
-            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                style={{ background: `linear-gradient(135deg, ${roleColor}, ${roleColor}bb)` }}>
+            {/* User pill */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '4px 10px 4px 4px', borderRadius: 99,
+              background: '#f2f2f7',
+            }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: '50%',
+                background: `linear-gradient(135deg, ${roleColor}, ${roleColor}bb)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 700, color: 'white',
+              }}>
                 {initials}
               </div>
-              <div>
-                <p className="text-white text-[13px] font-semibold leading-none">{profile?.name}</p>
-                <p className="text-[10px] capitalize mt-0.5" style={{ color: roleColor }}>
-                  {ROLE_LABEL[profile?.role] || profile?.role}
-                </p>
-              </div>
+              <p style={{ fontSize: 13, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>
+                {profile?.name}
+              </p>
             </div>
-
-            {/* Logout */}
-            <button onClick={signOut} title="Keluar"
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 hover:opacity-90"
-              style={{ background: 'rgba(139,92,246,0.3)', border: '1px solid rgba(167,139,250,0.25)' }}>
-              <LogOut size={14} className="text-purple-300" />
-            </button>
           </div>
         </header>
 
-        {/* ── Content ── */}
-        <main className="flex-1 overflow-y-auto ocean-scrollbar">
-          <div className="px-7 pt-3 pb-1">
-            <span className="inline-flex items-center gap-1.5 border border-blue-100 text-slate-400 text-[11px] px-3 py-1 rounded-lg bg-white/70">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-              Shrimp Supplier Management System
-            </span>
-          </div>
-          <div className="p-7 pt-4">
-            <Outlet />
-          </div>
+        {/* Content */}
+        <main style={{
+          flex: 1, overflowY: 'auto',
+          background: '#f2f2f7',
+          padding: '24px 28px',
+        }}>
+          <Outlet />
         </main>
       </div>
     </div>
