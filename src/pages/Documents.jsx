@@ -410,7 +410,11 @@ export default function Documents() {
   useEffect(() => {
     if (demoMode) { setDocs(DEMO_DOCS); return }
     supabase.from('documents').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => data && setDocs(data.map(dbToDoc)))
+      .then(({ data }) => {
+        if (!data) return
+        // Hide confirmed SOs — they've been converted to DOs
+        setDocs(data.map(dbToDoc).filter(d => !(d.type === 'SO' && d.status === 'confirmed')))
+      })
   }, [demoMode])
 
   // Auto-open creation if navigated from Orders page
@@ -581,7 +585,8 @@ export default function Documents() {
       notes: soDoc.notes || '', createdByName: soDoc.createdByName || '',
       createdAt: new Date().toISOString(),
     }
-    setDocs(prev => [doDoc, ...prev])
+    // Add DO and remove the source SO in one update
+    setDocs(prev => [doDoc, ...prev.filter(d => !(d.type === 'SO' && d.id === soDoc.id))])
     if (!demoMode) {
       const { error } = await supabase.from('documents').insert({
         id: doId, number: doNumber, type: 'DO', date: doDoc.date, status: 'dispatched',
