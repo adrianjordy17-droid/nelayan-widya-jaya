@@ -113,34 +113,20 @@ export default function LoginPage() {
           justifyContent: 'center', position: 'relative', zIndex: 1,
           paddingTop: 48, paddingBottom: 48,
         }}>
-          {/* Label */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20,
-          }}>
-            <div style={{ width: 28, height: 2, background: 'rgba(96,165,250,0.6)', borderRadius: 2 }} />
-            <p style={{
-              color: 'rgba(147,197,253,0.85)', fontSize: 11.5, fontWeight: 600,
-              letterSpacing: '0.11em', textTransform: 'uppercase', margin: 0,
-            }}>
-              Sistem Manajemen Bisnis
-            </p>
-          </div>
-
           {/* Headline */}
           <h1 style={{
-            color: 'white', fontSize: 38, fontWeight: 800,
+            color: 'white', fontSize: 40, fontWeight: 800,
             lineHeight: 1.18, margin: '0 0 18px',
-            letterSpacing: '-0.025em',
+            letterSpacing: '-0.03em',
           }}>
-            Kelola Bisnis<br />
-            Udang Lebih<br />
+            One stop solution,<br />
             <span style={{
               background: 'linear-gradient(90deg, #60A5FA 0%, #38BDF8 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
             }}>
-              Mudah & Efisien
+              NWJ operational
             </span>
           </h1>
 
