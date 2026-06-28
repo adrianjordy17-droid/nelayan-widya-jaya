@@ -172,7 +172,7 @@ export default function DashboardLayout() {
   const totalCount = notifications.length
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#e8eef8' }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: '#f0f4f8' }}>
 
       {/* ═══════════════ SIDEBAR ═══════════════ */}
       <aside className="w-56 shrink-0 flex flex-col h-screen relative"
@@ -187,23 +187,25 @@ export default function DashboardLayout() {
         </div>
 
         {/* ── Brand ── */}
-        <div className="relative px-5 pt-6 pb-5">
-          {/* Logo mark */}
-          <div className="w-10 h-10 rounded-2xl mb-4 flex items-center justify-center"
-            style={{
-              background: 'linear-gradient(135deg, rgba(59,130,246,0.3), rgba(37,99,235,0.15))',
-              border: '1px solid rgba(99,149,255,0.25)',
-              boxShadow: '0 0 20px rgba(59,130,246,0.15)',
-            }}>
-            <Waves size={18} className="text-blue-300" />
-          </div>
-
-          <p className="text-white font-extrabold text-[12px] leading-snug tracking-[0.05em]">
-            UD. Nelayan<br />Widya Jaya
-          </p>
-          <div className="flex items-center gap-1.5 mt-1.5">
-            <div className="w-1 h-1 rounded-full bg-blue-400" />
-            <p className="text-blue-400/60 text-[9px] tracking-[0.35em] uppercase font-medium">Supplier</p>
+        <div className="relative px-4 pt-5 pb-4">
+          <div className="flex items-center gap-3">
+            {/* Logo mark */}
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+              style={{
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.35), rgba(37,99,235,0.18))',
+                border: '1px solid rgba(99,149,255,0.28)',
+                boxShadow: '0 0 14px rgba(59,130,246,0.18)',
+              }}>
+              <Waves size={15} className="text-blue-300" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-[11.5px] leading-tight tracking-[0.02em]">
+                UD. Nelayan Widya Jaya
+              </p>
+              <p className="text-blue-400/55 text-[9px] tracking-[0.3em] uppercase font-medium mt-0.5">
+                Shrimp Supplier
+              </p>
+            </div>
           </div>
         </div>
 
