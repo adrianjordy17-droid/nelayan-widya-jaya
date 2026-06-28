@@ -96,7 +96,7 @@ export default function Deliveries() {
     } catch { return null }
   }
 
-  async function save() {
+  async function save(andContinue = false) {
     if (!form.clientName.trim()) return
     setSaving(true)
     try {
@@ -140,7 +140,14 @@ export default function Deliveries() {
       }
 
       setSaved(true)
-      setTimeout(() => { setSaved(false); setModal(null) }, 1000)
+      if (andContinue) {
+        setTimeout(() => {
+          setSaved(false)
+          setForm(f => ({ ...emptyForm(), deliveryDate: f.deliveryDate }))
+        }, 800)
+      } else {
+        setTimeout(() => { setSaved(false); setModal(null) }, 1000)
+      }
     } finally {
       setSaving(false)
     }
@@ -417,6 +424,26 @@ export default function Deliveries() {
                   </div>
                 </div>
               </div>
+            </div>
+
+              {/* Simpan & Lanjut button */}
+              <button
+                onClick={() => save(true)}
+                disabled={saving || !form.clientName.trim()}
+                style={{
+                  width: '100%', padding: '15px',
+                  background: !form.clientName.trim() ? '#e5e5ea' : saved ? '#28cd41' : '#34c759',
+                  border: 'none', borderRadius: 13,
+                  color: !form.clientName.trim() ? '#c7c7cc' : 'white',
+                  fontSize: 15, fontWeight: 600,
+                  cursor: !form.clientName.trim() ? 'not-allowed' : 'pointer',
+                  ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'background 0.2s',
+                }}
+              >
+                {saved ? <><Check size={16} /> Tersimpan — isi resto berikutnya</> : <><Truck size={16} /> Simpan & Resto Berikutnya</>}
+              </button>
+
             </div>
             <div style={{ height: 40 }} />
           </div>
