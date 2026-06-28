@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search, Eye, Trash2, X, Edit2, Check } from 'lucide-react'
+import { Plus, Search, Eye, Trash2, X, Edit2, Check, ShoppingBag, Clock, CheckCircle2, TrendingUp } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -33,24 +33,58 @@ const BLANK_ORDER = { client: '', date: new Date().toISOString().slice(0, 10), s
 
 function Modal({ title, onClose, children, footer }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800 text-base">{title}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition"><X size={20} /></button>
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
+      zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16, overflowY: 'auto',
+    }}>
+      <div style={{
+        background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)',
+        width: '100%', maxWidth: 640, margin: 'auto',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 24px', borderBottom: '1px solid #f1f5f9',
+        }}>
+          <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: 15, margin: 0 }}>{title}</h3>
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8,
+          }}><X size={20} /></button>
         </div>
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">{children}</div>
-        {footer && <div className="flex gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">{footer}</div>}
+        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto' }}>
+          {children}
+        </div>
+        {footer && (
+          <div style={{
+            display: 'flex', gap: 8, padding: '14px 24px',
+            borderTop: '1px solid #f1f5f9', background: '#fafafa', borderRadius: '0 0 18px 18px',
+          }}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
 function Field({ label, children }) {
-  return <div><label className="block text-slate-600 text-[13px] font-semibold mb-1.5">{label}</label>{children}</div>
+  return (
+    <div>
+      <label style={{ display: 'block', color: '#64748b', fontSize: 12, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  )
 }
 
-const inputCls = "w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white transition"
+const inputStyle = {
+  width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10,
+  padding: '9px 13px', fontSize: 13, color: '#0f172a',
+  background: 'white', outline: 'none', boxSizing: 'border-box',
+  fontFamily: 'inherit',
+}
 
 export default function Orders() {
   const [orders, setOrders] = useLocalStorage('nwj_orders', INIT_ORDERS)
@@ -112,89 +146,240 @@ export default function Orders() {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o))
   }
 
+  // Stat calculations
+  const thisMonth = new Date().toISOString().slice(0, 7)
+  const orderPending = orders.filter(o => o.status === 'pending').length
+  const selesaiBulanIni = orders.filter(o => o.status === 'selesai' && (o.date || '').startsWith(thisMonth))
+  const omzetBulanIni = selesaiBulanIni.reduce((a, o) => a + totalOrder(o.items), 0)
+
+  const STATS = [
+    {
+      label: 'Total Order',
+      value: String(orders.length),
+      sub: 'semua status',
+      Icon: ShoppingBag,
+      iconColor: '#2563eb',
+      iconBg: '#eff6ff',
+    },
+    {
+      label: 'Pending',
+      value: String(orderPending),
+      sub: 'menunggu diproses',
+      Icon: Clock,
+      iconColor: '#d97706',
+      iconBg: '#fffbeb',
+    },
+    {
+      label: 'Selesai Bulan Ini',
+      value: String(selesaiBulanIni.length),
+      sub: 'order selesai bulan ini',
+      Icon: CheckCircle2,
+      iconColor: '#16a34a',
+      iconBg: '#f0fdf4',
+    },
+    {
+      label: 'Total Omzet',
+      value: omzetBulanIni >= 1000000
+        ? `Rp ${(omzetBulanIni / 1000000).toFixed(1).replace('.0', '')} jt`
+        : `Rp ${omzetBulanIni.toLocaleString('id-ID')}`,
+      sub: 'omzet bulan ini',
+      Icon: TrendingUp,
+      iconColor: '#7c3aed',
+      iconBg: '#f5f3ff',
+    },
+  ]
+
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex gap-2 flex-wrap">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
+          <div key={label} style={{
+            background: 'white', borderRadius: 14, padding: '18px 20px',
+            border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0, lineHeight: 1.3 }}>
+                {label}
+              </p>
+              <div style={{
+                width: 34, height: 34, borderRadius: 9, background: iconBg,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <Icon size={16} color={iconColor} strokeWidth={2} />
+              </div>
+            </div>
+            <p style={{ fontSize: value.length > 10 ? 18 : 26, fontWeight: 800, color: '#0f172a', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.02em' }}>
+              {value}
+            </p>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter Tabs + Toolbar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Filter Pills */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {STATUS_OPTS.map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition border capitalize
-                ${statusFilter === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              style={{
+                padding: '7px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 600,
+                cursor: 'pointer', border: 'none', outline: 'none', transition: 'all 0.15s',
+                background: statusFilter === s ? '#2563eb' : 'white',
+                color: statusFilter === s ? 'white' : '#64748b',
+                border: statusFilter === s ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                textTransform: 'capitalize',
+              }}
+            >
               {s === 'semua' ? 'Semua' : s}
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari order atau klien..."
-              className="bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-52" />
+
+        {/* Search + Add */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Cari order atau klien..."
+              style={{
+                border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px 8px 36px',
+                fontSize: 13, outline: 'none', background: 'white', width: 210,
+                color: '#0f172a', fontFamily: 'inherit',
+              }}
+            />
           </div>
           {canEdit && (
-            <button onClick={openAdd}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
-              <Plus size={16} /> Tambah Order
+            <button
+              onClick={openAdd}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white',
+                borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600,
+                border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              <Plus size={15} /> Tambah Order
             </button>
           )}
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      <div style={{
+        background: 'white', borderRadius: 14, border: '1px solid #f1f5f9',
+        boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden',
+      }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-100">
-                <th className="px-5 py-3 text-left font-semibold tracking-wide">No. Order</th>
-                <th className="px-5 py-3 text-left font-semibold tracking-wide">Klien</th>
-                <th className="px-5 py-3 text-left font-semibold tracking-wide">Tanggal</th>
-                <th className="px-5 py-3 text-right font-semibold tracking-wide">Total</th>
-                <th className="px-5 py-3 text-center font-semibold tracking-wide">Status</th>
-                <th className="px-5 py-3 text-center font-semibold tracking-wide">Aksi</th>
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                {['No. Order', 'Klien', 'Tanggal', 'Total', 'Status', 'Aksi'].map((h, i) => (
+                  <th key={h} style={{
+                    padding: '12px 16px', fontSize: 11, fontWeight: 600, color: '#94a3b8',
+                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                    textAlign: i === 3 ? 'right' : i >= 4 ? 'center' : 'left',
+                  }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">Tidak ada order.</td></tr>
+                <tr>
+                  <td colSpan={6} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                    Tidak ada order.
+                  </td>
+                </tr>
               )}
-              {filtered.map(order => {
+              {filtered.map((order, idx) => {
                 const sc = STATUS_CFG[order.status] || STATUS_CFG.pending
                 return (
-                  <tr key={order.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-5 py-3.5 font-mono text-slate-700 font-semibold text-xs">{order.id}</td>
-                    <td className="px-5 py-3.5 text-slate-800 font-medium">{order.client}</td>
-                    <td className="px-5 py-3.5 text-slate-400 text-xs">{order.date}</td>
-                    <td className="px-5 py-3.5 text-right font-bold text-slate-800">{fmt(totalOrder(order.items))}</td>
-                    <td className="px-5 py-3.5 text-center">
+                  <tr
+                    key={order.id}
+                    style={{ borderBottom: idx < filtered.length - 1 ? '1px solid #f8fafc' : 'none' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '13px 16px', fontFamily: 'monospace', color: '#2563eb', fontWeight: 700, fontSize: 12 }}>
+                      {order.id}
+                    </td>
+                    <td style={{ padding: '13px 16px', color: '#0f172a', fontWeight: 500 }}>
+                      {order.client}
+                    </td>
+                    <td style={{ padding: '13px 16px', color: '#94a3b8', fontSize: 12 }}>
+                      {order.date}
+                    </td>
+                    <td style={{ padding: '13px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                      {fmt(totalOrder(order.items))}
+                    </td>
+                    <td style={{ padding: '13px 16px', textAlign: 'center' }}>
                       {canEdit ? (
                         <select
                           value={order.status}
                           onChange={e => changeStatus(order.id, e.target.value)}
-                          className="text-xs font-semibold px-2.5 py-1 rounded-full border cursor-pointer focus:outline-none capitalize"
-                          style={{ background: sc.bg, color: sc.text, borderColor: sc.border }}>
+                          style={{
+                            fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 20,
+                            border: `1px solid ${sc.border}`, background: sc.bg, color: sc.text,
+                            cursor: 'pointer', outline: 'none', textTransform: 'capitalize',
+                          }}
+                        >
                           {['pending','proses','selesai','batal'].map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       ) : (
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full capitalize"
-                          style={{ background: sc.bg, color: sc.text, border: `1px solid ${sc.border}` }}>
+                        <span style={{
+                          fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 20,
+                          background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`,
+                          textTransform: 'capitalize', display: 'inline-block',
+                        }}>
                           {order.status}
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setView(order)} title="Detail"
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">
+                    <td style={{ padding: '13px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                        <button
+                          onClick={() => setView(order)}
+                          title="Detail"
+                          style={{
+                            padding: 6, background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#94a3b8', borderRadius: 8, display: 'flex', alignItems: 'center',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.background = '#eff6ff' }}
+                          onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}
+                        >
                           <Eye size={15} />
                         </button>
                         {canEdit && <>
-                          <button onClick={() => openEdit(order)} title="Edit"
-                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition">
+                          <button
+                            onClick={() => openEdit(order)}
+                            title="Edit"
+                            style={{
+                              padding: 6, background: 'none', border: 'none', cursor: 'pointer',
+                              color: '#94a3b8', borderRadius: 8, display: 'flex', alignItems: 'center',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.color = '#d97706'; e.currentTarget.style.background = '#fffbeb' }}
+                            onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}
+                          >
                             <Edit2 size={15} />
                           </button>
-                          <button onClick={() => setDeleteConfirm(order.id)} title="Hapus"
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                          <button
+                            onClick={() => setDeleteConfirm(order.id)}
+                            title="Hapus"
+                            style={{
+                              padding: 6, background: 'none', border: 'none', cursor: 'pointer',
+                              color: '#94a3b8', borderRadius: 8, display: 'flex', alignItems: 'center',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fef2f2' }}
+                            onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}
+                          >
                             <Trash2 size={15} />
                           </button>
                         </>}
@@ -210,54 +395,106 @@ export default function Orders() {
 
       {/* View Detail Modal */}
       {view && (
-        <Modal title={`Detail Order — ${view.id}`} onClose={() => setView(null)}
+        <Modal
+          title={`Detail Order — ${view.id}`}
+          onClose={() => setView(null)}
           footer={<>
-            {canEdit && <button onClick={() => { openEdit(view); setView(null) }}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition">
-              <Edit2 size={15} /> Edit
-            </button>}
-            <button onClick={() => setView(null)} className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 transition">Tutup</button>
-          </>}>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="bg-slate-50 rounded-xl p-3"><p className="text-slate-400 text-xs mb-0.5">Klien</p><p className="font-semibold text-slate-800">{view.client}</p></div>
-            <div className="bg-slate-50 rounded-xl p-3"><p className="text-slate-400 text-xs mb-0.5">Tanggal</p><p className="font-semibold">{view.date}</p></div>
-            <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-slate-400 text-xs mb-0.5">Status</p>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize"
-                style={{ background: STATUS_CFG[view.status]?.bg, color: STATUS_CFG[view.status]?.text }}>
+            {canEdit && (
+              <button
+                onClick={() => { openEdit(view); setView(null) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white',
+                  borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600,
+                  border: 'none', cursor: 'pointer',
+                }}
+              >
+                <Edit2 size={14} /> Edit
+              </button>
+            )}
+            <button
+              onClick={() => setView(null)}
+              style={{
+                padding: '9px 16px', border: '1.5px solid #e2e8f0', color: '#64748b',
+                borderRadius: 10, fontSize: 13, background: 'white', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Tutup
+            </button>
+          </>}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {[
+              { label: 'Klien', val: view.client },
+              { label: 'Tanggal', val: view.date },
+            ].map(({ label, val }) => (
+              <div key={label} style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 14px' }}>
+                <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
+                <p style={{ fontWeight: 600, color: '#0f172a', margin: 0, fontSize: 13 }}>{val}</p>
+              </div>
+            ))}
+            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 14px' }}>
+              <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status</p>
+              <span style={{
+                fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+                background: STATUS_CFG[view.status]?.bg, color: STATUS_CFG[view.status]?.text,
+                border: `1px solid ${STATUS_CFG[view.status]?.border}`, textTransform: 'capitalize',
+              }}>
                 {view.status}
               </span>
             </div>
-            <div className="bg-slate-50 rounded-xl p-3"><p className="text-slate-400 text-xs mb-0.5">Total</p><p className="font-bold text-blue-700">{fmt(totalOrder(view.items))}</p></div>
+            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 14px' }}>
+              <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</p>
+              <p style={{ fontWeight: 700, color: '#2563eb', margin: 0, fontSize: 13 }}>{fmt(totalOrder(view.items))}</p>
+            </div>
           </div>
+
           <div>
-            <p className="text-slate-500 text-xs font-semibold mb-2 uppercase tracking-wide">Item Pesanan</p>
-            <table className="w-full text-sm border border-slate-100 rounded-xl overflow-hidden">
-              <thead className="bg-slate-50"><tr>
-                <th className="px-3 py-2 text-left text-slate-500 text-xs font-semibold">Produk</th>
-                <th className="px-3 py-2 text-right text-slate-500 text-xs font-semibold">Qty</th>
-                <th className="px-3 py-2 text-right text-slate-500 text-xs font-semibold">Harga</th>
-                <th className="px-3 py-2 text-right text-slate-500 text-xs font-semibold">Subtotal</th>
-              </tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {view.items.map((item, i) => (
-                  <tr key={i}>
-                    <td className="px-3 py-2.5">{item.name}</td>
-                    <td className="px-3 py-2.5 text-right">{item.qty} {item.unit}</td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{fmt(item.price)}</td>
-                    <td className="px-3 py-2.5 text-right font-semibold">{fmt(item.qty * item.price)}</td>
+            <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Item Pesanan
+            </p>
+            <div style={{ border: '1px solid #f1f5f9', borderRadius: 10, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc' }}>
+                    {['Produk', 'Qty', 'Harga', 'Subtotal'].map((h, i) => (
+                      <th key={h} style={{
+                        padding: '10px 12px', textAlign: i === 0 ? 'left' : 'right',
+                        color: '#94a3b8', fontSize: 11, fontWeight: 600,
+                        textTransform: 'uppercase', letterSpacing: '0.04em',
+                      }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-                <tr className="bg-slate-50">
-                  <td colSpan={3} className="px-3 py-2.5 text-right text-slate-600 font-semibold text-sm">Total</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-blue-700">{fmt(totalOrder(view.items))}</td>
-                </tr>
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {view.items.map((item, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '10px 12px', color: '#0f172a' }}>{item.name}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{item.qty} {item.unit}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8' }}>{fmt(item.price)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>{fmt(item.qty * item.price)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                    <td colSpan={3} style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b', fontWeight: 600, fontSize: 12.5 }}>Total</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>{fmt(totalOrder(view.items))}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
+
           {view.catatan && (
-            <div><p className="text-slate-500 text-xs font-semibold mb-1 uppercase tracking-wide">Catatan</p>
-              <p className="text-sm bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5 text-slate-700">{view.catatan}</p>
+            <div>
+              <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Catatan
+              </p>
+              <p style={{
+                fontSize: 13, background: '#fffbeb', border: '1px solid #fde68a',
+                borderRadius: 10, padding: '10px 14px', color: '#78350f', margin: 0,
+              }}>
+                {view.catatan}
+              </p>
             </div>
           )}
         </Modal>
@@ -265,81 +502,149 @@ export default function Orders() {
 
       {/* Add/Edit Modal */}
       {form && (
-        <Modal title={editing ? `Edit Order — ${form.id}` : 'Tambah Order Baru'} onClose={() => { setForm(null); setEditing(null) }}
+        <Modal
+          title={editing ? `Edit Order — ${form.id}` : 'Tambah Order Baru'}
+          onClose={() => { setForm(null); setEditing(null) }}
           footer={<>
-            <button onClick={saveOrder}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">
-              <Check size={15} /> Simpan Order
+            <button
+              onClick={saveOrder}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white',
+                borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600,
+                border: 'none', cursor: 'pointer',
+              }}
+            >
+              <Check size={14} /> Simpan Order
             </button>
-            <button onClick={() => { setForm(null); setEditing(null) }}
-              className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 transition">Batal</button>
-          </>}>
-          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => { setForm(null); setEditing(null) }}
+              style={{
+                padding: '9px 16px', border: '1.5px solid #e2e8f0', color: '#64748b',
+                borderRadius: 10, fontSize: 13, background: 'white', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Batal
+            </button>
+          </>}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Field label="Nama Klien">
-              <input value={form.client} onChange={e => setField('client', e.target.value)} placeholder="Nama klien / toko" className={inputCls} />
+              <input value={form.client} onChange={e => setField('client', e.target.value)} placeholder="Nama klien / toko" style={inputStyle} />
             </Field>
             <Field label="Tanggal">
-              <input type="date" value={form.date} onChange={e => setField('date', e.target.value)} className={inputCls} />
+              <input type="date" value={form.date} onChange={e => setField('date', e.target.value)} style={inputStyle} />
             </Field>
           </div>
+
           <Field label="Status">
-            <select value={form.status} onChange={e => setField('status', e.target.value)} className={inputCls}>
+            <select value={form.status} onChange={e => setField('status', e.target.value)} style={inputStyle}>
               {['pending','proses','selesai','batal'].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-slate-600 text-[13px] font-semibold">Item Pesanan</label>
-              <button onClick={addItem} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <label style={{ color: '#64748b', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Item Pesanan
+              </label>
+              <button
+                onClick={addItem}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 12.5, fontWeight: 600,
+                }}
+              >
                 <Plus size={13} /> Tambah Item
               </button>
             </div>
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {form.items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-xl p-2.5">
+                <div key={idx} style={{
+                  display: 'grid', gridTemplateColumns: '4fr 2fr 2fr 3fr 1fr', gap: 8,
+                  alignItems: 'center', background: '#f8fafc', borderRadius: 10, padding: '10px 12px',
+                }}>
                   <input value={item.name} onChange={e => setItem(idx, 'name', e.target.value)} placeholder="Nama produk"
-                    className="col-span-4 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                    style={{ ...inputStyle, padding: '7px 10px', fontSize: 12.5 }} />
                   <input type="number" value={item.qty} onChange={e => setItem(idx, 'qty', e.target.value)} placeholder="Qty"
-                    className="col-span-2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white" />
+                    style={{ ...inputStyle, padding: '7px 10px', fontSize: 12.5 }} />
                   <select value={item.unit} onChange={e => setItem(idx, 'unit', e.target.value)}
-                    className="col-span-2 border border-slate-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white">
+                    style={{ ...inputStyle, padding: '7px 8px', fontSize: 12.5 }}>
                     <option>kg</option><option>ekor</option><option>ikat</option><option>box</option><option>pcs</option>
                   </select>
                   <input type="number" value={item.price} onChange={e => setItem(idx, 'price', e.target.value)} placeholder="Harga/unit"
-                    className="col-span-3 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white" />
-                  <button onClick={() => form.items.length > 1 && removeItem(idx)}
-                    className="col-span-1 text-slate-300 hover:text-red-500 transition flex justify-center">
+                    style={{ ...inputStyle, padding: '7px 10px', fontSize: 12.5 }} />
+                  <button
+                    onClick={() => form.items.length > 1 && removeItem(idx)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#dc2626'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#cbd5e1'}
+                  >
                     <X size={15} />
                   </button>
                 </div>
               ))}
             </div>
-            <div className="mt-2 text-right text-sm font-bold text-blue-700">
+            <div style={{ marginTop: 10, textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
               Total: {fmt(totalOrder(form.items.map(i => ({ ...i, qty: +i.qty||0, price: +i.price||0 }))))}
             </div>
           </div>
 
           <Field label="Catatan (opsional)">
-            <textarea value={form.catatan} onChange={e => setField('catatan', e.target.value)} rows={2}
+            <textarea
+              value={form.catatan}
+              onChange={e => setField('catatan', e.target.value)}
+              rows={2}
               placeholder="Catatan tambahan..."
-              className={inputCls + ' resize-none'} />
+              style={{ ...inputStyle, resize: 'none' }}
+            />
           </Field>
         </Modal>
       )}
 
       {/* Delete confirm */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={22} className="text-red-500" />
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
+          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)',
+            padding: 32, maxWidth: 360, width: '100%', textAlign: 'center',
+          }}>
+            <div style={{
+              width: 48, height: 48, background: '#fef2f2', borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+            }}>
+              <Trash2 size={22} color="#dc2626" />
             </div>
-            <h3 className="font-bold text-slate-800 mb-1">Hapus Order?</h3>
-            <p className="text-slate-500 text-sm mb-5">Order <strong>{deleteConfirm}</strong> akan dihapus permanen.</p>
-            <div className="flex gap-2 justify-center">
-              <button onClick={() => deleteOrder(deleteConfirm)} className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-xl text-sm font-semibold transition">Ya, Hapus</button>
-              <button onClick={() => setDeleteConfirm(null)} className="border border-slate-200 text-slate-600 px-5 py-2 rounded-xl text-sm hover:bg-slate-50 transition">Batal</button>
+            <h3 style={{ fontWeight: 700, color: '#0f172a', margin: '0 0 6px', fontSize: 15 }}>Hapus Order?</h3>
+            <p style={{ color: '#94a3b8', fontSize: 13, margin: '0 0 24px' }}>
+              Order <strong style={{ color: '#0f172a' }}>{deleteConfirm}</strong> akan dihapus permanen.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button
+                onClick={() => deleteOrder(deleteConfirm)}
+                style={{
+                  background: '#dc2626', color: 'white', border: 'none', borderRadius: 10,
+                  padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Ya, Hapus
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                style={{
+                  border: '1.5px solid #e2e8f0', color: '#64748b', borderRadius: 10,
+                  padding: '9px 20px', fontSize: 13, background: 'white', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Batal
+              </button>
             </div>
           </div>
         </div>

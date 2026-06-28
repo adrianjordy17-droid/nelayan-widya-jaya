@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search, AlertTriangle, Package, Edit2, Trash2, X, Check } from 'lucide-react'
+import { Plus, Search, AlertTriangle, Package, Edit2, Trash2, X, Check, DollarSign, Tag } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -21,22 +21,44 @@ function fmt(n) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
 }
 
-const inputCls = "w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white transition"
-
 function Field({ label, children }) {
-  return <div><label className="block text-slate-600 text-[13px] font-semibold mb-1.5">{label}</label>{children}</div>
+  return (
+    <div>
+      <label style={{ display: 'block', color: '#475569', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+const inputStyle = {
+  width: '100%',
+  border: '1.5px solid #e2e8f0',
+  borderRadius: 10,
+  padding: '9px 13px',
+  fontSize: 13,
+  color: '#0f172a',
+  background: 'white',
+  outline: 'none',
+  boxSizing: 'border-box',
+}
+
+const selectStyle = {
+  ...inputStyle,
+  cursor: 'pointer',
 }
 
 function StockBar({ qty, minQty }) {
   const pct  = Math.min((qty / Math.max(minQty * 5, qty + 1)) * 100, 100)
   const isLow = qty <= minQty
+  const barColor = isLow ? '#f87171' : pct < 50 ? '#fbbf24' : '#34d399'
   return (
-    <div className="flex items-center gap-2 min-w-[100px]">
-      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${isLow ? 'bg-red-400' : pct < 50 ? 'bg-amber-400' : 'bg-emerald-400'}`}
-          style={{ width: `${pct}%` }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 100 }}>
+      <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 99, background: barColor, transition: 'width 0.3s' }} />
       </div>
-      <span className={`text-xs font-semibold w-10 text-right ${isLow ? 'text-red-600' : 'text-slate-600'}`}>{qty}</span>
+      <span style={{ fontSize: 12, fontWeight: 600, width: 36, textAlign: 'right', color: isLow ? '#dc2626' : '#475569' }}>
+        {qty}
+      </span>
     </div>
   )
 }
@@ -81,107 +103,227 @@ export default function Stock() {
     setDeleteConfirm(null)
   }
 
+  const totalNilai = stock.reduce((a, s) => a + s.qty * s.price, 0)
+  const uniqueCats = new Set(stock.map(s => s.category)).size
+
+  const STATS = [
+    { label: 'Total Produk',  value: stock.length,       sub: 'jenis produk',      Icon: Package,       iconColor: '#2563eb', iconBg: '#eff6ff' },
+    { label: 'Stok Kritis',   value: lowStock.length,    sub: 'perlu restok',       Icon: AlertTriangle, iconColor: '#dc2626', iconBg: '#fef2f2' },
+    { label: 'Nilai Stok',    value: fmt(totalNilai),    sub: 'estimasi total',     Icon: DollarSign,    iconColor: '#16a34a', iconBg: '#f0fdf4' },
+    { label: 'Kategori',      value: uniqueCats,         sub: 'jenis kategori',     Icon: Tag,           iconColor: '#d97706', iconBg: '#fffbeb' },
+  ]
+
   return (
-    <div className="space-y-5">
-      {/* Summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Jenis',    value: stock.length,          color: '#eff6ff', ic: '#2563eb' },
-          { label: 'Stok Rendah',   value: lowStock.length,        color: '#fff1f2', ic: '#dc2626' },
-          { label: 'Total Qty',     value: stock.reduce((a, s) => a + s.qty, 0).toLocaleString('id') + ' kg', color: '#f0fdf4', ic: '#16a34a' },
-          { label: 'Nilai Stok',    value: fmt(stock.reduce((a, s) => a + s.qty * s.price, 0)), color: '#fefce8', ic: '#ca8a04' },
-        ].map(c => (
-          <div key={c.label} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-            <div className="w-9 h-9 rounded-xl mb-2 flex items-center justify-center" style={{ background: c.color }}>
-              <Package size={16} style={{ color: c.ic }} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
+          <div key={label} style={{
+            background: 'white',
+            borderRadius: 14,
+            padding: '18px 20px',
+            border: '1px solid #f1f5f9',
+            boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0, lineHeight: 1.3 }}>{label}</p>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={16} color={iconColor} strokeWidth={2} />
+              </div>
             </div>
-            <p className="text-slate-400 text-xs">{c.label}</p>
-            <p className="font-bold text-slate-800 text-lg mt-0.5">{c.value}</p>
+            <p style={{ fontSize: typeof value === 'string' && value.length > 10 ? 17 : 26, fontWeight: 800, color: '#0f172a', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.02em' }}>
+              {value}
+            </p>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Low stock alert */}
+      {/* Low Stock Alert */}
       {lowStock.length > 0 && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-5 py-3.5">
-          <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: 12,
+          padding: '12px 18px',
+        }}>
+          <AlertTriangle size={16} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
           <div>
-            <p className="text-red-700 text-sm font-semibold">Stok Rendah — Perlu Restok</p>
-            <p className="text-red-500 text-xs mt-0.5">{lowStock.map(s => `${s.name} (${s.qty} ${s.unit})`).join(', ')}</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#92400e', margin: '0 0 2px' }}>
+              Peringatan Stok Kritis — {lowStock.length} produk perlu restok
+            </p>
+            <p style={{ fontSize: 11.5, color: '#b45309', margin: 0 }}>
+              {lowStock.map(s => `${s.name} (${s.qty} ${s.unit})`).join(' · ')}
+            </p>
           </div>
         </div>
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-3 items-center justify-between">
-        <div className="flex gap-2 flex-wrap">
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        {/* Category Pills */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {cats.map(c => (
-            <button key={c} onClick={() => setCatFilter(c)}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition border
-                ${catFilter === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
+            <button key={c} onClick={() => setCatFilter(c)} style={{
+              padding: '6px 14px',
+              borderRadius: 20,
+              fontSize: 12.5,
+              fontWeight: 500,
+              cursor: 'pointer',
+              border: catFilter === c ? '1px solid #2563eb' : '1px solid #e2e8f0',
+              background: catFilter === c ? '#2563eb' : 'white',
+              color: catFilter === c ? 'white' : '#64748b',
+              transition: 'all 0.15s',
+            }}>
               {c === 'semua' ? 'Semua' : c}
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari produk..."
-              className="bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 w-48" />
+
+        {/* Search + Add */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Cari produk..."
+              style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px 8px 32px', fontSize: 13, outline: 'none', width: 200, background: 'white', color: '#0f172a' }}
+            />
           </div>
           {canEdit && (
-            <button onClick={openAdd}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
-              <Plus size={16} /> Tambah Produk
+            <button onClick={openAdd} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              color: 'white',
+              borderRadius: 10,
+              padding: '9px 16px',
+              fontSize: 13,
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 1px 3px rgba(37,99,235,0.3)',
+            }}>
+              <Plus size={15} /> Tambah Produk
             </button>
           )}
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      <div style={{
+        background: 'white',
+        borderRadius: 14,
+        border: '1px solid #f1f5f9',
+        boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+        overflow: 'hidden',
+      }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-100">
-                <th className="px-5 py-3 text-left font-semibold tracking-wide">Produk</th>
-                <th className="px-5 py-3 text-left font-semibold tracking-wide">Kategori</th>
-                <th className="px-5 py-3 text-left font-semibold tracking-wide w-40">Stok</th>
-                <th className="px-5 py-3 text-right font-semibold tracking-wide">Harga/unit</th>
-                <th className="px-5 py-3 text-left font-semibold tracking-wide">Lokasi</th>
-                {canEdit && <th className="px-5 py-3 text-center font-semibold tracking-wide">Aksi</th>}
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                {['Produk', 'Stok', 'Min. Stok', 'Harga/kg', 'Lokasi', canEdit ? 'Aksi' : null].filter(Boolean).map(h => (
+                  <th key={h} style={{
+                    padding: '12px 16px',
+                    textAlign: h === 'Harga/kg' ? 'right' : h === 'Aksi' ? 'center' : 'left',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#64748b',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    whiteSpace: 'nowrap',
+                  }}>{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">Tidak ada produk.</td></tr>
-              )}
-              {filtered.map(item => (
-                <tr key={item.id} className={`hover:bg-slate-50/80 transition ${item.qty <= item.minQty ? 'bg-red-50/30' : ''}`}>
-                  <td className="px-5 py-3.5 font-medium text-slate-800">
-                    {item.name}
-                    {item.qty <= item.minQty && <span className="ml-2 text-[11px] text-red-500 font-normal bg-red-50 px-1.5 py-0.5 rounded-md">⚠ Rendah</span>}
+                <tr>
+                  <td colSpan={canEdit ? 6 : 5} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                    Tidak ada produk ditemukan.
                   </td>
-                  <td className="px-5 py-3.5 text-slate-500 text-xs">{item.category}</td>
-                  <td className="px-5 py-3.5"><StockBar qty={item.qty} minQty={item.minQty} /></td>
-                  <td className="px-5 py-3.5 text-right font-semibold text-slate-700">{fmt(item.price)}</td>
-                  <td className="px-5 py-3.5 text-slate-400 text-xs">{item.location}</td>
-                  {canEdit && (
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => openEdit(item)} title="Edit"
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition">
-                          <Edit2 size={15} />
-                        </button>
-                        <button onClick={() => setDeleteConfirm(item.id)} title="Hapus"
-                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
-                          <Trash2 size={15} />
-                        </button>
+                </tr>
+              )}
+              {filtered.map((item, idx) => {
+                const isLow = item.qty <= item.minQty
+                return (
+                  <tr key={item.id} style={{
+                    borderTop: idx > 0 ? '1px solid #f8fafc' : 'none',
+                    background: isLow ? '#fffbeb' : 'white',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                  onMouseLeave={e => e.currentTarget.style.background = isLow ? '#fffbeb' : 'white'}
+                  >
+                    {/* Produk */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 600, color: '#0f172a', fontSize: 13 }}>{item.name}</span>
+                        <span style={{
+                          fontSize: 11,
+                          padding: '2px 8px',
+                          borderRadius: 20,
+                          background: '#f1f5f9',
+                          color: '#475569',
+                          fontWeight: 500,
+                        }}>{item.category}</span>
+                        {isLow && (
+                          <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#fef2f2', color: '#dc2626', fontWeight: 600 }}>
+                            Kritis
+                          </span>
+                        )}
                       </div>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    {/* Stok */}
+                    <td style={{ padding: '12px 16px' }}>
+                      <StockBar qty={item.qty} minQty={item.minQty} />
+                    </td>
+                    {/* Min Stok */}
+                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: 12 }}>
+                      {item.minQty} {item.unit}
+                    </td>
+                    {/* Harga */}
+                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
+                      {fmt(item.price)}
+                    </td>
+                    {/* Lokasi */}
+                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12 }}>
+                      {item.location}
+                    </td>
+                    {/* Aksi */}
+                    {canEdit && (
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          <button onClick={() => openEdit(item)} title="Edit" style={{
+                            padding: '6px', border: 'none', borderRadius: 8, background: 'transparent',
+                            cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#fef9c3'; e.currentTarget.style.color = '#ca8a04' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button onClick={() => setDeleteConfirm(item.id)} title="Hapus" style={{
+                            padding: '6px', border: 'none', borderRadius: 8, background: 'transparent',
+                            cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -189,63 +331,100 @@ export default function Stock() {
 
       {/* Add/Edit Modal */}
       {modal && form && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">{modal === 'edit' ? `Edit Produk — ${form.name}` : 'Tambah Produk Baru'}</h3>
-              <button onClick={() => { setModal(null); setForm(null) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
-            </div>
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Nama Produk">
-                  <input value={form.name} onChange={e => setF('name', e.target.value)} placeholder="Tongkol, Udang, ..." className={inputCls} />
-                </Field>
-                <Field label="Kategori">
-                  <select value={form.category} onChange={e => setF('category', e.target.value)} className={inputCls}>
-                    {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </Field>
-                <Field label="Stok Saat Ini">
-                  <div className="flex gap-2">
-                    <input type="number" value={form.qty} onChange={e => setF('qty', e.target.value)} placeholder="0" className={inputCls} />
-                    <select value={form.unit} onChange={e => setF('unit', e.target.value)} className={inputCls + ' w-24'}>
-                      {UNITS.map(u => <option key={u}>{u}</option>)}
-                    </select>
-                  </div>
-                </Field>
-                <Field label="Stok Minimum">
-                  <input type="number" value={form.minQty} onChange={e => setF('minQty', e.target.value)} placeholder="0" className={inputCls} />
-                </Field>
-                <Field label="Harga per Unit (Rp)">
-                  <input type="number" value={form.price} onChange={e => setF('price', e.target.value)} placeholder="0" className={inputCls} />
-                </Field>
-                <Field label="Lokasi Penyimpanan">
-                  <input value={form.location} onChange={e => setF('location', e.target.value)} placeholder="Gudang A, Freezer 1, ..." className={inputCls} />
-                </Field>
-              </div>
-            </div>
-            <div className="flex gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
-              <button onClick={save} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">
-                <Check size={15} /> Simpan
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
+          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)',
+            width: '100%', maxWidth: 520,
+          }}>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #f1f5f9' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                {modal === 'edit' ? `Edit Produk — ${form.name}` : 'Tambah Produk Baru'}
+              </h3>
+              <button onClick={() => { setModal(null); setForm(null) }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
+                <X size={20} />
               </button>
-              <button onClick={() => { setModal(null); setForm(null) }} className="px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 transition">Batal</button>
+            </div>
+            {/* Modal Body */}
+            <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, maxHeight: '60vh', overflowY: 'auto' }}>
+              <Field label="Nama Produk">
+                <input value={form.name} onChange={e => setF('name', e.target.value)} placeholder="Tongkol, Udang, ..." style={inputStyle} />
+              </Field>
+              <Field label="Kategori">
+                <select value={form.category} onChange={e => setF('category', e.target.value)} style={selectStyle}>
+                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </Field>
+              <Field label="Stok Saat Ini">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="number" value={form.qty} onChange={e => setF('qty', e.target.value)} placeholder="0" style={inputStyle} />
+                  <select value={form.unit} onChange={e => setF('unit', e.target.value)} style={{ ...selectStyle, width: 90, flexShrink: 0 }}>
+                    {UNITS.map(u => <option key={u}>{u}</option>)}
+                  </select>
+                </div>
+              </Field>
+              <Field label="Stok Minimum">
+                <input type="number" value={form.minQty} onChange={e => setF('minQty', e.target.value)} placeholder="0" style={inputStyle} />
+              </Field>
+              <Field label="Harga per Unit (Rp)">
+                <input type="number" value={form.price} onChange={e => setF('price', e.target.value)} placeholder="0" style={inputStyle} />
+              </Field>
+              <Field label="Lokasi Penyimpanan">
+                <input value={form.location} onChange={e => setF('location', e.target.value)} placeholder="Gudang A, Freezer 1, ..." style={inputStyle} />
+              </Field>
+            </div>
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', gap: 8, padding: '16px 24px', borderTop: '1px solid #f1f5f9', background: '#fafafa', borderRadius: '0 0 18px 18px' }}>
+              <button onClick={save} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                color: 'white', borderRadius: 10, padding: '9px 18px',
+                fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
+              }}>
+                <Check size={14} /> Simpan
+              </button>
+              <button onClick={() => { setModal(null); setForm(null) }} style={{
+                padding: '9px 16px', border: '1px solid #e2e8f0', color: '#64748b',
+                borderRadius: 10, fontSize: 13, background: 'white', cursor: 'pointer',
+              }}>
+                Batal
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete confirm */}
+      {/* Delete Confirm */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={22} className="text-red-500" />
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
+          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)',
+            padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center',
+          }}>
+            <div style={{ width: 48, height: 48, background: '#fef2f2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <Trash2 size={22} color="#dc2626" />
             </div>
-            <h3 className="font-bold text-slate-800 mb-1">Hapus Produk?</h3>
-            <p className="text-slate-500 text-sm mb-5">Data produk ini akan dihapus permanen.</p>
-            <div className="flex gap-2 justify-center">
-              <button onClick={() => del(deleteConfirm)} className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-xl text-sm font-semibold transition">Ya, Hapus</button>
-              <button onClick={() => setDeleteConfirm(null)} className="border border-slate-200 text-slate-600 px-5 py-2 rounded-xl text-sm hover:bg-slate-50 transition">Batal</button>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>Hapus Produk?</h3>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px' }}>Data produk ini akan dihapus permanen dan tidak bisa dikembalikan.</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button onClick={() => del(deleteConfirm)} style={{
+                background: '#dc2626', color: 'white', border: 'none', borderRadius: 10,
+                padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Ya, Hapus
+              </button>
+              <button onClick={() => setDeleteConfirm(null)} style={{
+                border: '1px solid #e2e8f0', color: '#64748b', background: 'white',
+                borderRadius: 10, padding: '9px 16px', fontSize: 13, cursor: 'pointer',
+              }}>
+                Batal
+              </button>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TrendingUp, BarChart3, FileSpreadsheet, MessageSquare, Send } from 'lucide-react'
+import { TrendingUp, BarChart3, FileSpreadsheet, Send, Download, ShoppingCart, CheckCircle, DollarSign } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { generateDailyReport, sendToWhatsApp } from '../lib/whatsapp'
@@ -24,19 +24,39 @@ function totalOrder(items) { return items.reduce((a, i) => a + i.qty * i.price, 
 function BarChart({ data }) {
   const maxRev = Math.max(...data.map(d => d.revenue), 1)
   return (
-    <div className="flex items-end gap-3 h-52 px-4">
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 200, padding: '0 8px' }}>
       {data.map((d, i) => {
-        const h = Math.max((d.revenue / maxRev) * 180, 4)
+        const h = Math.max((d.revenue / maxRev) * 160, 4)
         return (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1.5 group">
-            <div className="relative w-full">
-              <div className="text-[10px] text-slate-400 text-center mb-1 opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
+          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: '100%', position: 'relative' }}>
+              <div style={{
+                width: '100%',
+                height: h,
+                background: 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
+                borderRadius: '6px 6px 0 0',
+                cursor: 'pointer',
+                transition: 'opacity 0.15s',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.opacity = '0.85'
+                e.currentTarget.parentElement.querySelector('.tooltip').style.opacity = '1'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.opacity = '1'
+                e.currentTarget.parentElement.querySelector('.tooltip').style.opacity = '0'
+              }}
+              />
+              <div className="tooltip" style={{
+                position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+                background: '#0f172a', color: 'white', fontSize: 11, fontWeight: 600,
+                padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap',
+                opacity: 0, transition: 'opacity 0.15s', marginBottom: 4, pointerEvents: 'none',
+              }}>
                 {fmtShort(d.revenue)}
               </div>
-              <div className="w-full rounded-t-lg transition-all cursor-pointer"
-                style={{ height: h, background: 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)' }} />
             </div>
-            <p className="text-[11px] font-semibold text-slate-500">{d.month}</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: '#64748b', margin: 0 }}>{d.month}</p>
           </div>
         )
       })}
@@ -102,6 +122,7 @@ export default function Reports() {
 
   const totalRevenue = orders.filter(o => o.status !== 'batal').reduce((a, o) => a + totalOrder(o.items), 0)
   const totalOrders  = orders.filter(o => o.status !== 'batal').length
+  const selesaiCount = orders.filter(o => o.status === 'selesai').length
   const avgOrder     = totalOrders ? Math.round(totalRevenue / totalOrders) : 0
   const bestMonth    = chartData.reduce((a, b) => a.revenue > b.revenue ? a : b, { month: '—', revenue: 0 })
 
@@ -186,108 +207,208 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex gap-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Page Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: '0 0 3px', letterSpacing: '-0.015em' }}>
+            Laporan &amp; Analitik
+          </h2>
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Ringkasan performa bisnis dan data penjualan</p>
+        </div>
+
+        {/* Period Pills */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             { key: 'bulan ini', label: 'Bulan Ini' },
             { key: '3bulan',   label: '3 Bulan' },
             { key: '6bulan',   label: '6 Bulan' },
             { key: 'tahun ini', label: 'Tahun Ini' },
           ].map(p => (
-            <button key={p.key} onClick={() => setPeriod(p.key)}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition border
-                ${period === p.key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'}`}>
+            <button key={p.key} onClick={() => setPeriod(p.key)} style={{
+              padding: '6px 14px',
+              borderRadius: 20,
+              fontSize: 12.5,
+              fontWeight: 500,
+              cursor: 'pointer',
+              border: period === p.key ? '1px solid #2563eb' : '1px solid #e2e8f0',
+              background: period === p.key ? '#2563eb' : 'white',
+              color: period === p.key ? 'white' : '#64748b',
+              transition: 'all 0.15s',
+            }}>
               {p.label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+
+      {/* Action Buttons Row */}
+      <div style={{
+        background: 'white',
+        borderRadius: 14,
+        border: '1px solid #f1f5f9',
+        boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+        padding: '16px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 12,
+      }}>
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', margin: '0 0 2px' }}>Ekspor &amp; Bagikan</p>
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Download laporan Excel atau kirim ringkasan via WhatsApp</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {waStatus.msg && (
-            <span className={`text-sm font-medium ${waStatus.ok ? 'text-green-600' : 'text-red-500'}`}>
-              {waStatus.ok ? '✅' : '❌'} {waStatus.msg}
+            <span style={{ fontSize: 13, fontWeight: 500, color: waStatus.ok ? '#16a34a' : '#dc2626' }}>
+              {waStatus.msg}
             </span>
           )}
-          <button onClick={kirimWA} disabled={waStatus.loading}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
-            <Send size={15} /> Kirim WA
+          <button onClick={exportExcel} style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+            color: 'white', borderRadius: 10, padding: '10px 18px',
+            fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
+            boxShadow: '0 1px 3px rgba(37,99,235,0.3)',
+          }}>
+            <Download size={15} /> Export Excel
           </button>
-          <button onClick={exportExcel}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
-            <FileSpreadsheet size={16} /> Export Excel
+          <button onClick={kirimWA} disabled={waStatus.loading} style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            background: waStatus.loading ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)',
+            color: 'white', borderRadius: 10, padding: '10px 18px',
+            fontSize: 13, fontWeight: 600, border: 'none', cursor: waStatus.loading ? 'not-allowed' : 'pointer',
+            boxShadow: '0 1px 3px rgba(22,163,74,0.3)',
+            opacity: waStatus.loading ? 0.7 : 1,
+          }}>
+            <Send size={15} /> {waStatus.loading ? 'Mengirim...' : 'Kirim WA'}
           </button>
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
-          { label: 'Total Omzet',    value: fmtShort(totalRevenue), icon: TrendingUp,  color: '#f0fdf4', ic: '#16a34a' },
-          { label: 'Total Order',    value: totalOrders,             icon: BarChart3,   color: '#eff6ff', ic: '#2563eb' },
-          { label: 'Rata-rata/Order', value: fmtShort(avgOrder),    icon: TrendingUp,  color: '#fefce8', ic: '#ca8a04' },
-          { label: 'Bulan Terbaik',  value: bestMonth.month,         icon: BarChart3,   color: '#f5f3ff', ic: '#7c3aed' },
-        ].map(({ label, value, icon: Icon, color, ic }) => (
-          <div key={label} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: color }}>
-              <Icon size={18} style={{ color: ic }} />
+          { label: 'Total Penjualan',   value: fmtShort(totalRevenue), sub: 'omzet keseluruhan', Icon: DollarSign,    iconColor: '#16a34a', iconBg: '#f0fdf4' },
+          { label: 'Total Order',       value: totalOrders,            sub: 'semua transaksi',   Icon: ShoppingCart,  iconColor: '#2563eb', iconBg: '#eff6ff' },
+          { label: 'Order Selesai',     value: selesaiCount,           sub: 'berhasil dikirim',  Icon: CheckCircle,   iconColor: '#7c3aed', iconBg: '#f5f3ff' },
+          { label: 'Rata-rata Order',   value: fmtShort(avgOrder),     sub: 'per transaksi',     Icon: TrendingUp,    iconColor: '#d97706', iconBg: '#fffbeb' },
+        ].map(({ label, value, sub, Icon, iconColor, iconBg }) => (
+          <div key={label} style={{
+            background: 'white',
+            borderRadius: 14,
+            padding: '18px 20px',
+            border: '1px solid #f1f5f9',
+            boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0, lineHeight: 1.3 }}>{label}</p>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={16} color={iconColor} strokeWidth={2} />
+              </div>
             </div>
-            <p className="text-slate-400 text-xs">{label}</p>
-            <p className="font-bold text-slate-800 text-lg mt-0.5">{value}</p>
+            <p style={{ fontSize: typeof value === 'string' && value.length > 10 ? 17 : 26, fontWeight: 800, color: '#0f172a', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.02em' }}>
+              {value}
+            </p>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Chart */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="font-bold text-slate-800">Grafik Omzet Bulanan</h3>
-          <p className="text-xs text-slate-400">{chartData.length} bulan data tersedia</p>
+      {/* Bar Chart */}
+      <div style={{
+        background: 'white',
+        borderRadius: 14,
+        border: '1px solid #f1f5f9',
+        boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+        padding: '20px 24px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Grafik Omzet Bulanan</p>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{chartData.length} bulan data tersedia</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: '#3b82f6' }} />
+            <span style={{ fontSize: 12, color: '#64748b' }}>Omzet</span>
+          </div>
         </div>
         {chartData.length > 0 ? (
           <BarChart data={chartData} />
         ) : (
-          <div className="h-52 flex items-center justify-center text-slate-400 text-sm">
+          <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>
             Belum ada data order untuk ditampilkan.
           </div>
         )}
       </div>
 
-      {/* Top products */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="font-bold text-slate-800">Produk Terlaris</h3>
-          <span className="text-xs text-slate-400">dari data order yang ada</span>
+      {/* Top Products Table */}
+      <div style={{
+        background: 'white',
+        borderRadius: 14,
+        border: '1px solid #f1f5f9',
+        boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+        overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Produk Terlaris</p>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Berdasarkan total omzet dari semua order</p>
+          </div>
+          <span style={{ fontSize: 11.5, color: '#94a3b8', background: '#f8fafc', border: '1px solid #f1f5f9', padding: '4px 10px', borderRadius: 8 }}>
+            Top {topProducts.length}
+          </span>
         </div>
         {topProducts.length === 0 ? (
-          <div className="px-6 py-12 text-center text-slate-400 text-sm">Belum ada data produk terlaris.</div>
+          <div style={{ padding: '48px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+            Belum ada data produk terlaris.
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-100">
-                  <th className="px-6 py-3 text-left font-semibold tracking-wide">#</th>
-                  <th className="px-6 py-3 text-left font-semibold tracking-wide">Produk</th>
-                  <th className="px-6 py-3 text-right font-semibold tracking-wide">Terjual</th>
-                  <th className="px-6 py-3 text-right font-semibold tracking-wide">Omzet</th>
-                  <th className="px-6 py-3 text-left font-semibold tracking-wide">Proporsi</th>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                  {['#', 'Produk', 'Terjual', 'Omzet', 'Proporsi'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '12px 16px',
+                      textAlign: i >= 2 && i <= 3 ? 'right' : 'left',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: '#64748b',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      whiteSpace: 'nowrap',
+                    }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody>
                 {topProducts.map((p, i) => {
                   const pct = totalRevenue ? Math.round((p.revenue / totalRevenue) * 100) : 0
                   return (
-                    <tr key={p.name} className="hover:bg-slate-50/80 transition">
-                      <td className="px-6 py-3.5 text-slate-400 font-semibold">{i + 1}</td>
-                      <td className="px-6 py-3.5 font-semibold text-slate-800">{p.name}</td>
-                      <td className="px-6 py-3.5 text-right text-slate-500">{p.sold.toLocaleString('id')} kg</td>
-                      <td className="px-6 py-3.5 text-right font-bold text-slate-800">{fmtShort(p.revenue)}</td>
-                      <td className="px-6 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                    <tr key={p.name}
+                      style={{ borderTop: i > 0 ? '1px solid #f8fafc' : 'none', background: 'white', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                    >
+                      <td style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 12, width: 36 }}>
+                        {i + 1}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>{p.name}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', color: '#475569', fontSize: 12 }}>
+                        {p.sold.toLocaleString('id')} kg
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                        {fmtShort(p.revenue)}
+                      </td>
+                      <td style={{ padding: '12px 16px', minWidth: 140 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #3b82f6, #2563eb)', borderRadius: 99 }} />
                           </div>
-                          <span className="text-xs text-slate-500 w-8">{pct}%</span>
+                          <span style={{ fontSize: 11.5, color: '#64748b', fontWeight: 600, width: 32, textAlign: 'right' }}>{pct}%</span>
                         </div>
                       </td>
                     </tr>
@@ -299,26 +420,47 @@ export default function Reports() {
         )}
       </div>
 
-      {/* Status breakdown */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Status Breakdown */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
-          { status: 'selesai', label: 'Selesai', color: '#16a34a', bg: '#f0fdf4' },
-          { status: 'proses',  label: 'Diproses', color: '#2563eb', bg: '#eff6ff' },
-          { status: 'pending', label: 'Pending',  color: '#ca8a04', bg: '#fefce8' },
-          { status: 'batal',   label: 'Dibatal',  color: '#dc2626', bg: '#fff1f2' },
+          { status: 'selesai', label: 'Selesai',  color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+          { status: 'proses',  label: 'Diproses', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+          { status: 'pending', label: 'Pending',  color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+          { status: 'batal',   label: 'Dibatal',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
         ].map(s => {
           const count = orders.filter(o => o.status === s.status).length
           const rev   = orders.filter(o => o.status === s.status).reduce((a, o) => a + totalOrder(o.items), 0)
           return (
-            <div key={s.status} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-              <div className="w-2 h-2 rounded-full mb-2" style={{ background: s.color }} />
-              <p className="text-slate-400 text-xs">{s.label}</p>
-              <p className="font-bold text-slate-800 text-xl mt-0.5">{count} order</p>
-              <p className="text-xs mt-0.5" style={{ color: s.color }}>{fmtShort(rev)}</p>
+            <div key={s.status} style={{
+              background: 'white',
+              borderRadius: 14,
+              padding: '18px 20px',
+              border: '1px solid #f1f5f9',
+              boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+            }}>
+              <span style={{
+                display: 'inline-block',
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '3px 10px',
+                borderRadius: 20,
+                background: s.bg,
+                color: s.color,
+                border: `1px solid ${s.border}`,
+                marginBottom: 12,
+              }}>
+                {s.label}
+              </span>
+              <p style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '0 0 4px', lineHeight: 1, letterSpacing: '-0.02em' }}>
+                {count}
+              </p>
+              <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 2px' }}>order</p>
+              <p style={{ fontSize: 12.5, fontWeight: 600, color: s.color, margin: 0 }}>{fmtShort(rev)}</p>
             </div>
           )
         })}
       </div>
+
     </div>
   )
 }

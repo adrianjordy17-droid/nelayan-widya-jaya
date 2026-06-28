@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Camera, CheckCircle, Clock, XCircle, Upload, Plus, Edit2, Trash2, X, Check } from 'lucide-react'
+import { Camera, CheckCircle, Clock, XCircle, Upload, Plus, Edit2, Trash2, X, Check, UserCheck, UserX, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { format } from 'date-fns'
@@ -28,7 +28,17 @@ function timeStatus(time) {
   return h < 8 ? 'hadir' : 'telat'
 }
 
-const inputCls = "w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white transition"
+const inputStyle = {
+  width: '100%',
+  border: '1.5px solid #e2e8f0',
+  borderRadius: 10,
+  padding: '9px 13px',
+  fontSize: 13,
+  color: '#0f172a',
+  background: 'white',
+  outline: 'none',
+  boxSizing: 'border-box',
+}
 
 export default function Attendance() {
   const { profile, hasPermission } = useAuth()
@@ -97,142 +107,243 @@ export default function Attendance() {
   const hadir       = todayLog.filter(e => e.status === 'hadir').length
   const telat       = todayLog.filter(e => e.status === 'telat').length
   const absen       = todayLog.filter(e => e.status === 'absen').length
+  const uniqueNames = new Set(log.map(e => e.name)).size
 
   const alreadyAbsen = log.some(e => e.date === TODAY && e.name === (profile?.name || ''))
 
   return (
-    <div className="space-y-5">
-      {/* Selfie card */}
-      <div className="rounded-2xl p-6 text-white shadow-lg"
-        style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #2563eb 100%)' }}>
-        <h3 className="font-bold text-lg mb-0.5">Absensi Selfie</h3>
-        <p className="text-blue-200 text-sm mb-5">{today} — {nowTime} WIB</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Selfie Card */}
+      <div style={{
+        borderRadius: 14,
+        padding: '22px 24px',
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #2563eb 100%)',
+        boxShadow: '0 4px 20px rgba(37,99,235,0.25)',
+      }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', margin: '0 0 4px' }}>Absensi Selfie</h3>
+        <p style={{ fontSize: 12.5, color: '#93c5fd', margin: '0 0 18px', textTransform: 'capitalize' }}>
+          {today} — {nowTime} WIB
+        </p>
 
         {submitted || alreadyAbsen ? (
-          <div className="flex items-center gap-3 bg-green-500/20 border border-green-400/30 rounded-xl px-5 py-4">
-            <CheckCircle size={22} className="text-green-300 shrink-0" />
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(134,239,172,0.3)',
+            borderRadius: 12, padding: '14px 18px',
+          }}>
+            <CheckCircle size={22} color="#86efac" style={{ flexShrink: 0 }} />
             <div>
-              <p className="font-semibold">Absensi sudah tercatat hari ini!</p>
-              <p className="text-sm text-blue-200">Pukul {log.find(e => e.date === TODAY && e.name === profile?.name)?.time || nowTime} WIB</p>
+              <p style={{ fontWeight: 600, color: 'white', margin: '0 0 2px', fontSize: 14 }}>Absensi sudah tercatat hari ini!</p>
+              <p style={{ fontSize: 12, color: '#93c5fd', margin: 0 }}>
+                Pukul {log.find(e => e.date === TODAY && e.name === profile?.name)?.time || nowTime} WIB
+              </p>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div>
             {selfie ? (
-              <div className="flex gap-4 items-start">
-                <img src={selfie} alt="selfie" className="w-28 h-28 rounded-xl object-cover border-2 border-white/20 shadow" />
-                <div className="flex-1">
-                  <p className="text-sm text-blue-100 mb-3">Foto siap. Konfirmasi absensi?</p>
-                  <div className="flex gap-2">
-                    <button onClick={submitSelfie}
-                      className="flex items-center gap-2 bg-green-500 hover:bg-green-400 px-4 py-2.5 rounded-xl text-sm font-semibold transition shadow">
-                      <CheckCircle size={16} /> Konfirmasi Hadir
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <img src={selfie} alt="selfie" style={{ width: 96, height: 96, borderRadius: 12, objectFit: 'cover', border: '2px solid rgba(255,255,255,0.2)' }} />
+                <div>
+                  <p style={{ fontSize: 13, color: '#bfdbfe', marginBottom: 12 }}>Foto siap. Konfirmasi absensi?</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={submitSelfie} style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: '#16a34a', color: 'white', border: 'none',
+                      borderRadius: 10, padding: '9px 16px', fontSize: 13,
+                      fontWeight: 600, cursor: 'pointer',
+                    }}>
+                      <CheckCircle size={15} /> Konfirmasi Hadir
                     </button>
-                    <button onClick={() => setSelfie(null)}
-                      className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-sm transition border border-white/20">
-                      <XCircle size={16} /> Ulang
+                    <button onClick={() => setSelfie(null)} style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'rgba(255,255,255,0.1)', color: 'white',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: 10, padding: '9px 14px', fontSize: 13, cursor: 'pointer',
+                    }}>
+                      <XCircle size={15} /> Ulang
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-3">
-                <button onClick={() => fileRef.current.click()}
-                  className="flex items-center gap-2 bg-white text-blue-800 font-semibold px-5 py-3 rounded-xl hover:bg-blue-50 transition shadow">
-                  <Camera size={18} /> Ambil Foto Selfie
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <button onClick={() => fileRef.current.click()} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'white', color: '#1e3a8a',
+                  border: 'none', borderRadius: 10, padding: '10px 18px',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+                }}>
+                  <Camera size={17} /> Ambil Foto Selfie
                 </button>
-                <button onClick={() => fileRef.current.click()}
-                  className="flex items-center gap-2 bg-white/12 hover:bg-white/20 px-5 py-3 rounded-xl text-sm transition border border-white/20">
-                  <Upload size={16} /> Upload Foto
+                <button onClick={() => fileRef.current.click()} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'rgba(255,255,255,0.12)', color: 'white',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 10, padding: '10px 16px', fontSize: 13, cursor: 'pointer',
+                }}>
+                  <Upload size={15} /> Upload Foto
                 </button>
-                <input ref={fileRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handlePhoto} />
+                <input ref={fileRef} type="file" accept="image/*" capture="user" style={{ display: 'none' }} onChange={handlePhoto} />
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Today summary */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
-          { label: 'Hadir', count: hadir, ...STATUS_CFG.hadir },
-          { label: 'Telat', count: telat, ...STATUS_CFG.telat },
-          { label: 'Absen', count: absen, ...STATUS_CFG.absen },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
-            <p className="text-3xl font-bold text-slate-800">{s.count}</p>
-            <span className="inline-block mt-1.5 px-3 py-0.5 rounded-full text-xs font-semibold"
-              style={{ background: s.bg, color: s.text, border: `1px solid ${s.border}` }}>
-              {s.label}
-            </span>
+          { label: 'Hadir Hari Ini',   value: hadir,        sub: 'tepat waktu',     Icon: UserCheck, iconColor: '#16a34a', iconBg: '#f0fdf4' },
+          { label: 'Telat',            value: telat,        sub: 'terlambat masuk', Icon: Clock,     iconColor: '#d97706', iconBg: '#fffbeb' },
+          { label: 'Absen',            value: absen,        sub: 'tidak hadir',     Icon: UserX,     iconColor: '#dc2626', iconBg: '#fef2f2' },
+          { label: 'Total Karyawan',   value: uniqueNames,  sub: 'terdaftar',       Icon: Users,     iconColor: '#2563eb', iconBg: '#eff6ff' },
+        ].map(({ label, value, sub, Icon, iconColor, iconBg }) => (
+          <div key={label} style={{
+            background: 'white',
+            borderRadius: 14,
+            padding: '18px 20px',
+            border: '1px solid #f1f5f9',
+            boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0 }}>{label}</p>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={16} color={iconColor} strokeWidth={2} />
+              </div>
+            </div>
+            <p style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.02em' }}>
+              {value}
+            </p>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Log table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-bold text-slate-800">Log Absensi</h3>
-          <div className="flex items-center gap-3">
-            <input type="date" value={dateView} onChange={e => setDateView(e.target.value)}
-              className="border border-slate-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+      {/* Log Table */}
+      <div style={{
+        background: 'white',
+        borderRadius: 14,
+        border: '1px solid #f1f5f9',
+        boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+        overflow: 'hidden',
+      }}>
+        {/* Table Header Bar */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px', borderBottom: '1px solid #f1f5f9', gap: 12,
+        }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Log Absensi</p>
+            <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0 }}>
+              {viewLog.length} catatan untuk tanggal yang dipilih
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="date"
+              value={dateView}
+              onChange={e => setDateView(e.target.value)}
+              style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', color: '#0f172a', background: 'white' }}
+            />
             {canManage && (
-              <button onClick={openAdd}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
-                <Plus size={15} /> Tambah Manual
+              <button onClick={openAdd} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                color: 'white', borderRadius: 10, padding: '9px 16px',
+                fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(37,99,235,0.3)',
+              }}>
+                <Plus size={14} /> Tambah Manual
               </button>
             )}
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+
+        {/* Table */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-100">
-                <th className="px-6 py-3 text-left font-semibold tracking-wide">Nama</th>
-                <th className="px-6 py-3 text-left font-semibold tracking-wide">Jabatan</th>
-                <th className="px-6 py-3 text-left font-semibold tracking-wide">Jam</th>
-                <th className="px-6 py-3 text-center font-semibold tracking-wide">Status</th>
-                <th className="px-6 py-3 text-left font-semibold tracking-wide">Catatan</th>
-                <th className="px-6 py-3 text-center font-semibold tracking-wide">Foto</th>
-                {canManage && <th className="px-6 py-3 text-center font-semibold tracking-wide">Aksi</th>}
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                {['Nama', 'Jabatan', 'Jam Masuk', 'Status', 'Catatan', 'Foto', canManage ? 'Aksi' : null].filter(Boolean).map(h => (
+                  <th key={h} style={{
+                    padding: '12px 16px',
+                    textAlign: h === 'Status' || h === 'Foto' || h === 'Aksi' ? 'center' : 'left',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#64748b',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    whiteSpace: 'nowrap',
+                  }}>{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody>
               {viewLog.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">Tidak ada data absensi untuk tanggal ini.</td></tr>
+                <tr>
+                  <td colSpan={canManage ? 7 : 6} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                    Tidak ada data absensi untuk tanggal ini.
+                  </td>
+                </tr>
               )}
-              {viewLog.map(entry => {
+              {viewLog.map((entry, idx) => {
                 const sc = STATUS_CFG[entry.status] || STATUS_CFG.hadir
                 return (
-                  <tr key={entry.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-6 py-3.5 font-semibold text-slate-800">{entry.name}</td>
-                    <td className="px-6 py-3.5 text-slate-400 capitalize text-xs">{entry.role}</td>
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-1.5 text-slate-700">
-                        <Clock size={13} className="text-slate-400" /> {entry.time}
+                  <tr key={entry.id}
+                    style={{ borderTop: idx > 0 ? '1px solid #f8fafc' : 'none', background: 'white', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                  >
+                    <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>{entry.name}</td>
+                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12, textTransform: 'capitalize' }}>{entry.role}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#334155' }}>
+                        <Clock size={12} color="#94a3b8" /> {entry.time}
                       </div>
                     </td>
-                    <td className="px-6 py-3.5 text-center">
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full capitalize"
-                        style={{ background: sc.bg, color: sc.text, border: `1px solid ${sc.border}` }}>
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <span style={{
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        padding: '3px 10px',
+                        borderRadius: 20,
+                        textTransform: 'capitalize',
+                        background: sc.bg,
+                        color: sc.text,
+                        border: `1px solid ${sc.border}`,
+                      }}>
                         {entry.status}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-slate-400 text-xs">{entry.catatan || '—'}</td>
-                    <td className="px-6 py-3.5 text-center">
+                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12 }}>{entry.catatan || '—'}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       {entry.photo
-                        ? <img src={entry.photo} alt="selfie" className="w-8 h-8 rounded-full object-cover mx-auto border border-slate-200" />
-                        : <span className="text-slate-300 text-xs">—</span>}
+                        ? <img src={entry.photo} alt="selfie" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0', display: 'inline-block' }} />
+                        : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>
+                      }
                     </td>
                     {canManage && (
-                      <td className="px-6 py-3.5">
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => openEdit(entry)} title="Edit"
-                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition">
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          <button onClick={() => openEdit(entry)} title="Edit" style={{
+                            padding: '6px', border: 'none', borderRadius: 8, background: 'transparent',
+                            cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#fef9c3'; e.currentTarget.style.color = '#ca8a04' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
+                          >
                             <Edit2 size={14} />
                           </button>
-                          <button onClick={() => setDeleteConfirm(entry.id)} title="Hapus"
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
+                          <button onClick={() => setDeleteConfirm(entry.id)} title="Hapus" style={{
+                            padding: '6px', border: 'none', borderRadius: 8, background: 'transparent',
+                            cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
+                          >
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -248,57 +359,96 @@ export default function Attendance() {
 
       {/* Add/Edit Modal */}
       {modal && form && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">{modal === 'edit' ? 'Edit Absensi' : 'Tambah Absensi Manual'}</h3>
-              <button onClick={() => { setModal(null); setForm(null) }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Nama</label>
-                  <select value={form.name} onChange={e => setF('name', e.target.value)} className={inputCls}>
-                    {TEAM.map(n => <option key={n}>{n}</option>)}
-                  </select>
-                </div>
-                <div><label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Tanggal</label>
-                  <input type="date" value={form.date} onChange={e => setF('date', e.target.value)} className={inputCls} />
-                </div>
-                <div><label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Jam Masuk</label>
-                  <input type="time" value={form.time} onChange={e => setF('time', e.target.value)} className={inputCls} />
-                </div>
-                <div><label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Status</label>
-                  <select value={form.status} onChange={e => setF('status', e.target.value)} className={inputCls}>
-                    {['hadir','telat','absen','izin'].map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div><label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Catatan</label>
-                <input value={form.catatan} onChange={e => setF('catatan', e.target.value)} placeholder="Izin sakit, terlambat, ..." className={inputCls} />
-              </div>
-            </div>
-            <div className="flex gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
-              <button onClick={save} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">
-                <Check size={15} /> Simpan
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
+          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)',
+            width: '100%', maxWidth: 460,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #f1f5f9' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                {modal === 'edit' ? 'Edit Absensi' : 'Tambah Absensi Manual'}
+              </h3>
+              <button onClick={() => { setModal(null); setForm(null) }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
+                <X size={20} />
               </button>
-              <button onClick={() => { setModal(null); setForm(null) }} className="px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 transition">Batal</button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Nama</label>
+                <select value={form.name} onChange={e => setF('name', e.target.value)} style={inputStyle}>
+                  {TEAM.map(n => <option key={n}>{n}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Tanggal</label>
+                <input type="date" value={form.date} onChange={e => setF('date', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Jam Masuk</label>
+                <input type="time" value={form.time} onChange={e => setF('time', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Status</label>
+                <select value={form.status} onChange={e => setF('status', e.target.value)} style={inputStyle}>
+                  {['hadir', 'telat', 'absen', 'izin'].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Catatan</label>
+                <input value={form.catatan} onChange={e => setF('catatan', e.target.value)} placeholder="Izin sakit, terlambat, ..." style={inputStyle} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, padding: '16px 24px', borderTop: '1px solid #f1f5f9', background: '#fafafa', borderRadius: '0 0 18px 18px' }}>
+              <button onClick={save} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                color: 'white', borderRadius: 10, padding: '9px 18px',
+                fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
+              }}>
+                <Check size={14} /> Simpan
+              </button>
+              <button onClick={() => { setModal(null); setForm(null) }} style={{
+                padding: '9px 16px', border: '1px solid #e2e8f0', color: '#64748b',
+                borderRadius: 10, fontSize: 13, background: 'white', cursor: 'pointer',
+              }}>
+                Batal
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete confirm */}
+      {/* Delete Confirm */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={22} className="text-red-500" />
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
+          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)',
+            padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center',
+          }}>
+            <div style={{ width: 48, height: 48, background: '#fef2f2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <Trash2 size={22} color="#dc2626" />
             </div>
-            <h3 className="font-bold text-slate-800 mb-1">Hapus Data Absensi?</h3>
-            <p className="text-slate-500 text-sm mb-5">Catatan absensi ini akan dihapus permanen.</p>
-            <div className="flex gap-2 justify-center">
-              <button onClick={() => del(deleteConfirm)} className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-xl text-sm font-semibold transition">Ya, Hapus</button>
-              <button onClick={() => setDeleteConfirm(null)} className="border border-slate-200 text-slate-600 px-5 py-2 rounded-xl text-sm hover:bg-slate-50 transition">Batal</button>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>Hapus Data Absensi?</h3>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px' }}>Catatan absensi ini akan dihapus permanen.</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button onClick={() => del(deleteConfirm)} style={{
+                background: '#dc2626', color: 'white', border: 'none', borderRadius: 10,
+                padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Ya, Hapus
+              </button>
+              <button onClick={() => setDeleteConfirm(null)} style={{
+                border: '1px solid #e2e8f0', color: '#64748b', background: 'white',
+                borderRadius: 10, padding: '9px 16px', fontSize: 13, cursor: 'pointer',
+              }}>
+                Batal
+              </button>
             </div>
           </div>
         </div>
