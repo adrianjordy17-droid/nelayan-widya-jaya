@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Plus, Printer, X, Check, Trash2, FileText,
   ClipboardList, Truck, PackageCheck, Receipt, ChevronDown,
@@ -403,6 +403,7 @@ export default function Documents() {
   const [saved, setSaved]   = useState(false)
   const [detail, setDetail] = useState(null)
 
+  const navigate = useNavigate()
   const createType = form?.type || null
 
   useEffect(() => {
@@ -440,6 +441,28 @@ export default function Documents() {
 
   function openCreate(type) {
     setForm(emptyForm(type))
+    setMenu(false)
+    setSaved(false)
+  }
+
+  function openCreateFrom(type, sourceDoc) {
+    const withPrice = type === 'SO' || type === 'Invoice'
+    const f = {
+      ...emptyForm(type),
+      clientName: sourceDoc.clientName,
+      clientAddress: sourceDoc.clientAddress || '',
+      clientPhone: sourceDoc.clientPhone || '',
+      refNumber: sourceDoc.number,
+      items: sourceDoc.items.map(it => ({
+        ...it, id: newId(),
+        price: withPrice ? (it.price ?? '') : null,
+        receivedQty: '',
+        condition: 'Baik',
+        total: withPrice ? (it.total ?? 0) : null,
+      })),
+    }
+    setDetail(null)
+    setForm(withPrice ? recalcForm(f) : f)
     setMenu(false)
     setSaved(false)
   }
@@ -926,6 +949,39 @@ export default function Documents() {
                     <p style={{ fontSize: 14, color: '#3c3c43', margin: 0, lineHeight: 1.55 }}>{detail.notes}</p>
                   </div>
                 </div>
+              )}
+              {/* Action Buttons */}
+              {isStaff && detail.type === 'DO' && detail.status === 'dispatched' && (
+                <button
+                  onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
+                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <Truck size={16} /> Kirim Laporan
+                </button>
+              )}
+              {canEdit && detail.type === 'SO' && detail.status === 'confirmed' && (
+                <button
+                  onClick={() => openCreateFrom('DO', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <Truck size={16} /> Buat Delivery Order
+                </button>
+              )}
+              {canEdit && detail.type === 'DO' && detail.status === 'delivered' && (
+                <button
+                  onClick={() => openCreateFrom('GR', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <PackageCheck size={16} /> Buat Goods Receipt
+                </button>
+              )}
+              {canEdit && detail.type === 'GR' && detail.status === 'received' && (
+                <button
+                  onClick={() => openCreateFrom('Invoice', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#af52de', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <Receipt size={16} /> Buat Invoice
+                </button>
               )}
             </div>
             <div style={{ height: 40 }} />

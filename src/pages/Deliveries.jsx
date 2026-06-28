@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Camera, Check, Plus, X, Truck, Store, FileText, Calendar } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { Camera, Check, Plus, X, Truck, Store, FileText, Calendar, Package } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -39,6 +40,7 @@ function InfoRow({ label, value, last }) {
 
 export default function Deliveries() {
   const { user, profile, demoMode } = useAuth()
+  const location = useLocation()
   const [reports, setReports] = useState([])
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(emptyForm())
@@ -54,6 +56,7 @@ export default function Deliveries() {
       photoSentFile: null, photoSentPreview: null,
       photoReceivedFile: null, photoReceivedPreview: null,
       notes: '',
+      doRef: '', doId: null, doItems: [],
     }
   }
 
@@ -78,6 +81,16 @@ export default function Deliveries() {
         })))
       })
   }, [demoMode])
+
+  useEffect(() => {
+    if (location.state?.doRef) {
+      const { doRef, doId, clientName, items } = location.state
+      setForm(f => ({ ...f, doRef: doRef || '', doId: doId || null, doItems: items || [], clientName: clientName || '' }))
+      setSaved(false)
+      setModal('new')
+      window.history.replaceState({}, document.title)
+    }
+  }, [])
 
   function handlePhoto(type, e) {
     const file = e.target.files?.[0]
@@ -137,6 +150,9 @@ export default function Deliveries() {
           created_by: user?.id,
           created_by_name: report.createdByName,
         })
+        if (form.doId) {
+          await supabase.from('documents').update({ status: 'delivered' }).eq('id', form.doId)
+        }
       }
 
       setSaved(true)
@@ -292,6 +308,34 @@ export default function Deliveries() {
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+              {/* DO Reference Badge */}
+              {form.doRef && (
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>Delivery Order</p>
+                  <div style={{ background: 'white', borderRadius: 13, padding: '14px 16px', boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fff8e1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Package size={16} color="#ff9500" strokeWidth={1.9} />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>{form.doRef}</p>
+                        <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>{form.clientName}</p>
+                      </div>
+                    </div>
+                    {form.doItems.length > 0 && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid #f0f0f0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {form.doItems.map((it, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <p style={{ fontSize: 13.5, color: '#3c3c43', margin: 0 }}>{it.name}</p>
+                            <p style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{it.qty} {it.unit}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Saat Kirim */}
               <div>
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
@@ -393,9 +437,10 @@ export default function Deliveries() {
                     <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, minWidth: 80, fontWeight: 400 }}>Klien/Resto</p>
                     <input
                       value={form.clientName}
-                      onChange={e => setForm(f => ({ ...f, clientName: e.target.value }))}
+                      onChange={e => !form.doRef && setForm(f => ({ ...f, clientName: e.target.value }))}
+                      readOnly={!!form.doRef}
                       placeholder="Nama restoran / klien"
-                      style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                      style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: form.doRef ? '#8e8e93' : '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 16px', borderBottom: '0.5px solid #f0f0f0' }}>
