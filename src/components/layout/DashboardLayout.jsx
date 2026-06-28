@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight, Truck,
+  Bell, LogOut, Waves, ChevronRight, Truck, FileText,
 } from 'lucide-react'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
 
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { path: '/dashboard',             label: 'Beranda',       icon: LayoutDashboard, feature: null },
   { path: '/dashboard/orders',      label: 'Order',         icon: ShoppingBag,     feature: 'orders' },
   { path: '/dashboard/deliveries',  label: 'Laporan Kirim', icon: Truck,           feature: 'deliveries' },
+  { path: '/dashboard/documents',   label: 'Dokumen',       icon: FileText,        feature: 'documents' },
   { path: '/dashboard/clients',     label: 'Klien',         icon: Users,           feature: 'clients' },
   { path: '/dashboard/stock',       label: 'Stok',          icon: Package,         feature: 'stock' },
   { path: '/dashboard/reports',     label: 'Laporan',       icon: BarChart2,       feature: 'reports' },
@@ -26,6 +27,7 @@ const PAGE_TITLE = {
   '/dashboard':             'Beranda',
   '/dashboard/orders':      'Manajemen Order',
   '/dashboard/deliveries':  'Laporan Kirim',
+  '/dashboard/documents':   'Dokumen (SO / DO / GR / Invoice)',
   '/dashboard/clients':     'Data Klien',
   '/dashboard/stock':       'Manajemen Stok',
   '/dashboard/reports':     'Laporan & Analitik',
