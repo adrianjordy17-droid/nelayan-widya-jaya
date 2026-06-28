@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import { Save, User, Building, Bell, Users, Trash2, Plus, Check, X, Edit2, MessageSquare, Send, Eye, EyeOff } from 'lucide-react'
+import {
+  User, Building2, Bell, Users, Trash2, Plus, Check, X, Edit2,
+  MessageSquare, Send, Eye, EyeOff, ChevronRight,
+  Phone, MapPin, Mail, Hash, FileText, Clock, Shield,
+} from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { generateDailyReport, sendToWhatsApp } from '../lib/whatsapp'
 
 const INIT_WA_CONFIG = { token: '', target: '', sendTime: '18:00', enabled: false }
-
 const INIT_COMPANY = {
   name: 'UD. Nelayan Widya Jaya',
   phone: '+62 812-3456-7890',
@@ -14,65 +17,260 @@ const INIT_COMPANY = {
   npwp: '12.345.678.9-012.000',
   nib: '1234567890123',
 }
-
 const INIT_USERS = [
   { id: 1, name: 'Jordy',  email: 'jordy@nelayan.id',  role: 'owner', active: true },
   { id: 2, name: 'April',  email: 'april@nelayan.id',  role: 'admin', active: true },
   { id: 3, name: 'Bimbim', email: 'bimbim@nelayan.id', role: 'staff', active: true },
   { id: 4, name: 'Wowo',   email: 'wowo@nelayan.id',   role: 'staff', active: true },
 ]
-
 const ROLE_CFG = {
-  owner: { bg: '#fefce8', text: '#ca8a04', border: '#fde68a' },
-  admin: { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' },
-  staff: { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' },
+  owner: { bg: '#fff8e1', text: '#b45309', label: 'Pemilik' },
+  admin: { bg: '#eff6ff', text: '#1d4ed8', label: 'Admin'   },
+  staff: { bg: '#f0fdf4', text: '#15803d', label: 'Staff'   },
 }
 
-const inputCls = "w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white transition disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
-
-function Section({ icon: Icon, title, children }) {
+/* ── iOS-style Toggle ── */
+function Toggle({ on, onChange, color = '#34c759' }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/60">
-        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-          <Icon size={16} className="text-blue-600" />
-        </div>
-        <h3 className="font-bold text-slate-800">{title}</h3>
+    <div onClick={onChange} style={{
+      width: 51, height: 31, borderRadius: 31,
+      background: on ? color : '#e5e5ea',
+      cursor: 'pointer', position: 'relative',
+      transition: 'background 0.22s ease', flexShrink: 0,
+    }}>
+      <div style={{
+        position: 'absolute', top: 2,
+        left: on ? 22 : 2, width: 27, height: 27,
+        borderRadius: '50%', background: 'white',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.22)',
+        transition: 'left 0.22s ease',
+      }} />
+    </div>
+  )
+}
+
+/* ── Section group ── */
+function Group({ label, footer, children }) {
+  return (
+    <div>
+      {label && (
+        <p style={{
+          fontSize: 12, fontWeight: 600, color: '#6e6e73',
+          textTransform: 'uppercase', letterSpacing: '0.06em',
+          paddingLeft: 6, marginBottom: 7,
+        }}>{label}</p>
+      )}
+      <div style={{
+        background: 'white', borderRadius: 13, overflow: 'hidden',
+        boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)',
+      }}>
+        {children}
       </div>
-      <div className="p-6">{children}</div>
+      {footer && (
+        <p style={{ fontSize: 12, color: '#8e8e93', padding: '6px 6px 0', lineHeight: 1.5 }}>
+          {footer}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/* ── Row with right-aligned input ── */
+function InputRow({ icon: Icon, iconBg = '#007aff', label, value, onChange, type = 'text', placeholder, disabled, last, suffix }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 13,
+      padding: '11px 16px',
+      borderBottom: last ? 'none' : '0.5px solid #f0f0f0',
+      background: 'white',
+    }}>
+      {Icon && (
+        <div style={{
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          background: disabled ? '#c7c7cc' : iconBg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={15} color="white" strokeWidth={1.9} />
+        </div>
+      )}
+      <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flexShrink: 0, minWidth: 110, fontWeight: 400 }}>
+        {label}
+      </p>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+        <input
+          type={type} value={value} onChange={onChange}
+          placeholder={placeholder} disabled={disabled}
+          style={{
+            border: 'none', outline: 'none',
+            textAlign: 'right', fontSize: 15,
+            color: disabled ? '#c7c7cc' : '#3c3c43',
+            background: 'transparent', padding: 0,
+            fontFamily: 'inherit', width: '100%', maxWidth: 220,
+          }}
+        />
+        {suffix}
+      </div>
+    </div>
+  )
+}
+
+/* ── Row with toggle ── */
+function ToggleRow({ icon: Icon, iconBg = '#007aff', label, desc, on, onChange, last, toggleColor }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 13,
+      padding: '12px 16px',
+      borderBottom: last ? 'none' : '0.5px solid #f0f0f0',
+      background: 'white',
+    }}>
+      {Icon && (
+        <div style={{
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          background: iconBg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={15} color="white" strokeWidth={1.9} />
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, fontWeight: 400 }}>{label}</p>
+        {desc && <p style={{ fontSize: 12.5, color: '#8e8e93', marginTop: 2 }}>{desc}</p>}
+      </div>
+      <Toggle on={on} onChange={onChange} color={toggleColor} />
+    </div>
+  )
+}
+
+/* ── Action row (blue tap-able row) ── */
+function ActionRow({ icon: Icon, iconBg, label, onClick, disabled, color = '#007aff', last, destructive }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <div
+      onClick={disabled ? undefined : onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 13,
+        padding: '12px 16px',
+        borderBottom: last ? 'none' : '0.5px solid #f0f0f0',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: hover && !disabled ? '#f9f9f9' : 'white',
+        transition: 'background 0.1s',
+      }}>
+      {Icon && (
+        <div style={{
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          background: disabled ? '#e5e5ea' : (iconBg || color),
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={15} color="white" strokeWidth={1.9} />
+        </div>
+      )}
+      <p style={{
+        fontSize: 15, margin: 0, fontWeight: 400,
+        color: disabled ? '#c7c7cc' : destructive ? '#ff3b30' : color,
+      }}>{label}</p>
+    </div>
+  )
+}
+
+/* ── Info banner row ── */
+function InfoRow({ children, last }) {
+  return (
+    <div style={{
+      padding: '13px 16px',
+      borderBottom: last ? 'none' : '0.5px solid #f0f0f0',
+      background: 'white',
+    }}>
+      {children}
+    </div>
+  )
+}
+
+/* ── Save confirm row ── */
+function SaveRow({ onSave, saved, last }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+      padding: '11px 16px',
+      borderTop: '0.5px solid #f0f0f0',
+      background: 'white',
+    }}>
+      <button onClick={onSave} style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        fontSize: 15, fontWeight: 500,
+        color: saved ? '#34c759' : '#007aff',
+        padding: 0, display: 'flex', alignItems: 'center', gap: 6,
+        fontFamily: 'inherit',
+      }}>
+        {saved ? <><Check size={15} /> Tersimpan</> : 'Simpan'}
+      </button>
+    </div>
+  )
+}
+
+/* ── Modal (Apple sheet-style) ── */
+function Modal({ title, onClose, children, onSave }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 50,
+      background: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
+    }}>
+      <div style={{
+        background: '#f2f2f7', borderRadius: 16,
+        width: '100%', maxWidth: 400,
+        boxShadow: '0 24px 60px rgba(0,0,0,0.2)',
+        overflow: 'hidden',
+      }}>
+        {/* Modal header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 16px',
+          background: '#f2f2f7',
+          borderBottom: '0.5px solid #d1d1d6',
+        }}>
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 15, color: '#007aff', padding: 0, fontFamily: 'inherit',
+          }}>Batal</button>
+          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{title}</p>
+          <button onClick={onSave} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 15, fontWeight: 600, color: '#007aff', padding: 0, fontFamily: 'inherit',
+          }}>Simpan</button>
+        </div>
+        <div style={{ padding: '16px 0' }}>
+          {children}
+        </div>
+      </div>
     </div>
   )
 }
 
 export default function Settings() {
   const { profile, isRole } = useAuth()
-  const [company, setCompany]     = useLocalStorage('nwj_company', INIT_COMPANY)
-  const [users, setUsers]         = useLocalStorage('nwj_users', INIT_USERS)
-  const [notifs, setNotifs]       = useLocalStorage('nwj_notifs', { lowStock: true, newOrder: true, dailyReport: false })
-  const [account, setAccount]     = useLocalStorage('nwj_account', { name: profile?.name || '', email: profile?.email || '' })
+  const [company, setCompany]   = useLocalStorage('nwj_company', INIT_COMPANY)
+  const [users, setUsers]       = useLocalStorage('nwj_users', INIT_USERS)
+  const [notifs, setNotifs]     = useLocalStorage('nwj_notifs', { lowStock: true, newOrder: true, dailyReport: false })
+  const [account, setAccount]   = useLocalStorage('nwj_account', { name: profile?.name || '', email: profile?.email || '' })
+  const [waConfig, setWaConfig] = useLocalStorage('nwj_wa_config', INIT_WA_CONFIG)
 
-  const [waConfig, setWaConfig]     = useLocalStorage('nwj_wa_config', INIT_WA_CONFIG)
-  const [waStatus, setWaStatus]     = useState({ loading: false, msg: '', ok: null })
-  const [showToken, setShowToken]   = useState(false)
-
+  const [waStatus, setWaStatus]       = useState({ loading: false, msg: '', ok: null })
+  const [showToken, setShowToken]     = useState(false)
   const [companySaved, setCompanySaved] = useState(false)
   const [accountSaved, setAccountSaved] = useState(false)
-  const [userModal, setUserModal] = useState(false)
-  const [userForm, setUserForm]   = useState({ name: '', email: '', role: 'staff' })
-  const [editUserId, setEditUserId] = useState(null)
+  const [userModal, setUserModal]     = useState(false)
+  const [userForm, setUserForm]       = useState({ name: '', email: '', role: 'staff' })
+  const [editUserId, setEditUserId]   = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
 
-  function saveCompany() {
-    setCompanySaved(true)
-    setTimeout(() => setCompanySaved(false), 2000)
-  }
-  function saveAccount() {
-    setAccountSaved(true)
-    setTimeout(() => setAccountSaved(false), 2000)
-  }
+  function saveCompany() { setCompanySaved(true); setTimeout(() => setCompanySaved(false), 2500) }
+  function saveAccount()  { setAccountSaved(true); setTimeout(() => setAccountSaved(false), 2500) }
 
-  function openAddUser()   { setUserForm({ name: '', email: '', role: 'staff' }); setEditUserId(null); setUserModal(true) }
-  function openEditUser(u) { setUserForm({ name: u.name, email: u.email, role: u.role }); setEditUserId(u.id); setUserModal(true) }
+  function openAddUser()    { setUserForm({ name: '', email: '', role: 'staff' }); setEditUserId(null); setUserModal(true) }
+  function openEditUser(u)  { setUserForm({ name: u.name, email: u.email, role: u.role }); setEditUserId(u.id); setUserModal(true) }
 
   function saveUser() {
     if (!userForm.name || !userForm.email) return
@@ -84,14 +282,15 @@ export default function Settings() {
     setUserModal(false)
   }
 
+  function delUser(id) { setUsers(prev => prev.filter(u => u.id !== id)); setDeleteConfirm(null) }
+
   async function testSendWA() {
     setWaStatus({ loading: true, msg: 'Mengirim...', ok: null })
     try {
       const orders     = JSON.parse(localStorage.getItem('nwj_orders') || '[]')
       const stock      = JSON.parse(localStorage.getItem('nwj_stock') || '[]')
       const attendance = JSON.parse(localStorage.getItem('nwj_attendance') || '[]')
-      const message    = generateDailyReport(orders, stock, attendance)
-      await sendToWhatsApp({ token: waConfig.token, target: waConfig.target, message })
+      await sendToWhatsApp({ token: waConfig.token, target: waConfig.target, message: generateDailyReport(orders, stock, attendance) })
       setWaStatus({ loading: false, msg: 'Berhasil terkirim!', ok: true })
     } catch (err) {
       setWaStatus({ loading: false, msg: err.message, ok: false })
@@ -99,280 +298,303 @@ export default function Settings() {
     setTimeout(() => setWaStatus({ loading: false, msg: '', ok: null }), 5000)
   }
 
-  function delUser(id) {
-    setUsers(prev => prev.filter(u => u.id !== id))
-    setDeleteConfirm(null)
-  }
-
-  function toggleUserActive(id) {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, active: !u.active } : u))
-  }
+  const roleColor = ROLE_CFG[profile?.role]
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div style={{
+      maxWidth: 560,
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+      display: 'flex', flexDirection: 'column', gap: 32,
+    }}>
 
-      {/* Company */}
-      <Section icon={Building} title="Profil Perusahaan">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[
-            { k: 'name',    label: 'Nama Perusahaan' },
-            { k: 'phone',   label: 'No. Telepon' },
-            { k: 'address', label: 'Alamat', col: 2 },
-            { k: 'email',   label: 'Email Bisnis', type: 'email' },
-            { k: 'npwp',    label: 'NPWP' },
-            { k: 'nib',     label: 'No. NIB' },
-          ].map(({ k, label, type = 'text', col }) => (
-            <div key={k} className={col === 2 ? 'sm:col-span-2' : ''}>
-              <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">{label}</label>
-              <input type={type} value={company[k] || ''}
-                onChange={e => setCompany(c => ({ ...c, [k]: e.target.value }))}
-                disabled={!isRole('owner')}
-                className={inputCls} />
-            </div>
-          ))}
+      {/* ── Profile card (top) ── */}
+      <div style={{
+        background: 'white', borderRadius: 13, overflow: 'hidden',
+        boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)',
+        display: 'flex', alignItems: 'center', gap: 16, padding: '18px 20px',
+      }}>
+        <div style={{
+          width: 60, height: 60, borderRadius: '50%',
+          background: `linear-gradient(135deg, ${roleColor?.text || '#007aff'}, ${roleColor?.text || '#007aff'}99)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22, fontWeight: 700, color: 'white', flexShrink: 0,
+          boxShadow: `0 4px 14px ${roleColor?.text || '#007aff'}44`,
+        }}>
+          {(profile?.name || 'U').slice(0, 2).toUpperCase()}
         </div>
-        {isRole('owner') && (
-          <button onClick={saveCompany}
-            className="mt-5 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
-            {companySaved ? <><Check size={16} /> Tersimpan!</> : <><Save size={16} /> Simpan Perubahan</>}
-          </button>
-        )}
-      </Section>
-
-      {/* Account */}
-      <Section icon={User} title="Profil Akun Saya">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Nama Lengkap</label>
-            <input value={account.name} onChange={e => setAccount(a => ({ ...a, name: e.target.value }))} className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Email</label>
-            <input type="email" value={account.email} onChange={e => setAccount(a => ({ ...a, email: e.target.value }))} className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Jabatan</label>
-            <input value={profile?.role || ''} disabled className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Password Baru</label>
-            <input type="password" placeholder="Kosongkan jika tidak diubah" className={inputCls} />
-          </div>
+        <div>
+          <p style={{ fontSize: 17, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{profile?.name}</p>
+          <p style={{ fontSize: 13, color: '#8e8e93', marginTop: 3 }}>{profile?.email}</p>
+          <span style={{
+            display: 'inline-block', marginTop: 5,
+            fontSize: 11.5, fontWeight: 600, padding: '2px 9px',
+            borderRadius: 99, letterSpacing: '0.02em',
+            background: roleColor?.bg, color: roleColor?.text,
+          }}>
+            {roleColor?.label || profile?.role}
+          </span>
         </div>
-        <button onClick={saveAccount}
-          className="mt-5 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
-          {accountSaved ? <><Check size={16} /> Tersimpan!</> : <><Save size={16} /> Simpan</>}
-        </button>
-      </Section>
+      </div>
 
-      {/* Notifications */}
-      <Section icon={Bell} title="Notifikasi">
-        <div className="space-y-4">
-          {[
-            { key: 'lowStock',     label: 'Peringatan stok rendah',  desc: 'Notifikasi ketika stok di bawah minimum' },
-            { key: 'newOrder',     label: 'Order masuk baru',        desc: 'Notifikasi real-time saat ada pesanan baru' },
-            { key: 'dailyReport',  label: 'Laporan harian',          desc: 'Ringkasan operasional setiap pukul 18.00' },
-          ].map(n => (
-            <div key={n.key} className="flex items-center justify-between gap-4 py-1">
-              <div>
-                <p className="text-sm font-semibold text-slate-800">{n.label}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{n.desc}</p>
-              </div>
-              <div onClick={() => setNotifs(p => ({ ...p, [n.key]: !p[n.key] }))}
-                className={`w-11 h-6 rounded-full transition cursor-pointer shrink-0 ${notifs[n.key] ? 'bg-blue-500' : 'bg-slate-200'}`}>
-                <div className={`w-4 h-4 bg-white rounded-full m-1 shadow transition-transform ${notifs[n.key] ? 'translate-x-5' : ''}`} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Section>
+      {/* ── Profil Akun ── */}
+      <Group label="Profil Akun">
+        <InputRow icon={User} iconBg="#007aff" label="Nama" value={account.name}
+          onChange={e => setAccount(a => ({ ...a, name: e.target.value }))}
+          placeholder="Nama lengkap" />
+        <InputRow icon={Mail} iconBg="#34aadc" label="Email" type="email" value={account.email}
+          onChange={e => setAccount(a => ({ ...a, email: e.target.value }))}
+          placeholder="email@domain.com" />
+        <InputRow icon={Shield} iconBg="#8e8e93" label="Jabatan"
+          value={ROLE_CFG[profile?.role]?.label || profile?.role || ''}
+          disabled last />
+        <SaveRow onSave={saveAccount} saved={accountSaved} />
+      </Group>
 
-      {/* WhatsApp */}
-      <Section icon={MessageSquare} title="Integrasi WhatsApp — Laporan Otomatis">
-        <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 leading-relaxed">
-            <strong>Cara setup:</strong> Daftar di <strong>fonnte.com</strong> → sambungkan WA → salin token ke form ini.
-            Laporan akan dikirim otomatis setiap hari di jam yang ditentukan (tab browser harus terbuka).
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">
-                Fonnte API Token
-              </label>
-              <div className="relative">
-                <input
-                  type={showToken ? 'text' : 'password'}
-                  value={waConfig.token}
-                  onChange={e => setWaConfig(c => ({ ...c, token: e.target.value }))}
-                  placeholder="Token dari fonnte.com"
-                  className={inputCls + ' pr-10'}
-                />
-                <button type="button" onClick={() => setShowToken(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">
-                Nomor WA Tujuan
-              </label>
-              <input
-                value={waConfig.target}
-                onChange={e => setWaConfig(c => ({ ...c, target: e.target.value }))}
-                placeholder="6281234567890 (tanpa +)"
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">
-                Jam Kirim Laporan
-              </label>
-              <input
-                type="time"
-                value={waConfig.sendTime || '18:00'}
-                onChange={e => setWaConfig(c => ({ ...c, sendTime: e.target.value }))}
-                className={inputCls}
-              />
-            </div>
-            <div className="flex flex-col justify-end">
-              <label className="block text-slate-600 text-[13px] font-semibold mb-2">
-                Laporan Otomatis
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <div
-                  onClick={() => setWaConfig(c => ({ ...c, enabled: !c.enabled }))}
-                  className={`w-11 h-6 rounded-full transition cursor-pointer ${waConfig.enabled ? 'bg-green-500' : 'bg-slate-200'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full m-1 shadow transition-transform ${waConfig.enabled ? 'translate-x-5' : ''}`} />
-                </div>
-                <span className={`text-sm font-semibold ${waConfig.enabled ? 'text-green-600' : 'text-slate-400'}`}>
-                  {waConfig.enabled ? `Aktif — pukul ${waConfig.sendTime || '18:00'}` : 'Nonaktif'}
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 pt-1">
-            <button
-              onClick={testSendWA}
-              disabled={waStatus.loading || !waConfig.token || !waConfig.target}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
-              <Send size={15} />
-              {waStatus.loading ? 'Mengirim...' : 'Test Kirim Laporan Sekarang'}
-            </button>
-            {waStatus.msg && (
-              <span className={`text-sm font-medium ${waStatus.ok ? 'text-green-600' : 'text-red-500'}`}>
-                {waStatus.ok ? '✅' : '❌'} {waStatus.msg}
-              </span>
-            )}
-          </div>
-        </div>
-      </Section>
-
-      {/* User management */}
+      {/* ── Profil Perusahaan ── */}
       {(isRole('owner') || isRole('admin')) && (
-        <Section icon={Users} title="Manajemen Pengguna">
-          <div className="space-y-2.5 mb-4">
-            {users.map(u => {
-              const rc = ROLE_CFG[u.role] || ROLE_CFG.staff
-              return (
-                <div key={u.id} className="flex items-center justify-between py-3 px-4 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                      style={{ background: rc.text }}>
-                      {u.name[0]}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-800">{u.name}</p>
-                        {!u.active && <span className="text-[10px] text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded-md">Nonaktif</span>}
-                      </div>
-                      <p className="text-xs text-slate-400">{u.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
-                      style={{ background: rc.bg, color: rc.text, border: `1px solid ${rc.border}` }}>
-                      {u.role}
-                    </span>
-                    {isRole('owner') && u.role !== 'owner' && (
-                      <>
-                        <button onClick={() => openEditUser(u)} title="Edit"
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition">
-                          <Edit2 size={14} />
-                        </button>
-                        <button onClick={() => toggleUserActive(u.id)} title="Toggle Aktif"
-                          className={`p-1.5 rounded-lg transition text-xs font-medium ${u.active ? 'text-slate-400 hover:text-slate-600 hover:bg-slate-100' : 'text-blue-500 hover:bg-blue-50'}`}>
-                          {u.active ? '⏸' : '▶'}
-                        </button>
-                        <button onClick={() => setDeleteConfirm(u.id)} title="Hapus"
-                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
-                          <Trash2 size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          {isRole('owner') && (
-            <button onClick={openAddUser}
-              className="flex items-center gap-2 border border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 px-4 py-2.5 rounded-xl text-sm font-semibold transition w-full justify-center">
-              <Plus size={16} /> Tambah Pengguna Baru
-            </button>
-          )}
-        </Section>
+        <Group label="Profil Perusahaan">
+          <InputRow icon={Building2} iconBg="#5856d6" label="Nama" value={company.name}
+            onChange={e => setCompany(c => ({ ...c, name: e.target.value }))}
+            disabled={!isRole('owner')} placeholder="Nama perusahaan" />
+          <InputRow icon={Phone} iconBg="#34c759" label="Telepon" value={company.phone}
+            onChange={e => setCompany(c => ({ ...c, phone: e.target.value }))}
+            disabled={!isRole('owner')} placeholder="+62 ..." />
+          <InputRow icon={MapPin} iconBg="#ff3b30" label="Alamat" value={company.address}
+            onChange={e => setCompany(c => ({ ...c, address: e.target.value }))}
+            disabled={!isRole('owner')} placeholder="Alamat usaha" />
+          <InputRow icon={Mail} iconBg="#34aadc" label="Email" type="email" value={company.email}
+            onChange={e => setCompany(c => ({ ...c, email: e.target.value }))}
+            disabled={!isRole('owner')} placeholder="info@perusahaan.id" />
+          <InputRow icon={Hash} iconBg="#ff9500" label="NPWP" value={company.npwp}
+            onChange={e => setCompany(c => ({ ...c, npwp: e.target.value }))}
+            disabled={!isRole('owner')} placeholder="xx.xxx.xxx.x-xxx.xxx" />
+          <InputRow icon={FileText} iconBg="#af52de" label="No. NIB" value={company.nib}
+            onChange={e => setCompany(c => ({ ...c, nib: e.target.value }))}
+            disabled={!isRole('owner')} placeholder="NIB 13 digit" last={!isRole('owner')} />
+          {isRole('owner') && <SaveRow onSave={saveCompany} saved={companySaved} />}
+        </Group>
       )}
 
-      {/* User modal */}
-      {userModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">{editUserId ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h3>
-              <button onClick={() => setUserModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Nama Lengkap</label>
-                <input value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="Nama lengkap..." />
-              </div>
-              <div>
-                <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Email</label>
-                <input type="email" value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))} className={inputCls} placeholder="email@nelayan.id" />
-              </div>
-              <div>
-                <label className="block text-slate-600 text-[13px] font-semibold mb-1.5">Role</label>
-                <select value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))} className={inputCls}>
-                  <option value="admin">Admin</option>
-                  <option value="staff">Staff</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
-              <button onClick={saveUser} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">
-                <Check size={15} /> Simpan
-              </button>
-              <button onClick={() => setUserModal(false)} className="px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 transition">Batal</button>
-            </div>
+      {/* ── Notifikasi ── */}
+      <Group label="Notifikasi">
+        <ToggleRow icon={Bell} iconBg="#ff9500" label="Stok Rendah"
+          desc="Peringatan saat stok di bawah minimum"
+          on={notifs.lowStock} onChange={() => setNotifs(p => ({ ...p, lowStock: !p.lowStock }))} />
+        <ToggleRow icon={Bell} iconBg="#007aff" label="Order Masuk Baru"
+          desc="Notifikasi real-time saat ada pesanan baru"
+          on={notifs.newOrder} onChange={() => setNotifs(p => ({ ...p, newOrder: !p.newOrder }))} />
+        <ToggleRow icon={Bell} iconBg="#5856d6" label="Laporan Harian"
+          desc="Ringkasan operasional setiap pukul 18.00"
+          on={notifs.dailyReport} onChange={() => setNotifs(p => ({ ...p, dailyReport: !p.dailyReport }))}
+          last />
+      </Group>
+
+      {/* ── WhatsApp ── */}
+      <Group
+        label="WhatsApp — Laporan Otomatis"
+        footer="Daftar di fonnte.com → sambungkan nomor WA → salin token ke form ini. Browser harus aktif agar laporan otomatis terkirim."
+      >
+        {/* Token row with eye toggle */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 13,
+          padding: '11px 16px', borderBottom: '0.5px solid #f0f0f0',
+        }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#25d366',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <MessageSquare size={15} color="white" strokeWidth={1.9} />
           </div>
+          <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flexShrink: 0, minWidth: 80, fontWeight: 400 }}>Token</p>
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={waConfig.token}
+            onChange={e => setWaConfig(c => ({ ...c, token: e.target.value }))}
+            placeholder="Token fonnte.com"
+            style={{
+              flex: 1, border: 'none', outline: 'none', textAlign: 'right',
+              fontSize: 15, color: '#3c3c43', background: 'transparent',
+              padding: 0, fontFamily: 'inherit',
+            }}
+          />
+          <button type="button" onClick={() => setShowToken(v => !v)} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: '#c7c7cc', padding: 0, display: 'flex',
+          }}>
+            {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
         </div>
+
+        <InputRow icon={Phone} iconBg="#25d366" label="Nomor WA" value={waConfig.target}
+          onChange={e => setWaConfig(c => ({ ...c, target: e.target.value }))}
+          placeholder="628xxxxxxxxxx" />
+
+        <InputRow icon={Clock} iconBg="#ff9500" label="Jam Kirim" type="time"
+          value={waConfig.sendTime || '18:00'}
+          onChange={e => setWaConfig(c => ({ ...c, sendTime: e.target.value }))} />
+
+        <ToggleRow icon={Send} iconBg="#25d366" label="Laporan Otomatis"
+          desc={waConfig.enabled ? `Aktif — setiap pukul ${waConfig.sendTime || '18:00'} WIB` : 'Nonaktif'}
+          on={waConfig.enabled}
+          onChange={() => setWaConfig(c => ({ ...c, enabled: !c.enabled }))}
+          toggleColor="#25d366" />
+
+        <ActionRow icon={Send} iconBg="#25d366" label={waStatus.loading ? 'Mengirim...' : 'Test Kirim Laporan Sekarang'}
+          onClick={testSendWA}
+          disabled={waStatus.loading || !waConfig.token || !waConfig.target}
+          color="#25d366" last={!waStatus.msg} />
+
+        {waStatus.msg && (
+          <div style={{
+            padding: '10px 16px', borderTop: '0.5px solid #f0f0f0',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{ fontSize: 14 }}>{waStatus.ok ? '✅' : '❌'}</span>
+            <p style={{ fontSize: 13.5, color: waStatus.ok ? '#34c759' : '#ff3b30', margin: 0 }}>
+              {waStatus.msg}
+            </p>
+          </div>
+        )}
+      </Group>
+
+      {/* ── Manajemen Pengguna ── */}
+      {(isRole('owner') || isRole('admin')) && (
+        <Group label="Pengguna">
+          {users.map((u, idx) => {
+            const rc = ROLE_CFG[u.role] || ROLE_CFG.staff
+            const isLast = idx === users.length - 1
+            return (
+              <div key={u.id} style={{
+                display: 'flex', alignItems: 'center', gap: 13,
+                padding: '10px 16px',
+                borderBottom: isLast ? 'none' : '0.5px solid #f0f0f0',
+                opacity: u.active ? 1 : 0.45,
+              }}>
+                {/* Avatar */}
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                  background: `linear-gradient(135deg, ${rc.text}, ${rc.text}99)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, fontWeight: 700, color: 'white',
+                }}>
+                  {u.name[0]}
+                </div>
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <p style={{ fontSize: 15, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{u.name}</p>
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 600, padding: '1.5px 7px',
+                      borderRadius: 99, background: rc.bg, color: rc.text,
+                    }}>
+                      {rc.label}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 12.5, color: '#8e8e93', marginTop: 2 }}>{u.email}</p>
+                </div>
+                {/* Actions */}
+                {isRole('owner') && u.role !== 'owner' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <button onClick={() => openEditUser(u)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c7c7cc', padding: 6 }}>
+                      <Edit2 size={15} />
+                    </button>
+                    <button onClick={() => setDeleteConfirm(u.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff3b30', padding: 6, opacity: 0.7 }}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {isRole('owner') && (
+            <ActionRow icon={Plus} iconBg="#007aff" label="Tambah Pengguna Baru"
+              onClick={openAddUser} last />
+          )}
+        </Group>
       )}
 
-      {/* Delete user confirm */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={22} className="text-red-500" />
+      {/* ── Danger zone ── */}
+      <Group>
+        <ActionRow label="Keluar dari Akun" onClick={() => {
+          localStorage.removeItem('demo_user')
+          window.location.href = '/login'
+        }} destructive color="#ff3b30" last />
+      </Group>
+
+      {/* ────── MODAL: Add/Edit User ────── */}
+      {userModal && (
+        <Modal title={editUserId ? 'Edit Pengguna' : 'Tambah Pengguna'}
+          onClose={() => setUserModal(false)} onSave={saveUser}>
+          <Group>
+            <InputRow icon={User} iconBg="#007aff" label="Nama"
+              value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Nama lengkap" />
+            <InputRow icon={Mail} iconBg="#34aadc" label="Email" type="email"
+              value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="email@nelayan.id" />
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 13,
+              padding: '11px 16px', background: 'white',
+            }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#ff9500',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Shield size={15} color="white" strokeWidth={1.9} />
+              </div>
+              <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flexShrink: 0, fontWeight: 400, minWidth: 80 }}>Role</p>
+              <select value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))}
+                style={{
+                  flex: 1, textAlign: 'right', border: 'none', outline: 'none',
+                  fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit',
+                }}>
+                <option value="admin">Admin</option>
+                <option value="staff">Staff</option>
+              </select>
             </div>
-            <h3 className="font-bold text-slate-800 mb-1">Hapus Pengguna?</h3>
-            <p className="text-slate-500 text-sm mb-5">Akun pengguna ini akan dihapus permanen.</p>
-            <div className="flex gap-2 justify-center">
-              <button onClick={() => delUser(deleteConfirm)} className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-xl text-sm font-semibold transition">Ya, Hapus</button>
-              <button onClick={() => setDeleteConfirm(null)} className="border border-slate-200 text-slate-600 px-5 py-2 rounded-xl text-sm hover:bg-slate-50 transition">Batal</button>
+          </Group>
+        </Modal>
+      )}
+
+      {/* ────── MODAL: Delete Confirm ────── */}
+      {deleteConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 14, overflow: 'hidden',
+            width: '100%', maxWidth: 280, textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }}>
+            <div style={{ padding: '24px 20px 16px' }}>
+              <p style={{ fontSize: 17, fontWeight: 600, color: '#1c1c1e', margin: '0 0 6px' }}>
+                Hapus Pengguna?
+              </p>
+              <p style={{ fontSize: 13.5, color: '#8e8e93', margin: 0, lineHeight: 1.5 }}>
+                Akun pengguna ini akan dihapus secara permanen.
+              </p>
+            </div>
+            <div style={{ borderTop: '0.5px solid #f0f0f0' }}>
+              <button onClick={() => delUser(deleteConfirm)} style={{
+                display: 'block', width: '100%', padding: '13px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 16, fontWeight: 600, color: '#ff3b30',
+                borderBottom: '0.5px solid #f0f0f0', fontFamily: 'inherit',
+              }}>
+                Hapus
+              </button>
+              <button onClick={() => setDeleteConfirm(null)} style={{
+                display: 'block', width: '100%', padding: '13px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 16, color: '#007aff', fontFamily: 'inherit',
+              }}>
+                Batal
+              </button>
             </div>
           </div>
         </div>
