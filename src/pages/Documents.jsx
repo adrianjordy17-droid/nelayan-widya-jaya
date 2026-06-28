@@ -397,6 +397,7 @@ export default function Documents() {
 
   const [docs, setDocs]   = useState([])
   const [clients, setClients] = useState([])
+  const [staffList, setStaffList] = useState([])
   const [tab, setTab]     = useState(isStaff ? 'DO' : 'all')
   const [menu, setMenu]   = useState(false)
   const [form, setForm]   = useState(null)
@@ -429,6 +430,12 @@ export default function Documents() {
     if (demoMode) return
     supabase.from('clients').select('id,name,address,phone').eq('active', true)
       .then(({ data }) => data && setClients(data))
+  }, [demoMode])
+
+  useEffect(() => {
+    if (demoMode) { setStaffList([{ id: 'demo-3', name: 'Bimbim' }, { id: 'demo-4', name: 'Wowo' }]); return }
+    supabase.from('profiles').select('id,name').eq('role', 'staff')
+      .then(({ data }) => data && setStaffList(data))
   }, [demoMode])
 
   async function getNextNumber(type) {
@@ -574,7 +581,7 @@ export default function Documents() {
     const doNumber = await getNextNumber('DO')
     const doDoc = {
       id: doId, number: doNumber,
-      type: 'DO', date: soDoc.date, status: 'dispatched',
+      type: 'DO', date: soDoc.date, status: 'draft',
       clientName: soDoc.clientName, clientAddress: soDoc.clientAddress || '',
       clientPhone: soDoc.clientPhone || '', clientPoNumber: soDoc.clientPoNumber || '',
       refNumber: soDoc.number, driverName: '', vehicle: '',
@@ -589,7 +596,7 @@ export default function Documents() {
     setDocs(prev => [doDoc, ...prev.filter(d => !(d.type === 'SO' && d.id === soDoc.id))])
     if (!demoMode) {
       const { error } = await supabase.from('documents').insert({
-        id: doId, number: doNumber, type: 'DO', date: doDoc.date, status: 'dispatched',
+        id: doId, number: doNumber, type: 'DO', date: doDoc.date, status: 'draft',
         client_name: doDoc.clientName, client_address: doDoc.clientAddress || null,
         client_phone: doDoc.clientPhone || null,
         ref_number: soDoc.number, driver_name: null, vehicle: null,
@@ -630,7 +637,10 @@ export default function Documents() {
     } finally { setSaving(false) }
   }
 
-  const visibleDocs = isStaff ? docs.filter(d => d.type === 'DO') : docs
+  const myName = profile?.name?.toLowerCase() || ''
+  const visibleDocs = isStaff
+    ? docs.filter(d => d.type === 'DO' && d.status === 'dispatched' && d.driverName?.toLowerCase() === myName)
+    : docs.filter(d => !(d.type === 'SO' && d.status === 'confirmed'))
   const filtered = tab === 'all' ? visibleDocs : visibleDocs.filter(d => d.type === tab)
   const soList = docs.filter(d => d.type === 'SO')
   const doList = docs.filter(d => d.type === 'DO')
@@ -829,8 +839,18 @@ export default function Documents() {
                 <>
                   <SLabel text="Info Pengiriman" />
                   <Card>
-                    <FieldRow label="Driver / Kurir">
-                      <input value={form.driverName} onChange={e => setF({ driverName: e.target.value })} placeholder="Nama pengirim" style={inputR} />
+                    <FieldRow label="Pengirim / Driver">
+                      {staffList.length > 0 ? (
+                        <select value={form.driverName} onChange={e => setF({ driverName: e.target.value })} style={selectR}>
+                          <option value="">Pilih staf lapangan...</option>
+                          {staffList.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                          {form.driverName && !staffList.find(s => s.name === form.driverName) && (
+                            <option value={form.driverName}>{form.driverName}</option>
+                          )}
+                        </select>
+                      ) : (
+                        <input value={form.driverName} onChange={e => setF({ driverName: e.target.value })} placeholder="Nama pengirim" style={inputR} />
+                      )}
                     </FieldRow>
                     <FieldRow label="Kendaraan" last>
                       <input value={form.vehicle} onChange={e => setF({ vehicle: e.target.value })} placeholder="Plat nomor / jenis" style={inputR} />
@@ -1042,12 +1062,12 @@ export default function Documents() {
                 </div>
               )}
               {/* Action Buttons */}
-              {canEdit && detail.status === 'draft' && (
+              {canEdit && (detail.status === 'draft' || (detail.type === 'DO' && detail.status === 'dispatched')) && (
                 <button
                   onClick={() => openEdit(detail)}
                   style={{ width: '100%', padding: '15px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 >
-                  Edit / Konfirmasi
+                  {detail.type === 'DO' && detail.status === 'dispatched' ? 'Ganti Driver' : 'Edit / Konfirmasi'}
                 </button>
               )}
               {isStaff && detail.type === 'DO' && detail.status === 'dispatched' && (
