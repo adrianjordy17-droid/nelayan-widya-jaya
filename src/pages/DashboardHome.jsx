@@ -11,12 +11,6 @@ const INIT_ORDERS  = []
 const INIT_STOCK   = []
 const INIT_ATTEND  = []
 
-const UDANG_FALLBACK = [
-  { name: 'Udang Vaname', qty: 70, max: 100 },
-  { name: 'Udang Windu',  qty: 20, max: 100 },
-  { name: 'Udang Biru',   qty: 40, max: 100 },
-]
-
 const STATUS_CFG = {
   selesai: { label: 'Selesai', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
   proses:  { label: 'Dikirim', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
@@ -47,7 +41,7 @@ export default function DashboardHome() {
 
   const orderPending  = orders.filter(o => o.status === 'pending').length
   const hadirCount    = attendance.filter(a => a.date === todayKey && a.status === 'hadir').length
-  const totalExpected = [...new Set(attendance.filter(a => a.date === todayKey).map(a => a.name))].length || 2
+  const totalExpected = [...new Set(attendance.filter(a => a.date === todayKey).map(a => a.name))].length || 0
   const stokTipis     = stock.filter(s => s.qty <= s.minQty).length
 
   const STATS = [
@@ -94,11 +88,9 @@ export default function DashboardHome() {
     .slice(0, 4)
 
   const udangItems = stock.filter(s => s.category === 'Udang')
-  const stokDisplay = udangItems.length > 0
-    ? udangItems.slice(0, 4).map(s => ({ name: s.name, qty: s.qty, max: Math.max(s.qty, s.minQty * 3, 50) }))
-    : stock.length > 0
-      ? stock.slice(0, 4).map(s => ({ name: s.name, qty: s.qty, max: Math.max(s.qty, s.minQty * 3, 50) }))
-      : UDANG_FALLBACK
+  const stokDisplay = (udangItems.length > 0 ? udangItems : stock)
+    .slice(0, 4)
+    .map(s => ({ name: s.name, qty: s.qty, max: Math.max(s.qty, s.minQty * 3, 50) }))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -253,7 +245,11 @@ export default function DashboardHome() {
           </div>
 
           <div style={{ padding: '16px 20px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {stokDisplay.map(item => {
+            {stokDisplay.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, margin: '12px 0' }}>
+                Belum ada data stok.
+              </p>
+            ) : stokDisplay.map(item => {
               const pct = Math.min(Math.round((item.qty / item.max) * 100), 100)
               const barColor = pct < 30 ? '#ef4444' : pct < 60 ? '#f59e0b' : '#2563eb'
               return (
