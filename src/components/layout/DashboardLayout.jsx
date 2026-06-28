@@ -4,31 +4,33 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight,
+  Bell, LogOut, Waves, ChevronRight, Truck,
 } from 'lucide-react'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
 
 const NAV_ITEMS = [
-  { path: '/dashboard',            label: 'Beranda',    icon: LayoutDashboard, feature: null },
-  { path: '/dashboard/orders',     label: 'Order',      icon: ShoppingBag,     feature: 'orders' },
-  { path: '/dashboard/clients',    label: 'Klien',      icon: Users,           feature: 'clients' },
-  { path: '/dashboard/stock',      label: 'Stok',       icon: Package,         feature: 'stock' },
-  { path: '/dashboard/reports',    label: 'Laporan',    icon: BarChart2,       feature: 'reports' },
-  { path: '/dashboard/attendance', label: 'Absensi',    icon: CalendarCheck,   feature: 'attendance' },
-  { path: '/dashboard/settings',   label: 'Pengaturan', icon: Settings2,       feature: 'settings' },
+  { path: '/dashboard',             label: 'Beranda',       icon: LayoutDashboard, feature: null },
+  { path: '/dashboard/orders',      label: 'Order',         icon: ShoppingBag,     feature: 'orders' },
+  { path: '/dashboard/deliveries',  label: 'Laporan Kirim', icon: Truck,           feature: 'deliveries' },
+  { path: '/dashboard/clients',     label: 'Klien',         icon: Users,           feature: 'clients' },
+  { path: '/dashboard/stock',       label: 'Stok',          icon: Package,         feature: 'stock' },
+  { path: '/dashboard/reports',     label: 'Laporan',       icon: BarChart2,       feature: 'reports' },
+  { path: '/dashboard/attendance',  label: 'Absensi',       icon: CalendarCheck,   feature: 'attendance' },
+  { path: '/dashboard/settings',    label: 'Pengaturan',    icon: Settings2,       feature: 'settings' },
 ]
 
 const ROLE_LABEL = { owner: 'Pemilik', admin: 'Admin', staff: 'Staff' }
 const ROLE_COLOR = { owner: '#f59e0b', admin: '#0a84ff', staff: '#30d158' }
 
 const PAGE_TITLE = {
-  '/dashboard':            'Beranda',
-  '/dashboard/orders':     'Manajemen Order',
-  '/dashboard/clients':    'Data Klien',
-  '/dashboard/stock':      'Manajemen Stok',
-  '/dashboard/reports':    'Laporan & Analitik',
-  '/dashboard/attendance': 'Absensi Karyawan',
-  '/dashboard/settings':   'Pengaturan',
+  '/dashboard':             'Beranda',
+  '/dashboard/orders':      'Manajemen Order',
+  '/dashboard/deliveries':  'Laporan Kirim',
+  '/dashboard/clients':     'Data Klien',
+  '/dashboard/stock':       'Manajemen Stok',
+  '/dashboard/reports':     'Laporan & Analitik',
+  '/dashboard/attendance':  'Absensi Karyawan',
+  '/dashboard/settings':    'Pengaturan',
 }
 
 /* ── notifications ── */
