@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Plus, Printer, X, Check, Trash2,
-  ClipboardList, Truck, PackageCheck, Receipt, ChevronDown, Eye,
+  Plus, Printer, X, Check, Trash2, FileText,
+  ClipboardList, Truck, PackageCheck, Receipt, ChevronDown,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
