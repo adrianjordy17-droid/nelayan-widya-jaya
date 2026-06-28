@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+// v2
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Beranda', feature: null },
