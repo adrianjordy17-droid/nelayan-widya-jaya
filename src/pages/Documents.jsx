@@ -467,6 +467,25 @@ export default function Documents() {
     setSaved(false)
   }
 
+  function openEdit(doc) {
+    const withPrice = doc.type === 'SO' || doc.type === 'Invoice'
+    const f = {
+      editId: doc.id,
+      type: doc.type, date: doc.date, status: doc.status,
+      clientName: doc.clientName, clientAddress: doc.clientAddress || '', clientPhone: doc.clientPhone || '',
+      refNumber: doc.refNumber || '', driverName: doc.driverName || '', vehicle: doc.vehicle || '',
+      items: doc.items.map(it => ({ ...it, id: it.id || newId() })),
+      subtotal: doc.subtotal || 0, taxPct: doc.taxPct || 0, discount: doc.discount || 0, total: doc.total || 0,
+      dueDate: doc.dueDate || '', paymentTerms: doc.paymentTerms || 'Net 14 hari',
+      bankName: doc.bankName || '', accountNumber: doc.accountNumber || '', accountName: doc.accountName || '',
+      notes: doc.notes || '',
+    }
+    setDetail(null)
+    setForm(withPrice ? recalcForm(f) : f)
+    setMenu(false)
+    setSaved(false)
+  }
+
   function setF(patch) {
     setForm(prev => {
       const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }
@@ -514,33 +533,58 @@ export default function Documents() {
     if (!form.clientName.trim()) return
     setSaving(true)
     try {
-      const id = newId()
-      const number = await getNextNumber(form.type)
-      const doc = {
-        id, number,
-        type: form.type, date: form.date, status: form.status,
-        clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(),
-        refNumber: form.refNumber.trim(), driverName: form.driverName.trim(), vehicle: form.vehicle.trim(),
-        items: form.items.filter(it => it.name.trim()),
-        subtotal: form.subtotal || null, taxPct: form.taxPct || null, discount: form.discount || null, total: form.total || null,
-        dueDate: form.dueDate || null, paymentTerms: form.paymentTerms.trim(),
-        bankName: form.bankName.trim(), accountNumber: form.accountNumber.trim(), accountName: form.accountName.trim(),
-        notes: form.notes.trim(), createdByName: profile?.name || '', createdAt: new Date().toISOString(),
+      if (form.editId) {
+        const orig = docs.find(d => d.id === form.editId) || {}
+        const doc = {
+          id: form.editId, number: orig.number || '',
+          type: form.type, date: form.date, status: form.status,
+          clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(),
+          refNumber: form.refNumber.trim(), driverName: form.driverName.trim(), vehicle: form.vehicle.trim(),
+          items: form.items.filter(it => it.name.trim()),
+          subtotal: form.subtotal || null, taxPct: form.taxPct || null, discount: form.discount || null, total: form.total || null,
+          dueDate: form.dueDate || null, paymentTerms: form.paymentTerms.trim(),
+          bankName: form.bankName.trim(), accountNumber: form.accountNumber.trim(), accountName: form.accountName.trim(),
+          notes: form.notes.trim(), createdByName: orig.createdByName || profile?.name || '', createdAt: orig.createdAt || new Date().toISOString(),
+        }
+        setDocs(prev => prev.map(d => d.id === form.editId ? doc : d))
+        if (!demoMode) {
+          await supabase.from('documents').update({
+            type: doc.type, date: doc.date, status: doc.status,
+            client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone,
+            ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
+            items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
+            due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
+            bank_name: doc.bankName || null, account_number: doc.accountNumber || null, account_name: doc.accountName || null,
+            notes: doc.notes || null,
+          }).eq('id', form.editId)
+        }
+      } else {
+        const id = newId()
+        const number = await getNextNumber(form.type)
+        const doc = {
+          id, number,
+          type: form.type, date: form.date, status: form.status,
+          clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(),
+          refNumber: form.refNumber.trim(), driverName: form.driverName.trim(), vehicle: form.vehicle.trim(),
+          items: form.items.filter(it => it.name.trim()),
+          subtotal: form.subtotal || null, taxPct: form.taxPct || null, discount: form.discount || null, total: form.total || null,
+          dueDate: form.dueDate || null, paymentTerms: form.paymentTerms.trim(),
+          bankName: form.bankName.trim(), accountNumber: form.accountNumber.trim(), accountName: form.accountName.trim(),
+          notes: form.notes.trim(), createdByName: profile?.name || '', createdAt: new Date().toISOString(),
+        }
+        setDocs(prev => [doc, ...prev])
+        if (!demoMode) {
+          await supabase.from('documents').insert({
+            id, type: doc.type, number: doc.number, date: doc.date, status: doc.status,
+            client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone,
+            ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
+            items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
+            due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
+            bank_name: doc.bankName || null, account_number: doc.accountNumber || null, account_name: doc.accountName || null,
+            notes: doc.notes || null, created_by: user?.id, created_by_name: doc.createdByName,
+          })
+        }
       }
-      setDocs(prev => [doc, ...prev])
-
-      if (!demoMode) {
-        await supabase.from('documents').insert({
-          id, type: doc.type, number: doc.number, date: doc.date, status: doc.status,
-          client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone,
-          ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
-          items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
-          due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
-          bank_name: doc.bankName || null, account_number: doc.accountNumber || null, account_name: doc.accountName || null,
-          notes: doc.notes || null, created_by: user?.id, created_by_name: doc.createdByName,
-        })
-      }
-
       setSaved(true)
       setTimeout(() => { setSaved(false); setForm(null) }, 900)
     } finally { setSaving(false) }
@@ -662,7 +706,7 @@ export default function Documents() {
                 <div style={{ width: 26, height: 26, borderRadius: 6, background: DOC_CFG[createType]?.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {createType && (() => { const I = DOC_CFG[createType].Icon; return <I size={14} color={DOC_CFG[createType].color} /> })()}
                 </div>
-                <p style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>Buat {DOC_CFG[createType]?.label}</p>
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>{form.editId ? 'Edit' : 'Buat'} {DOC_CFG[createType]?.label}</p>
               </div>
               <button onClick={save} disabled={saving || !form.clientName.trim()} style={{
                 background: 'none', border: 'none', cursor: (!form.clientName.trim() || saving) ? 'not-allowed' : 'pointer',
@@ -951,6 +995,14 @@ export default function Documents() {
                 </div>
               )}
               {/* Action Buttons */}
+              {canEdit && detail.status === 'draft' && (
+                <button
+                  onClick={() => openEdit(detail)}
+                  style={{ width: '100%', padding: '15px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  Edit / Konfirmasi
+                </button>
+              )}
               {isStaff && detail.type === 'DO' && detail.status === 'dispatched' && (
                 <button
                   onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
