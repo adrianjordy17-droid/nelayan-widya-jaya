@@ -82,7 +82,7 @@ function emptyForm(type) {
   const withPrice = type === 'SO' || type === 'Invoice'
   return {
     type, date: todayStr(), status: 'draft',
-    clientName: '', clientAddress: '', clientPhone: '',
+    clientName: '', clientAddress: '', clientPhone: '', clientPoNumber: '',
     refNumber: '', driverName: '', vehicle: '',
     items: [blankItem(withPrice)],
     subtotal: 0, taxPct: 0, discount: 0, total: 0,
@@ -319,6 +319,7 @@ function dbToDoc(r) {
   return {
     id: r.id, type: r.type, number: r.number, date: r.date, status: r.status,
     clientName: r.client_name, clientAddress: r.client_address, clientPhone: r.client_phone,
+    clientPoNumber: r.client_po_number || '',
     refNumber: r.ref_number || '',
     driverName: r.driver_name || '', vehicle: r.vehicle || '',
     items: r.items || [],
@@ -452,6 +453,7 @@ export default function Documents() {
       clientName: sourceDoc.clientName,
       clientAddress: sourceDoc.clientAddress || '',
       clientPhone: sourceDoc.clientPhone || '',
+      clientPoNumber: sourceDoc.clientPoNumber || '',
       refNumber: sourceDoc.number,
       items: sourceDoc.items.map(it => ({
         ...it, id: newId(),
@@ -472,7 +474,7 @@ export default function Documents() {
     const f = {
       editId: doc.id,
       type: doc.type, date: doc.date, status: doc.status,
-      clientName: doc.clientName, clientAddress: doc.clientAddress || '', clientPhone: doc.clientPhone || '',
+      clientName: doc.clientName, clientAddress: doc.clientAddress || '', clientPhone: doc.clientPhone || '', clientPoNumber: doc.clientPoNumber || '',
       refNumber: doc.refNumber || '', driverName: doc.driverName || '', vehicle: doc.vehicle || '',
       items: doc.items.map(it => ({ ...it, id: it.id || newId() })),
       subtotal: doc.subtotal || 0, taxPct: doc.taxPct || 0, discount: doc.discount || 0, total: doc.total || 0,
@@ -538,7 +540,7 @@ export default function Documents() {
         const doc = {
           id: form.editId, number: orig.number || '',
           type: form.type, date: form.date, status: form.status,
-          clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(),
+          clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(), clientPoNumber: form.clientPoNumber.trim(),
           refNumber: form.refNumber.trim(), driverName: form.driverName.trim(), vehicle: form.vehicle.trim(),
           items: form.items.filter(it => it.name.trim()),
           subtotal: form.subtotal || null, taxPct: form.taxPct || null, discount: form.discount || null, total: form.total || null,
@@ -550,7 +552,7 @@ export default function Documents() {
         if (!demoMode) {
           await supabase.from('documents').update({
             type: doc.type, date: doc.date, status: doc.status,
-            client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone,
+            client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone, client_po_number: doc.clientPoNumber || null,
             ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
             items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
             due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
@@ -564,7 +566,7 @@ export default function Documents() {
         const doc = {
           id, number,
           type: form.type, date: form.date, status: form.status,
-          clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(),
+          clientName: form.clientName.trim(), clientAddress: form.clientAddress.trim(), clientPhone: form.clientPhone.trim(), clientPoNumber: form.clientPoNumber.trim(),
           refNumber: form.refNumber.trim(), driverName: form.driverName.trim(), vehicle: form.vehicle.trim(),
           items: form.items.filter(it => it.name.trim()),
           subtotal: form.subtotal || null, taxPct: form.taxPct || null, discount: form.discount || null, total: form.total || null,
@@ -576,7 +578,7 @@ export default function Documents() {
         if (!demoMode) {
           await supabase.from('documents').insert({
             id, type: doc.type, number: doc.number, date: doc.date, status: doc.status,
-            client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone,
+            client_name: doc.clientName, client_address: doc.clientAddress, client_phone: doc.clientPhone, client_po_number: doc.clientPoNumber || null,
             ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
             items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
             due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
@@ -759,17 +761,23 @@ export default function Documents() {
                     <select value={form.clientName} onChange={e => fillClient(e.target.value)} style={selectR}>
                       <option value="">Pilih klien...</option>
                       {clients.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                      {form.clientName && form.clientName !== '__manual__' && !clients.find(c => c.name === form.clientName) && (
+                        <option value={form.clientName}>{form.clientName}</option>
+                      )}
                       <option value="__manual__">+ Ketik manual</option>
                     </select>
                   ) : (
                     <input value={form.clientName} onChange={e => setF({ clientName: e.target.value })} placeholder="Nama restoran / klien" style={inputR} />
                   )}
                 </FieldRow>
-                {(form.clientName === '__manual__' || !clients.find(c => c.name === form.clientName)) && form.clientName !== '' && form.clientName !== '__manual__' && (
+                {(clients.length === 0 || form.clientName === '__manual__') && (
                   <FieldRow label="Nama Klien">
-                    <input value={form.clientName} onChange={e => setF({ clientName: e.target.value })} placeholder="Nama klien" style={inputR} />
+                    <input value={form.clientName === '__manual__' ? '' : form.clientName} onChange={e => setF({ clientName: e.target.value })} placeholder="Ketik nama klien" style={inputR} />
                   </FieldRow>
                 )}
+                <FieldRow label="No PO Klien">
+                  <input value={form.clientPoNumber} onChange={e => setF({ clientPoNumber: e.target.value })} placeholder="PO-001 (opsional)" style={inputR} />
+                </FieldRow>
                 <FieldRow label="Alamat">
                   <input value={form.clientAddress} onChange={e => setF({ clientAddress: e.target.value })} placeholder="Alamat pengiriman" style={inputR} />
                 </FieldRow>
@@ -932,9 +940,10 @@ export default function Documents() {
               <div>
                 <SLabel text="Klien" />
                 <Card>
-                  <FieldRow label="Nama" last={!detail.clientAddress && !detail.clientPhone}>
+                  <FieldRow label="Nama" last={!detail.clientPoNumber && !detail.clientAddress && !detail.clientPhone}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e' }}>{detail.clientName}</span>
                   </FieldRow>
+                  {detail.clientPoNumber && <FieldRow label="No PO Klien" last={!detail.clientAddress && !detail.clientPhone}><span style={{ fontSize: 13.5, fontWeight: 600, color: '#3c3c43' }}>{detail.clientPoNumber}</span></FieldRow>}
                   {detail.clientAddress && <FieldRow label="Alamat" last={!detail.clientPhone}><span style={{ fontSize: 13.5, color: '#3c3c43', textAlign: 'right' }}>{detail.clientAddress}</span></FieldRow>}
                   {detail.clientPhone && <FieldRow label="Telepon" last><span style={{ fontSize: 13.5, color: '#3c3c43' }}>{detail.clientPhone}</span></FieldRow>}
                 </Card>
