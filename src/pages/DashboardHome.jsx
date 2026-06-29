@@ -14,11 +14,15 @@ const INIT_ORDERS  = []
 const INIT_STOCK   = []
 const INIT_ATTEND  = []
 
-const STATUS_CFG = {
-  selesai: { label: 'Selesai', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-  proses:  { label: 'Dikirim', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-  pending: { label: 'Draft',   color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
-  batal:   { label: 'Batal',   color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+// Status badge config for documents table
+const DOC_STATUS_CFG = {
+  draft:      { label: 'Draft',       color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  confirmed:  { label: 'Dikonfirmasi',color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  dispatched: { label: 'Dikirim',     color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  delivered:  { label: 'Terkirim',    color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+  received:   { label: 'Diterima',    color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+  sent:       { label: 'Terkirim',    color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  paid:       { label: 'Lunas',       color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
 }
 
 function rpFmt(n) {
@@ -234,15 +238,29 @@ function OwnerAdminDashboard() {
   const todayKey  = new Date().toISOString().slice(0, 10)
   const thisMonth = new Date().toISOString().slice(0, 7)
 
-  const [orders]     = useLocalStorage('nwj_orders',     INIT_ORDERS)
   const [stock]      = useLocalStorage('nwj_stock',      INIT_STOCK)
   const [attendance] = useLocalStorage('nwj_attendance', INIT_ATTEND)
 
-  const penjualanBulanIni = orders
-    .filter(o => o.status === 'selesai' && (o.date || '').startsWith(thisMonth))
-    .reduce((a, o) => a + totalOf(o.items), 0)
+  const [recentDocs, setRecentDocs]         = useState([])
+  const [penjualanBulanIni, setPenjualan]   = useState(0)
+  const [orderPending, setOrderPending]     = useState(0)
 
-  const orderPending  = orders.filter(o => o.status === 'pending').length
+  useEffect(() => {
+    supabase.from('documents')
+      .select('id, number, type, status, client_name, created_at, total, date')
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        if (!data) return
+        setRecentDocs(data.slice(0, 5))
+        setOrderPending(data.filter(d => d.type === 'SO' && d.status === 'draft').length)
+        const invoiceTotal = data
+          .filter(d => d.type === 'Invoice' && (d.created_at || '').startsWith(thisMonth))
+          .reduce((sum, d) => sum + (d.total || 0), 0)
+        setPenjualan(invoiceTotal)
+      })
+  }, [])
+
   const hadirCount    = attendance.filter(a => a.date === todayKey && a.status === 'hadir').length
   const totalExpected = [...new Set(attendance.filter(a => a.date === todayKey).map(a => a.name))].length || 0
   const stokTipis     = stock.filter(s => s.qty <= s.minQty).length
@@ -251,16 +269,16 @@ function OwnerAdminDashboard() {
     {
       label: 'Penjualan Bulan Ini',
       value: rpFmt(penjualanBulanIni),
-      sub:   'total omzet bulan ini',
+      sub:   'dari invoice bulan ini',
       Icon:  TrendingUp,
       iconColor: '#2563eb',
       iconBg:    '#eff6ff',
       bar:       '#2563eb',
     },
     {
-      label: 'Order Pending',
+      label: 'SO Pending',
       value: String(orderPending),
-      sub:   'menunggu diproses',
+      sub:   'sales order draft',
       Icon:  ShoppingCart,
       iconColor: '#d97706',
       iconBg:    '#fffbeb',
@@ -285,10 +303,6 @@ function OwnerAdminDashboard() {
       bar:       stokTipis > 0 ? '#dc2626' : '#94a3b8',
     },
   ]
-
-  const recentOrders = [...orders]
-    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-    .slice(0, 4)
 
   const udangItems = stock.filter(s => s.category === 'Udang')
   const stokDisplay = (udangItems.length > 0 ? udangItems : stock)
@@ -373,9 +387,9 @@ function OwnerAdminDashboard() {
             borderBottom: '1px solid #f8fafc',
           }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-              Order Terbaru
+              Dokumen Terbaru
             </p>
-            <Link to="/dashboard/orders" style={{
+            <Link to="/dashboard/documents" style={{
               display: 'flex', alignItems: 'center', gap: 3,
               fontSize: 11.5, color: '#2563eb', fontWeight: 500,
               textDecoration: 'none',
@@ -385,24 +399,32 @@ function OwnerAdminDashboard() {
           </div>
 
           <div>
-            {recentOrders.length === 0 ? (
+            {recentDocs.length === 0 ? (
               <p style={{ padding: '28px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                Belum ada order.
+                Belum ada dokumen.
               </p>
-            ) : recentOrders.map((order, idx) => {
-              const s = STATUS_CFG[order.status] || STATUS_CFG.pending
+            ) : recentDocs.map((doc, idx) => {
+              const s = DOC_STATUS_CFG[doc.status] || DOC_STATUS_CFG.draft
               return (
-                <div key={order.id} style={{
+                <div key={doc.id} style={{
                   display: 'flex', alignItems: 'center',
                   padding: '11px 20px',
-                  borderBottom: idx < recentOrders.length - 1 ? '1px solid #f8fafc' : 'none',
+                  borderBottom: idx < recentDocs.length - 1 ? '1px solid #f8fafc' : 'none',
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-                      {order.id}
-                    </p>
-                    <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                      {order.client}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+                        padding: '1px 6px', borderRadius: 4,
+                        background: doc.type === 'SO' ? '#eff6ff' : doc.type === 'DO' ? '#fff8e1' : doc.type === 'GR' ? '#ecfeff' : '#f5f3ff',
+                        color:      doc.type === 'SO' ? '#2563eb' : doc.type === 'DO' ? '#d97706' : doc.type === 'GR' ? '#0891b2' : '#7c3aed',
+                      }}>{doc.type}</span>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1e293b', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {doc.number}
+                      </p>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+                      {doc.client_name}
                     </p>
                   </div>
                   <span style={{
