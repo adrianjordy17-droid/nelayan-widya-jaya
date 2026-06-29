@@ -35,11 +35,18 @@ export default function Jobdesk() {
 
   // Fetch
   useEffect(() => {
-    supabase.from('profiles').select('id,name').eq('role', 'staff')
-      .then(({ data }) => { if (data) setStaff(data) })
+    supabase.from('profiles').select('id,name,role')
+      .in('role', ['staff', 'admin'])
+      .then(({ data, error }) => {
+        if (error) console.error('profiles fetch error:', error.message)
+        if (data && data.length > 0) setStaff(data)
+      })
 
     supabase.from('tasks').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => { if (data) setTasks(data) })
+      .then(({ data, error }) => {
+        if (error) console.error('tasks fetch error:', error.message)
+        if (data) setTasks(data)
+      })
   }, [])
 
   const setF = v => setForm(f => ({ ...f, ...v }))
@@ -344,19 +351,16 @@ export default function Jobdesk() {
                   >
                     <option value="">Pilih staf...</option>
                     {staffList.map(s => (
-                      <option key={s.id} value={s.name}>{s.name}</option>
+                      <option key={s.id} value={s.name}>{s.name} {s.role === 'admin' ? '(Admin)' : ''}</option>
                     ))}
                   </select>
                 ) : (
-                  <div style={{
-                    padding: '10px 12px', borderRadius: 10,
-                    border: '1px solid #e2e8f0', fontSize: 13,
-                    color: '#94a3b8', background: '#f8fafc',
-                    display: 'flex', alignItems: 'center', gap: 7,
-                  }}>
-                    <User size={14} />
-                    Belum ada staf terdaftar
-                  </div>
+                  <input
+                    value={form.assignedTo}
+                    onChange={e => setF({ assignedTo: e.target.value })}
+                    placeholder="Ketik nama staf (mis. Bimbim)"
+                    style={input}
+                  />
                 )}
               </div>
 
