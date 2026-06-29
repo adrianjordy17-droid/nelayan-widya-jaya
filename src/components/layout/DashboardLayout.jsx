@@ -261,7 +261,7 @@ export default function DashboardLayout() {
                 UD. Nelayan Widya Jaya
               </p>
               <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>
-                Shrimp Supplier
+                Seafood Live, Fresh, Frozen Supplier
               </p>
             </div>
           </div>
