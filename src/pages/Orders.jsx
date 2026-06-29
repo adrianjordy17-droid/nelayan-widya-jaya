@@ -4,19 +4,6 @@ import { Plus, Search, Eye, X, ShoppingBag, Clock, CheckCircle2, TrendingUp } fr
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-const DEMO_SO = [
-  {
-    id: 'demo-so-1', number: 'SO-202606-001', date: '2026-06-28', status: 'confirmed',
-    clientName: 'Resto Laut Biru', clientAddress: 'Jl. Pantai No.1, Jakarta Utara', clientPhone: '0812-3456-7890',
-    items: [
-      { id: '1', name: 'Udang Vaname', qty: 20, unit: 'kg', price: 85000, total: 1700000 },
-      { id: '2', name: 'Udang Windu',  qty: 10, unit: 'kg', price: 120000, total: 1200000 },
-    ],
-    subtotal: 2900000, taxPct: 11, total: 3219000,
-    notes: 'Tolong kirim sebelum pukul 10 pagi.', createdByName: 'April', createdAt: '2026-06-28T08:00:00Z',
-  },
-]
-
 const STATUS_CFG = {
   draft:      { label: 'Draft',         bg: '#f8fafc', text: '#64748b', border: '#e2e8f0' },
   confirmed:  { label: 'Dikonfirmasi',  bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' },
@@ -46,19 +33,18 @@ function dbToSo(r) {
 
 export default function Orders() {
   const navigate = useNavigate()
-  const { isRole, demoMode } = useAuth()
+  const { isRole } = useAuth()
   const canEdit = isRole('admin') || isRole('owner')
 
-  const [orders, setOrders]         = useState([])
-  const [search, setSearch]         = useState('')
+  const [orders, setOrders]             = useState([])
+  const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState('semua')
-  const [view, setView]             = useState(null)
+  const [view, setView]                 = useState(null)
 
   useEffect(() => {
-    if (demoMode) { setOrders(DEMO_SO); return }
     supabase.from('documents').select('*').eq('type', 'SO').order('created_at', { ascending: false })
       .then(({ data }) => data && setOrders(data.map(dbToSo)))
-  }, [demoMode])
+  }, [])
 
   const filtered = orders.filter(o => {
     const q = search.toLowerCase()
@@ -68,9 +54,9 @@ export default function Orders() {
     )
   })
 
-  const thisMonth    = new Date().toISOString().slice(0, 7)
-  const draftCount   = orders.filter(o => o.status === 'draft').length
-  const confCount    = orders.filter(o => o.status === 'confirmed').length
+  const thisMonth     = new Date().toISOString().slice(0, 7)
+  const draftCount    = orders.filter(o => o.status === 'draft').length
+  const confCount     = orders.filter(o => o.status === 'confirmed').length
   const omzetBulanIni = orders
     .filter(o => o.status === 'delivered' && (o.date || '').startsWith(thisMonth))
     .reduce((a, o) => a + (+o.total || 0), 0)
@@ -92,7 +78,6 @@ export default function Orders() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20,
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
 
-      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
           <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
@@ -108,7 +93,6 @@ export default function Orders() {
         ))}
       </div>
 
-      {/* Filter + Search + Button */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {STATUS_OPTS.map(s => (
@@ -140,7 +124,6 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* Table */}
       <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -184,7 +167,6 @@ export default function Orders() {
                     </td>
                     <td style={{ padding: '13px 16px', textAlign: 'center' }}>
                       <button onClick={() => setView(order)}
-                        title="Detail"
                         style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', borderRadius: 8, display: 'inline-flex', alignItems: 'center' }}
                         onMouseEnter={e => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.background = '#eff6ff' }}
                         onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}>
@@ -199,11 +181,9 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* Detail Modal */}
       {view && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 640, margin: 'auto' }}>
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid #f1f5f9' }}>
               <div>
                 <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: 15, margin: 0 }}>{view.number}</h3>
@@ -213,8 +193,6 @@ export default function Orders() {
                 <X size={20} />
               </button>
             </div>
-
-            {/* Body */}
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '65vh', overflowY: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {[
@@ -229,8 +207,6 @@ export default function Orders() {
                   </div>
                 ))}
               </div>
-
-              {/* Items */}
               <div>
                 <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Item Pesanan</p>
                 <div style={{ border: '1px solid #f1f5f9', borderRadius: 10, overflow: 'hidden' }}>
@@ -263,7 +239,6 @@ export default function Orders() {
                   </table>
                 </div>
               </div>
-
               {view.notes && (
                 <div>
                   <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Catatan</p>
@@ -271,8 +246,6 @@ export default function Orders() {
                 </div>
               )}
             </div>
-
-            {/* Footer */}
             <div style={{ display: 'flex', gap: 8, padding: '14px 24px', borderTop: '1px solid #f1f5f9', background: '#fafafa', borderRadius: '0 0 18px 18px' }}>
               {canEdit && (
                 <button onClick={() => { setView(null); navigate('/dashboard/documents') }}
