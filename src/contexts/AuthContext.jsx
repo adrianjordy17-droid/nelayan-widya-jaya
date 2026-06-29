@@ -10,9 +10,9 @@ export const ROLES = {
 }
 
 const ROLE_PERMISSIONS = {
-  owner: ['orders', 'stock', 'reports', 'attendance', 'clients', 'settings', 'users', 'deliveries', 'documents', 'jobdesk'],
-  admin: ['orders', 'stock', 'reports', 'attendance', 'clients', 'settings', 'deliveries', 'documents', 'jobdesk'],
-  staff: ['attendance', 'deliveries', 'documents'],
+  owner: ['orders', 'stock', 'reports', 'attendance', 'clients', 'settings', 'users', 'deliveries', 'documents', 'jobdesk', 'products'],
+  admin: ['orders', 'stock', 'reports', 'attendance', 'clients', 'settings', 'deliveries', 'documents', 'jobdesk', 'products'],
+  staff: ['attendance', 'deliveries', 'documents', 'products'],
 }
 
 export function AuthProvider({ children }) {
