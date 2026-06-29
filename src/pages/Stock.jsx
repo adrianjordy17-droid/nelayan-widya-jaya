@@ -3,19 +3,16 @@ import { Plus, Search, AlertTriangle, Package, Edit2, Trash2, X, Check, DollarSi
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-const INIT_STOCK = [
-  { id: 1, name: 'Tongkol',       category: 'Ikan Laut',      qty: 250, unit: 'kg', minQty: 50,  price: 45000,  location: 'Gudang A' },
-  { id: 2, name: 'Kakap Merah',   category: 'Ikan Laut',      qty: 80,  unit: 'kg', minQty: 30,  price: 90000,  location: 'Gudang A' },
-  { id: 3, name: 'Udang Vaname',  category: 'Udang',          qty: 40,  unit: 'kg', minQty: 50,  price: 120000, location: 'Freezer 1' },
-  { id: 4, name: 'Cumi-cumi',     category: 'Cumi',           qty: 35,  unit: 'kg', minQty: 20,  price: 120000, location: 'Freezer 1' },
-  { id: 5, name: 'Lele',          category: 'Ikan Air Tawar', qty: 500, unit: 'kg', minQty: 100, price: 25000,  location: 'Kolam 1' },
-  { id: 6, name: 'Bandeng',       category: 'Ikan Air Tawar', qty: 15,  unit: 'kg', minQty: 30,  price: 35000,  location: 'Kolam 2' },
-  { id: 7, name: 'Udang Windu',   category: 'Udang',          qty: 22,  unit: 'kg', minQty: 30,  price: 150000, location: 'Freezer 2' },
-  { id: 8, name: 'Tenggiri',      category: 'Ikan Laut',      qty: 120, unit: 'kg', minQty: 25,  price: 80000,  location: 'Gudang A' },
-]
-
 const CATEGORIES = ['Ikan Laut', 'Ikan Air Tawar', 'Udang', 'Cumi', 'Lainnya']
 const UNITS      = ['kg', 'ekor', 'ikat', 'box', 'pcs']
+
+const KAT_MAP = {
+  'UDANG PANCET':  'Udang',
+  'UDANG VANAMEI': 'Udang',
+  'CUMI':          'Cumi',
+  'IKAN':          'Ikan Laut',
+  'OTHER':         'Lainnya',
+}
 
 function fmt(n) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
@@ -31,30 +28,20 @@ function Field({ label, children }) {
 }
 
 const inputStyle = {
-  width: '100%',
-  border: '1.5px solid #e2e8f0',
-  borderRadius: 10,
-  padding: '9px 13px',
-  fontSize: 13,
-  color: '#0f172a',
-  background: 'white',
-  outline: 'none',
-  boxSizing: 'border-box',
+  width: '100%', border: '1.5px solid #e2e8f0', borderRadius: 10,
+  padding: '9px 13px', fontSize: 13, color: '#0f172a',
+  background: 'white', outline: 'none', boxSizing: 'border-box',
 }
-
-const selectStyle = {
-  ...inputStyle,
-  cursor: 'pointer',
-}
+const selectStyle = { ...inputStyle, cursor: 'pointer' }
 
 function StockBar({ qty, minQty }) {
-  const pct  = Math.min((qty / Math.max(minQty * 5, qty + 1)) * 100, 100)
-  const isLow = qty <= minQty
-  const barColor = isLow ? '#f87171' : pct < 50 ? '#fbbf24' : '#34d399'
+  const pct    = Math.min((qty / Math.max(minQty * 5, qty + 1)) * 100, 100)
+  const isLow  = qty <= minQty
+  const color  = isLow ? '#f87171' : pct < 50 ? '#fbbf24' : '#34d399'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 100 }}>
       <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 99, background: barColor, transition: 'width 0.3s' }} />
+        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 99, background: color, transition: 'width 0.3s' }} />
       </div>
       <span style={{ fontSize: 12, fontWeight: 600, width: 36, textAlign: 'right', color: isLow ? '#dc2626' : '#475569' }}>
         {qty}
@@ -66,41 +53,57 @@ function StockBar({ qty, minQty }) {
 const BLANK = { name: '', category: 'Ikan Laut', qty: '', unit: 'kg', minQty: '', price: '', location: '' }
 
 export default function Stock() {
-  const [stock, setStock] = useState([])
-  const [search, setSearch] = useState('')
-  const [catFilter, setCatFilter] = useState('semua')
-  const [modal, setModal] = useState(null)
-  const [form, setForm] = useState(null)
-  const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const { hasPermission, demoMode } = useAuth()
+  const [stock,          setStock]          = useState([])
+  const [catalog,        setCatalog]        = useState([])
+  const [search,         setSearch]         = useState('')
+  const [catFilter,      setCatFilter]      = useState('semua')
+  const [modal,          setModal]          = useState(null)
+  const [form,           setForm]           = useState(null)
+  const [deleteConfirm,  setDeleteConfirm]  = useState(null)
+  const { hasPermission } = useAuth()
   const canEdit = hasPermission('stock')
 
   useEffect(() => {
-    if (demoMode) { setStock(INIT_STOCK); return }
     supabase.from('stock').select('*').order('name')
       .then(({ data }) => setStock(data || []))
-  }, [demoMode])
+    supabase.from('products').select('*').order('kategori').order('nama')
+      .then(({ data }) => setCatalog(data || []))
+  }, [])
 
-  const cats = ['semua', ...CATEGORIES]
+  const cats     = ['semua', ...CATEGORIES]
   const lowStock = stock.filter(s => s.qty <= s.minQty)
   const filtered = stock.filter(s =>
-    (s.name.toLowerCase().includes(search.toLowerCase()) || s.category.toLowerCase().includes(search.toLowerCase())) &&
+    (s.name?.toLowerCase().includes(search.toLowerCase()) ||
+     s.category?.toLowerCase().includes(search.toLowerCase())) &&
     (catFilter === 'semua' || s.category === catFilter)
   )
 
-  function openAdd() { setModal('add'); setForm({ ...BLANK, id: Date.now() }) }
-  function openEdit(item) { setModal('edit'); setForm({ ...item }) }
-  function setF(k, v) { setForm(f => ({ ...f, [k]: v })) }
+  function openAdd()       { setModal('add');  setForm({ ...BLANK }) }
+  function openEdit(item)  { setModal('edit'); setForm({ ...item }) }
+  function setF(k, v)      { setForm(f => ({ ...f, [k]: v })) }
+
+  function pickFromCatalog(productId) {
+    if (!productId) return
+    const p = catalog.find(c => c.id === productId)
+    if (!p) return
+    const label = p.ukuran ? `${p.nama} ${p.ukuran}` : p.nama
+    setForm(f => ({
+      ...f,
+      name:     label,
+      category: KAT_MAP[p.kategori] || 'Lainnya',
+      price:    p.harga_jual ?? f.price,
+    }))
+  }
 
   async function save() {
     if (!form.name || form.qty === '' || !form.price) return
     const item = { ...form, qty: +form.qty, minQty: +form.minQty || 0, price: +form.price }
     if (modal === 'edit') {
       setStock(prev => prev.map(s => s.id === form.id ? item : s))
-      if (!demoMode) await supabase.from('stock').update(item).eq('id', form.id)
+      await supabase.from('stock').update(item).eq('id', form.id)
     } else {
-      setStock(prev => [...prev, item])
-      if (!demoMode) await supabase.from('stock').insert(item)
+      const { data } = await supabase.from('stock').insert(item).select().single()
+      setStock(prev => [...prev, data || item])
     }
     setModal(null)
     setForm(null)
@@ -109,17 +112,17 @@ export default function Stock() {
   async function del(id) {
     setStock(prev => prev.filter(s => s.id !== id))
     setDeleteConfirm(null)
-    if (!demoMode) await supabase.from('stock').delete().eq('id', id)
+    await supabase.from('stock').delete().eq('id', id)
   }
 
-  const totalNilai = stock.reduce((a, s) => a + s.qty * s.price, 0)
+  const totalNilai = stock.reduce((a, s) => a + (s.qty * s.price), 0)
   const uniqueCats = new Set(stock.map(s => s.category)).size
 
   const STATS = [
-    { label: 'Total Produk',  value: stock.length,       sub: 'jenis produk',      Icon: Package,       iconColor: '#2563eb', iconBg: '#eff6ff' },
-    { label: 'Stok Kritis',   value: lowStock.length,    sub: 'perlu restok',       Icon: AlertTriangle, iconColor: '#dc2626', iconBg: '#fef2f2' },
-    { label: 'Nilai Stok',    value: fmt(totalNilai),    sub: 'estimasi total',     Icon: DollarSign,    iconColor: '#16a34a', iconBg: '#f0fdf4' },
-    { label: 'Kategori',      value: uniqueCats,         sub: 'jenis kategori',     Icon: Tag,           iconColor: '#d97706', iconBg: '#fffbeb' },
+    { label: 'Total Produk', value: stock.length,    sub: 'jenis produk',  Icon: Package,       iconColor: '#2563eb', iconBg: '#eff6ff' },
+    { label: 'Stok Kritis',  value: lowStock.length, sub: 'perlu restok',  Icon: AlertTriangle, iconColor: '#dc2626', iconBg: '#fef2f2' },
+    { label: 'Nilai Stok',   value: fmt(totalNilai), sub: 'estimasi total', Icon: DollarSign,    iconColor: '#16a34a', iconBg: '#f0fdf4' },
+    { label: 'Kategori',     value: uniqueCats,      sub: 'jenis kategori', Icon: Tag,           iconColor: '#d97706', iconBg: '#fffbeb' },
   ]
 
   return (
@@ -128,15 +131,9 @@ export default function Stock() {
       {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
-          <div key={label} style={{
-            background: 'white',
-            borderRadius: 14,
-            padding: '18px 20px',
-            border: '1px solid #f1f5f9',
-            boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
-          }}>
+          <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-              <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0, lineHeight: 1.3 }}>{label}</p>
+              <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0 }}>{label}</p>
               <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Icon size={16} color={iconColor} strokeWidth={2} />
               </div>
@@ -151,15 +148,7 @@ export default function Stock() {
 
       {/* Low Stock Alert */}
       {lowStock.length > 0 && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 12,
-          background: '#fffbeb',
-          border: '1px solid #fde68a',
-          borderRadius: 12,
-          padding: '12px 18px',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 18px' }}>
           <AlertTriangle size={16} color="#d97706" style={{ marginTop: 2, flexShrink: 0 }} />
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#92400e', margin: '0 0 2px' }}>
@@ -174,15 +163,10 @@ export default function Stock() {
 
       {/* Toolbar */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        {/* Category Pills */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {cats.map(c => (
             <button key={c} onClick={() => setCatFilter(c)} style={{
-              padding: '6px 14px',
-              borderRadius: 20,
-              fontSize: 12.5,
-              fontWeight: 500,
-              cursor: 'pointer',
+              padding: '6px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
               border: catFilter === c ? '1px solid #2563eb' : '1px solid #e2e8f0',
               background: catFilter === c ? '#2563eb' : 'white',
               color: catFilter === c ? 'white' : '#64748b',
@@ -193,7 +177,6 @@ export default function Stock() {
           ))}
         </div>
 
-        {/* Search + Add */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <div style={{ position: 'relative' }}>
             <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
@@ -206,33 +189,20 @@ export default function Stock() {
           </div>
           {canEdit && (
             <button onClick={openAdd} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
+              display: 'flex', alignItems: 'center', gap: 6,
               background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-              color: 'white',
-              borderRadius: 10,
-              padding: '9px 16px',
-              fontSize: 13,
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
+              color: 'white', borderRadius: 10, padding: '9px 16px',
+              fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
               boxShadow: '0 1px 3px rgba(37,99,235,0.3)',
             }}>
-              <Plus size={15} /> Tambah Produk
+              <Plus size={15} /> Tambah Stok
             </button>
           )}
         </div>
       </div>
 
       {/* Table */}
-      <div style={{
-        background: 'white',
-        borderRadius: 14,
-        border: '1px solid #f1f5f9',
-        boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
-        overflow: 'hidden',
-      }}>
+      <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -241,12 +211,8 @@ export default function Stock() {
                   <th key={h} style={{
                     padding: '12px 16px',
                     textAlign: h === 'Harga/kg' ? 'right' : h === 'Aksi' ? 'center' : 'left',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: '#64748b',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    whiteSpace: 'nowrap',
+                    fontSize: 11, fontWeight: 600, color: '#64748b',
+                    textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
                   }}>{h}</th>
                 ))}
               </tr>
@@ -262,69 +228,33 @@ export default function Stock() {
               {filtered.map((item, idx) => {
                 const isLow = item.qty <= item.minQty
                 return (
-                  <tr key={item.id} style={{
-                    borderTop: idx > 0 ? '1px solid #f8fafc' : 'none',
-                    background: isLow ? '#fffbeb' : 'white',
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
-                  onMouseLeave={e => e.currentTarget.style.background = isLow ? '#fffbeb' : 'white'}
+                  <tr key={item.id}
+                    style={{ borderTop: idx > 0 ? '1px solid #f8fafc' : 'none', background: isLow ? '#fffbeb' : 'white', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                    onMouseLeave={e => e.currentTarget.style.background = isLow ? '#fffbeb' : 'white'}
                   >
-                    {/* Produk */}
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontWeight: 600, color: '#0f172a', fontSize: 13 }}>{item.name}</span>
-                        <span style={{
-                          fontSize: 11,
-                          padding: '2px 8px',
-                          borderRadius: 20,
-                          background: '#f1f5f9',
-                          color: '#475569',
-                          fontWeight: 500,
-                        }}>{item.category}</span>
-                        {isLow && (
-                          <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#fef2f2', color: '#dc2626', fontWeight: 600 }}>
-                            Kritis
-                          </span>
-                        )}
+                        <span style={{ fontWeight: 600, color: '#0f172a' }}>{item.name}</span>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#f1f5f9', color: '#475569', fontWeight: 500 }}>{item.category}</span>
+                        {isLow && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#fef2f2', color: '#dc2626', fontWeight: 600 }}>Kritis</span>}
                       </div>
                     </td>
-                    {/* Stok */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <StockBar qty={item.qty} minQty={item.minQty} />
-                    </td>
-                    {/* Min Stok */}
-                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: 12 }}>
-                      {item.minQty} {item.unit}
-                    </td>
-                    {/* Harga */}
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a', fontSize: 13 }}>
-                      {fmt(item.price)}
-                    </td>
-                    {/* Lokasi */}
-                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12 }}>
-                      {item.location}
-                    </td>
-                    {/* Aksi */}
+                    <td style={{ padding: '12px 16px' }}><StockBar qty={item.qty} minQty={item.minQty} /></td>
+                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: 12 }}>{item.minQty} {item.unit}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{fmt(item.price)}</td>
+                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12 }}>{item.location}</td>
                     {canEdit && (
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                          <button onClick={() => openEdit(item)} title="Edit" style={{
-                            padding: '6px', border: 'none', borderRadius: 8, background: 'transparent',
-                            cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#fef9c3'; e.currentTarget.style.color = '#ca8a04' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
-                          >
+                          <button onClick={() => openEdit(item)} title="Edit" style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#fef9c3'; e.currentTarget.style.color = '#ca8a04' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
                             <Edit2 size={14} />
                           </button>
-                          <button onClick={() => setDeleteConfirm(item.id)} title="Hapus" style={{
-                            padding: '6px', border: 'none', borderRadius: 8, background: 'transparent',
-                            cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
-                          >
+                          <button onClick={() => setDeleteConfirm(item.id)} title="Hapus" style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -340,27 +270,50 @@ export default function Stock() {
 
       {/* Add/Edit Modal */}
       {modal && form && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
-          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-        }}>
-          <div style={{
-            background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)',
-            width: '100%', maxWidth: 520,
-          }}>
-            {/* Modal Header */}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 520 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #f1f5f9' }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                {modal === 'edit' ? `Edit Produk — ${form.name}` : 'Tambah Produk Baru'}
+                {modal === 'edit' ? `Edit Stok — ${form.name}` : 'Tambah Stok'}
               </h3>
               <button onClick={() => { setModal(null); setForm(null) }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
                 <X size={20} />
               </button>
             </div>
-            {/* Modal Body */}
+
             <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, maxHeight: '60vh', overflowY: 'auto' }}>
+
+              {/* Pilih dari katalog produk */}
+              {modal === 'add' && catalog.length > 0 && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', color: '#0a84ff', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                    Pilih dari Katalog Produk
+                  </label>
+                  <select
+                    defaultValue=""
+                    onChange={e => pickFromCatalog(e.target.value)}
+                    style={{ ...selectStyle, borderColor: '#bfdbfe' }}
+                  >
+                    <option value="">— Pilih produk (opsional) —</option>
+                    {['UDANG PANCET','UDANG VANAMEI','CUMI','IKAN','OTHER'].map(kat => {
+                      const items = catalog.filter(c => c.kategori === kat)
+                      if (!items.length) return null
+                      return (
+                        <optgroup key={kat} label={kat}>
+                          {items.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.nama}{p.ukuran ? ` ${p.ukuran}` : ''} — Rp {Number(p.harga_jual || 0).toLocaleString('id-ID')}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )
+                    })}
+                  </select>
+                </div>
+              )}
+
               <Field label="Nama Produk">
-                <input value={form.name} onChange={e => setF('name', e.target.value)} placeholder="Tongkol, Udang, ..." style={inputStyle} />
+                <input value={form.name} onChange={e => setF('name', e.target.value)} placeholder="Nama produk..." style={inputStyle} />
               </Field>
               <Field label="Kategori">
                 <select value={form.category} onChange={e => setF('category', e.target.value)} style={selectStyle}>
@@ -385,7 +338,7 @@ export default function Stock() {
                 <input value={form.location} onChange={e => setF('location', e.target.value)} placeholder="Gudang A, Freezer 1, ..." style={inputStyle} />
               </Field>
             </div>
-            {/* Modal Footer */}
+
             <div style={{ display: 'flex', gap: 8, padding: '16px 24px', borderTop: '1px solid #f1f5f9', background: '#fafafa', borderRadius: '0 0 18px 18px' }}>
               <button onClick={save} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -408,30 +361,18 @@ export default function Stock() {
 
       {/* Delete Confirm */}
       {deleteConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
-          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-        }}>
-          <div style={{
-            background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)',
-            padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center',
-          }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center' }}>
             <div style={{ width: 48, height: 48, background: '#fef2f2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <Trash2 size={22} color="#dc2626" />
             </div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>Hapus Produk?</h3>
-            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px' }}>Data produk ini akan dihapus permanen dan tidak bisa dikembalikan.</p>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>Hapus Stok?</h3>
+            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px' }}>Data stok ini akan dihapus permanen.</p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button onClick={() => del(deleteConfirm)} style={{
-                background: '#dc2626', color: 'white', border: 'none', borderRadius: 10,
-                padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}>
+              <button onClick={() => del(deleteConfirm)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 10, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Ya, Hapus
               </button>
-              <button onClick={() => setDeleteConfirm(null)} style={{
-                border: '1px solid #e2e8f0', color: '#64748b', background: 'white',
-                borderRadius: 10, padding: '9px 16px', fontSize: 13, cursor: 'pointer',
-              }}>
+              <button onClick={() => setDeleteConfirm(null)} style={{ border: '1px solid #e2e8f0', color: '#64748b', background: 'white', borderRadius: 10, padding: '9px 16px', fontSize: 13, cursor: 'pointer' }}>
                 Batal
               </button>
             </div>
