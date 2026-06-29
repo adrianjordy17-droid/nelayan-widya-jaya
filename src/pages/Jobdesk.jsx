@@ -6,17 +6,6 @@ import { Plus, X, Check, Trash2, ClipboardList, User } from 'lucide-react'
 const todayStr = () => new Date().toISOString().slice(0, 10)
 const newId    = () => crypto.randomUUID()
 
-// ── Demo data ────────────────────────────────────────────────────────────────
-const DEMO_TASKS = [
-  { id: 'dt-1', title: 'Siapkan box pengemasan udang vannamei', assigned_to_name: 'Bimbim', due_date: todayStr(), done: false, created_by: 'April' },
-  { id: 'dt-2', title: 'Cek kualitas udang sebelum kirim ke Resto Padang', assigned_to_name: 'Bimbim', due_date: todayStr(), done: true,  created_by: 'Jordy' },
-  { id: 'dt-3', title: 'Antar DO-002 ke Seafood Corner', assigned_to_name: 'Wowo',   due_date: todayStr(), done: false, created_by: 'April' },
-]
-const DEMO_STAFF = [
-  { id: 'demo-3', name: 'Bimbim' },
-  { id: 'demo-4', name: 'Wowo' },
-]
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function groupByAssignee(tasks) {
   const map = {}
@@ -36,7 +25,7 @@ function avatarColor(name) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 export default function Jobdesk() {
-  const { profile, demoMode } = useAuth()
+  const { profile } = useAuth()
   const [tasks, setTasks]       = useState([])
   const [staffList, setStaff]   = useState([])
   const [filter, setFilter]     = useState('all') // all | pending | done
@@ -46,20 +35,12 @@ export default function Jobdesk() {
 
   // Fetch
   useEffect(() => {
-    if (demoMode) {
-      setTasks(DEMO_TASKS)
-      setStaff(DEMO_STAFF)
-      return
-    }
     supabase.from('profiles').select('id,name').eq('role', 'staff')
       .then(({ data }) => { if (data) setStaff(data) })
 
     supabase.from('tasks').select('*').order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (data) setTasks(data)
-        else if (error) console.warn('tasks table not found – create it in Supabase:', error.message)
-      })
-  }, [demoMode])
+      .then(({ data }) => { if (data) setTasks(data) })
+  }, [])
 
   const setF = v => setForm(f => ({ ...f, ...v }))
 
@@ -76,9 +57,7 @@ export default function Jobdesk() {
   // Delete
   async function deleteTask(id) {
     setTasks(prev => prev.filter(t => t.id !== id))
-    if (!demoMode) {
-      await supabase.from('tasks').delete().eq('id', id)
-    }
+    await supabase.from('tasks').delete().eq('id', id)
   }
 
   // Save new task
@@ -96,15 +75,13 @@ export default function Jobdesk() {
     setTasks(prev => [task, ...prev])
     setShowForm(false)
     setForm({ title: '', assignedTo: '', dueDate: todayStr() })
-    if (!demoMode) {
-      const { error } = await supabase.from('tasks').insert({
-        id: task.id, title: task.title, assigned_to_name: task.assigned_to_name,
-        due_date: task.due_date, done: false, created_by: task.created_by,
-      })
-      if (error) {
-        alert('Gagal simpan tugas: ' + error.message)
-        setTasks(prev => prev.filter(t => t.id !== task.id))
-      }
+    const { error } = await supabase.from('tasks').insert({
+      id: task.id, title: task.title, assigned_to_name: task.assigned_to_name,
+      due_date: task.due_date, done: false, created_by: task.created_by,
+    })
+    if (error) {
+      alert('Gagal simpan tugas: ' + error.message)
+      setTasks(prev => prev.filter(t => t.id !== task.id))
     }
     setSaving(false)
   }

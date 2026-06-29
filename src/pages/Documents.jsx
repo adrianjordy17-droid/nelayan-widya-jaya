@@ -31,33 +31,6 @@ const STATUS_CFG = {
 const UNITS = ['kg', 'ekor', 'ikat', 'box', 'pcs', 'liter', 'ton']
 const CONDITIONS = ['Baik', 'Cukup', 'Kurang']
 
-const DEMO_DOCS = [
-  {
-    id: 'demo-so-1', type: 'SO', number: 'SO-202606-001', date: '2026-06-28', status: 'confirmed',
-    clientName: 'Resto Laut Biru', clientAddress: 'Jl. Pantai No.1, Jakarta Utara', clientPhone: '0812-3456-7890',
-    refNumber: '', driverName: '', vehicle: '',
-    items: [
-      { id: '1', name: 'Udang Vaname', qty: 20, unit: 'kg', price: 85000, receivedQty: '', condition: 'Baik', total: 1700000 },
-      { id: '2', name: 'Udang Windu',  qty: 10, unit: 'kg', price: 120000, receivedQty: '', condition: 'Baik', total: 1200000 },
-    ],
-    subtotal: 2900000, taxPct: 11, discount: 0, total: 3219000,
-    dueDate: '', paymentTerms: 'Net 14 hari', bankName: '', accountNumber: '', accountName: '',
-    notes: 'Tolong kirim sebelum pukul 10 pagi.', createdByName: 'April', createdAt: '2026-06-28T08:00:00Z',
-  },
-  {
-    id: 'demo-do-1', type: 'DO', number: 'DO-202606-001', date: '2026-06-28', status: 'dispatched',
-    clientName: 'Resto Laut Biru', clientAddress: 'Jl. Pantai No.1, Jakarta Utara', clientPhone: '0812-3456-7890',
-    refNumber: 'SO-202606-001', driverName: 'Bimbim', vehicle: 'B 1234 ABC',
-    items: [
-      { id: '1', name: 'Udang Vaname', qty: 20, unit: 'kg', price: null, receivedQty: '', condition: 'Baik', total: null },
-      { id: '2', name: 'Udang Windu',  qty: 10, unit: 'kg', price: null, receivedQty: '', condition: 'Baik', total: null },
-    ],
-    subtotal: null, taxPct: null, discount: null, total: null,
-    dueDate: '', paymentTerms: '', bankName: '', accountNumber: '', accountName: '',
-    notes: '', createdByName: 'April', createdAt: '2026-06-28T08:30:00Z',
-  },
-]
-
 // ── Helpers ──
 function fmtRp(n) { return n != null ? 'Rp ' + Math.round(n).toLocaleString('id-ID') : '–' }
 function fmtDate(s) {
@@ -391,7 +364,7 @@ function Card({ children }) {
 // ── Main ──
 export default function Documents() {
   const location = useLocation()
-  const { user, profile, demoMode, isRole } = useAuth()
+  const { user, profile, isRole } = useAuth()
   const canEdit = isRole('admin') || isRole('owner')
   const isStaff = isRole('staff')
 
@@ -409,14 +382,12 @@ export default function Documents() {
   const createType = form?.type || null
 
   useEffect(() => {
-    if (demoMode) { setDocs(DEMO_DOCS); return }
     supabase.from('documents').select('*').order('created_at', { ascending: false })
       .then(({ data }) => {
         if (!data) return
-        // Hide confirmed SOs — they've been converted to DOs
         setDocs(data.map(dbToDoc).filter(d => !(d.type === 'SO' && d.status === 'confirmed')))
       })
-  }, [demoMode])
+  }, [])
 
   // Auto-open creation if navigated from Orders page
   useEffect(() => {
@@ -427,23 +398,16 @@ export default function Documents() {
   }, [])
 
   useEffect(() => {
-    if (demoMode) return
     supabase.from('clients').select('id,name,address,phone').eq('active', true)
       .then(({ data }) => data && setClients(data))
-  }, [demoMode])
+  }, [])
 
   useEffect(() => {
-    if (demoMode) { setStaffList([{ id: 'demo-3', name: 'Bimbim' }, { id: 'demo-4', name: 'Wowo' }]); return }
     supabase.from('profiles').select('id,name').eq('role', 'staff')
       .then(({ data }) => data && setStaffList(data))
-  }, [demoMode])
+  }, [])
 
   async function getNextNumber(type) {
-    if (demoMode) {
-      const prefix = type === 'Invoice' ? 'INV' : type
-      const n = docs.filter(d => d.type === type).length + 1
-      return `${prefix}-202606-${String(n).padStart(3, '0')}`
-    }
     const prefix = type === 'Invoice' ? 'INV' : type
     const ym = new Date().toISOString().slice(0, 7).replace('-', '')
     const { count } = await supabase.from('documents').select('*', { count: 'exact', head: true })
@@ -592,20 +556,17 @@ export default function Documents() {
       notes: soDoc.notes || '', createdByName: soDoc.createdByName || '',
       createdAt: new Date().toISOString(),
     }
-    // Add DO and remove the source SO in one update
     setDocs(prev => [doDoc, ...prev.filter(d => !(d.type === 'SO' && d.id === soDoc.id))])
-    if (!demoMode) {
-      const { error } = await supabase.from('documents').insert({
-        id: doId, number: doNumber, type: 'DO', date: doDoc.date, status: 'draft',
-        client_name: doDoc.clientName, client_address: doDoc.clientAddress || null,
-        client_phone: doDoc.clientPhone || null,
-        ref_number: soDoc.number, driver_name: null, vehicle: null,
-        items: doDoc.items, subtotal: null, tax_pct: null, discount: null, total: null,
-        due_date: null, payment_terms: null, bank_name: null, account_number: null, account_name: null,
-        notes: doDoc.notes || null, created_by: user?.id, created_by_name: doDoc.createdByName,
-      })
-      if (error) console.error('Auto-DO creation failed:', error)
-    }
+    const { error } = await supabase.from('documents').insert({
+      id: doId, number: doNumber, type: 'DO', date: doDoc.date, status: 'draft',
+      client_name: doDoc.clientName, client_address: doDoc.clientAddress || null,
+      client_phone: doDoc.clientPhone || null,
+      ref_number: soDoc.number, driver_name: null, vehicle: null,
+      items: doDoc.items, subtotal: null, tax_pct: null, discount: null, total: null,
+      due_date: null, payment_terms: null, bank_name: null, account_number: null, account_name: null,
+      notes: doDoc.notes || null, created_by: user?.id, created_by_name: doDoc.createdByName,
+    })
+    if (error) console.error('Auto-DO creation failed:', error)
   }
 
   async function save() {
@@ -616,7 +577,7 @@ export default function Documents() {
         const orig = docs.find(d => d.id === form.editId) || {}
         const doc = buildDoc({ id: form.editId, number: orig.number || '', createdByName: orig.createdByName || profile?.name || '', createdAt: orig.createdAt || new Date().toISOString() })
         setDocs(prev => prev.map(d => d.id === form.editId ? doc : d))
-        if (!demoMode) await pushDocToDB(doc, false)
+        await pushDocToDB(doc, false)
         if (doc.type === 'SO' && doc.status === 'confirmed' && orig.status !== 'confirmed') {
           await autoCreateDO(doc)
         }
@@ -625,7 +586,7 @@ export default function Documents() {
         const number = await getNextNumber(form.type)
         const doc = buildDoc({ id, number, createdByName: profile?.name || '', createdAt: new Date().toISOString() })
         setDocs(prev => [doc, ...prev])
-        if (!demoMode) await pushDocToDB(doc, true)
+        await pushDocToDB(doc, true)
         if (doc.type === 'SO' && doc.status === 'confirmed') {
           await autoCreateDO(doc)
         }

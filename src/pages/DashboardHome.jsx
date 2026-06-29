@@ -28,20 +28,9 @@ function rpFmt(n) {
 }
 function totalOf(items) { return (items || []).reduce((a, i) => a + i.qty * i.price, 0) }
 
-// ── Demo data for staff ──────────────────────────────────────────────────────
-const DEMO_DOS = {
-  bimbim: [
-    { id: 'demo-do-1', number: 'DO-001', clientName: 'Resto Padang Maju', items: [{ name: 'Udang Vannamei', qty: 10, unit: 'kg' }] },
-    { id: 'demo-do-2', number: 'DO-003', clientName: 'Warung Bahari', items: [{ name: 'Udang Tiger', qty: 3, unit: 'kg' }] },
-  ],
-  wowo: [
-    { id: 'demo-do-3', number: 'DO-002', clientName: 'Seafood Corner', items: [{ name: 'Udang Windu', qty: 7, unit: 'kg' }] },
-  ],
-}
-
 // ── Staff Dashboard ──────────────────────────────────────────────────────────
 function StaffDashboard() {
-  const { profile, demoMode } = useAuth()
+  const { profile } = useAuth()
   const navigate = useNavigate()
   const todayLabel = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
 
@@ -50,15 +39,6 @@ function StaffDashboard() {
   const [tasks, setTasks]               = useState([])
 
   useEffect(() => {
-    const name = profile?.name?.toLowerCase() || ''
-
-    if (demoMode) {
-      setPendingDOs(DEMO_DOS[name] || [])
-      setDelivered(name === 'wowo' ? 1 : 0)
-      setTasks([])
-      return
-    }
-
     supabase.from('documents')
       .select('id,number,client_name,items,status,driver_name')
       .eq('type', 'DO')
@@ -72,12 +52,11 @@ function StaffDashboard() {
         setDelivered(data.filter(d => d.status === 'delivered').length)
       })
 
-    // Tasks: fetch from 'tasks' table if it exists; silent fail if not
     supabase.from('tasks')
       .select('id,title,done')
       .ilike('assigned_to_name', profile?.name || 'NOMATCH')
       .then(({ data }) => { if (data) setTasks(data) })
-  }, [demoMode, profile?.name])
+  }, [profile?.name])
 
   const totalDOs = pendingDOs.length + deliveredCount
   const allDone  = totalDOs > 0 && deliveredCount === totalDOs

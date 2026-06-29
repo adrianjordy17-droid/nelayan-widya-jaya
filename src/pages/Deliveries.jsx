@@ -4,21 +4,6 @@ import { Camera, Check, Plus, X, Truck, Store, FileText, Calendar, Package } fro
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
-const INIT_REPORTS = [
-  {
-    id: 'demo-1',
-    clientName: 'Resto Laut Biru',
-    deliveryDate: '2026-06-28',
-    weightSent: 15.5,
-    weightReceived: 15.2,
-    photoSentUrl: null,
-    photoReceivedUrl: null,
-    notes: 'Pengiriman aman, udang segar',
-    createdByName: 'Bimbim',
-    createdAt: '2026-06-28T09:00:00Z',
-  },
-]
-
 const FF = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }
 
 function formatDate(str) {
@@ -39,7 +24,7 @@ function InfoRow({ label, value, last }) {
 }
 
 export default function Deliveries() {
-  const { user, profile, demoMode } = useAuth()
+  const { user, profile } = useAuth()
   const location = useLocation()
   const [reports, setReports] = useState([])
   const [modal, setModal] = useState(null)
@@ -61,7 +46,6 @@ export default function Deliveries() {
   }
 
   useEffect(() => {
-    if (demoMode) { setReports(INIT_REPORTS); return }
     supabase.from('delivery_reports')
       .select('*')
       .order('created_at', { ascending: false })
@@ -80,7 +64,7 @@ export default function Deliveries() {
           createdAt: r.created_at,
         })))
       })
-  }, [demoMode])
+  }, [])
 
   useEffect(() => {
     if (location.state?.doRef) {
@@ -114,13 +98,10 @@ export default function Deliveries() {
     setSaving(true)
     try {
       const id = crypto.randomUUID()
-      let photoSentUrl = demoMode ? form.photoSentPreview : null
-      let photoReceivedUrl = demoMode ? form.photoReceivedPreview : null
-
-      if (!demoMode) {
-        if (form.photoSentFile) photoSentUrl = await uploadPhoto(form.photoSentFile, `${id}/sent.jpg`)
-        if (form.photoReceivedFile) photoReceivedUrl = await uploadPhoto(form.photoReceivedFile, `${id}/received.jpg`)
-      }
+      let photoSentUrl = null
+      let photoReceivedUrl = null
+      if (form.photoSentFile) photoSentUrl = await uploadPhoto(form.photoSentFile, `${id}/sent.jpg`)
+      if (form.photoReceivedFile) photoReceivedUrl = await uploadPhoto(form.photoReceivedFile, `${id}/received.jpg`)
 
       const report = {
         id,
@@ -137,22 +118,20 @@ export default function Deliveries() {
 
       setReports(prev => [report, ...prev])
 
-      if (!demoMode) {
-        await supabase.from('delivery_reports').insert({
-          id,
-          client_name: report.clientName,
-          delivery_date: report.deliveryDate,
-          weight_sent: report.weightSent,
-          weight_received: report.weightReceived,
-          photo_sent_url: photoSentUrl,
-          photo_received_url: photoReceivedUrl,
-          notes: report.notes,
-          created_by: user?.id,
-          created_by_name: report.createdByName,
-        })
-        if (form.doId) {
-          await supabase.from('documents').update({ status: 'delivered' }).eq('id', form.doId)
-        }
+      await supabase.from('delivery_reports').insert({
+        id,
+        client_name: report.clientName,
+        delivery_date: report.deliveryDate,
+        weight_sent: report.weightSent,
+        weight_received: report.weightReceived,
+        photo_sent_url: photoSentUrl,
+        photo_received_url: photoReceivedUrl,
+        notes: report.notes,
+        created_by: user?.id,
+        created_by_name: report.createdByName,
+      })
+      if (form.doId) {
+        await supabase.from('documents').update({ status: 'delivered' }).eq('id', form.doId)
       }
 
       setSaved(true)
