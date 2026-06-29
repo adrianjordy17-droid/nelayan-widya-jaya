@@ -1,4 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+
+// Clear legacy localStorage keys that contained hardcoded demo data
+try { ['nwj_orders', 'nwj_stock', 'nwj_clients', 'nwj_attendance'].forEach(k => localStorage.removeItem(k)) } catch {}
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './components/auth/LoginPage'
 import DashboardLayout from './components/layout/DashboardLayout'
