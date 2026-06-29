@@ -1,7 +1,59 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { Eye, EyeOff, CheckCircle2, ArrowRight, Waves, Fish } from 'lucide-react'
+
+function AnimatedBg() {
+  const ref = useRef(null)
+  useEffect(() => {
+    const canvas = ref.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    let w, h, particles, animId
+
+    function init() {
+      w = canvas.width  = canvas.offsetWidth
+      h = canvas.height = canvas.offsetHeight
+      particles = Array.from({ length: 55 }, () => ({
+        x:  Math.random() * w,
+        y:  Math.random() * h,
+        r:  Math.random() * 1.6 + 0.4,
+        vy: -(Math.random() * 0.45 + 0.12),
+        vx: (Math.random() - 0.5) * 0.18,
+        op: Math.random() * 0.32 + 0.07,
+      }))
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h)
+      for (const p of particles) {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(96,165,250,${p.op})`
+        ctx.fill()
+        p.y += p.vy
+        p.x += p.vx
+        if (p.y < -4)    { p.y = h + 4; p.x = Math.random() * w }
+        if (p.x < -4)    p.x = w + 4
+        if (p.x > w + 4) p.x = -4
+      }
+      animId = requestAnimationFrame(draw)
+    }
+
+    init()
+    draw()
+    const onResize = () => init()
+    window.addEventListener('resize', onResize)
+    return () => { cancelAnimationFrame(animId); window.removeEventListener('resize', onResize) }
+  }, [])
+
+  return (
+    <canvas ref={ref} style={{
+      position: 'absolute', inset: 0, width: '100%', height: '100%',
+      pointerEvents: 'none', zIndex: 0,
+    }} />
+  )
+}
 
 const FEATURES = [
   'Manajemen order & pengiriman udang',
@@ -140,11 +192,15 @@ export default function LoginPage() {
         fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
         position: 'relative', overflow: 'hidden',
       }}>
+        {/* Animated bubbles */}
+        <AnimatedBg />
+        {/* Dot grid */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
           backgroundImage: 'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)',
           backgroundSize: '28px 28px',
         }} />
+        {/* Glow */}
         <div style={{
           position: 'absolute', top: '-8%', right: '-12%',
           width: 280, height: 280, borderRadius: '50%', pointerEvents: 'none',
@@ -158,13 +214,15 @@ export default function LoginPage() {
 
         {/* Top section */}
         <div style={{ padding: '56px 28px 40px', position: 'relative', zIndex: 1, flex: '0 0 auto' }}>
+          {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 36 }}>
             <div style={{
               width: 44, height: 44,
               background: 'linear-gradient(135deg, #2563EB, #0EA5E9)',
               borderRadius: 14,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 20px rgba(37,99,235,0.5)', flexShrink: 0,
+              boxShadow: '0 4px 20px rgba(37,99,235,0.5)',
+              flexShrink: 0,
             }}>
               <Waves size={21} color="white" strokeWidth={2.5} />
             </div>
@@ -172,12 +230,13 @@ export default function LoginPage() {
               <p style={{ color: '#F1F5F9', fontWeight: 700, fontSize: 14, margin: 0 }}>
                 UD. Nelayan Widya Jaya
               </p>
-              <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0 }}>
-                Shrimp Supplier
+              <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', margin: 0, lineHeight: 1.5 }}>
+                Seafood Live Fresh<br />&amp; Frozen Supplier
               </p>
             </div>
           </div>
 
+          {/* Headline */}
           <h1 style={{
             color: 'white', fontSize: 34, fontWeight: 800,
             lineHeight: 1.15, margin: '0 0 12px', letterSpacing: '-0.03em',
@@ -195,19 +254,22 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Bottom sheet */}
+        {/* Bottom sheet - form */}
         <div style={{
-          flex: 1, background: 'white',
+          flex: 1,
+          background: 'white',
           borderRadius: '28px 28px 0 0',
           padding: '32px 24px 48px',
           position: 'relative', zIndex: 1,
           boxShadow: '0 -8px 40px rgba(0,0,0,0.25)',
         }}>
+          {/* Handle bar */}
           <div style={{
             width: 40, height: 4, background: '#E2E8F0',
             borderRadius: 2, margin: '0 auto 28px',
           }} />
 
+          {/* Card header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
             <div style={{
               width: 48, height: 48, flexShrink: 0,
@@ -249,12 +311,14 @@ export default function LoginPage() {
       display: 'flex', minHeight: '100vh',
       fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
     }}>
+      {/* Left Panel */}
       <div style={{
         flex: '0 0 50%',
         background: 'linear-gradient(150deg, #071B34 0%, #0D2952 45%, #0A2040 100%)',
         display: 'flex', flexDirection: 'column',
         padding: '40px 52px', position: 'relative', overflow: 'hidden',
       }}>
+        <AnimatedBg />
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
           backgroundImage: 'radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px)',
@@ -285,8 +349,8 @@ export default function LoginPage() {
             <p style={{ color: '#F1F5F9', fontWeight: 700, fontSize: 13.5, margin: 0, letterSpacing: '0.01em' }}>
               UD. Nelayan Widya Jaya
             </p>
-            <p style={{ color: 'rgba(148,163,184,0.7)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', margin: 0 }}>
-              Shrimp Supplier
+            <p style={{ color: 'rgba(148,163,184,0.7)', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', margin: 0, lineHeight: 1.5 }}>
+              Seafood Live Fresh<br />&amp; Frozen Supplier
             </p>
           </div>
         </div>
@@ -342,6 +406,7 @@ export default function LoginPage() {
         </div>
       </div>
 
+      {/* Right Panel */}
       <div style={{
         flex: 1, background: '#F1F5F9',
         display: 'flex', flexDirection: 'column',
