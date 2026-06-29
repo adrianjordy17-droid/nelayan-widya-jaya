@@ -12,6 +12,7 @@ import Settings from './pages/Settings'
 import Deliveries from './pages/Deliveries'
 import Documents from './pages/Documents'
 import Jobdesk from './pages/Jobdesk'
+import Products from './pages/Products'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="attendance" element={<FeatureRoute feature="attendance"><Attendance /></FeatureRoute>} />
         <Route path="clients" element={<FeatureRoute feature="clients"><Clients /></FeatureRoute>} />
         <Route path="jobdesk" element={<FeatureRoute feature="jobdesk"><Jobdesk /></FeatureRoute>} />
+        <Route path="products" element={<FeatureRoute feature="products"><Products /></FeatureRoute>} />
         <Route path="settings" element={<FeatureRoute feature="settings"><Settings /></FeatureRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
