@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList,
+  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu,
 } from 'lucide-react'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
 
@@ -37,7 +37,6 @@ const PAGE_TITLE = {
   '/dashboard/settings':    'Pengaturan',
 }
 
-/* ── notifications ── */
 function getNotifications() {
   try {
     const orders = JSON.parse(localStorage.getItem('nwj_orders') || '[]')
@@ -57,7 +56,6 @@ function getNotifications() {
   } catch { return [] }
 }
 
-/* ── WA scheduler ── */
 function useWAScheduler() {
   const sent = useRef('')
   useEffect(() => {
@@ -83,14 +81,14 @@ function useWAScheduler() {
   }, [])
 }
 
-/* ── Sidebar nav item with hover ── */
-function SidebarLink({ path, label, Icon, feature, hasPermission }) {
+function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) {
   const [hover, setHover] = useState(false)
   if (feature && !hasPermission(feature)) return null
   return (
     <NavLink
       to={path}
       end={path === '/dashboard'}
+      onClick={onNavClick}
       style={({ isActive }) => ({
         display: 'flex', alignItems: 'center', gap: 9,
         padding: '7px 10px', borderRadius: 7, marginBottom: 1,
@@ -124,7 +122,6 @@ function SidebarLink({ path, label, Icon, feature, hasPermission }) {
   )
 }
 
-/* ── Notification Panel ── */
 function NotifPanel({ notifs, onClose }) {
   const stock  = notifs.filter(n => n.type === 'stock')
   const orders = notifs.filter(n => n.type === 'order')
@@ -148,7 +145,6 @@ function NotifPanel({ notifs, onClose }) {
           }}>{notifs.length}</span>
         )}
       </div>
-
       {notifs.length === 0 ? (
         <div style={{ padding: '28px 16px', textAlign: 'center' }}>
           <p style={{ fontSize: 26, marginBottom: 8 }}>✅</p>
@@ -181,7 +177,6 @@ function NotifPanel({ notifs, onClose }) {
           ))}
         </div>
       )}
-
       <div style={{ padding: '11px 16px', borderTop: '0.5px solid #f0f0f0' }}>
         <NavLink to="/dashboard/settings" onClick={onClose} style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -202,8 +197,10 @@ export default function DashboardLayout() {
   const roleColor  = ROLE_COLOR[profile?.role] || '#0a84ff'
   const pageTitle  = PAGE_TITLE[location.pathname] || 'Dashboard'
 
-  const [notifOpen, setNotifOpen]       = useState(false)
+  const [notifOpen, setNotifOpen]         = useState(false)
   const [notifications, setNotifications] = useState([])
+  const [isMobile, setIsMobile]           = useState(window.innerWidth < 768)
+  const [sidebarOpen, setSidebarOpen]     = useState(false)
   const notifRef = useRef(null)
 
   useWAScheduler()
@@ -214,8 +211,14 @@ export default function DashboardLayout() {
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   const totalCount = notifications.length
+  const closeSidebar = () => setSidebarOpen(false)
 
   return (
     <div style={{
@@ -223,15 +226,26 @@ export default function DashboardLayout() {
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
     }}>
 
-      {/* ═══════ SIDEBAR (Apple dark) ═══════ */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={closeSidebar}
+          style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.5)' }}
+        />
+      )}
+
       <aside style={{
         width: 220, flexShrink: 0,
         height: '100vh', overflow: 'hidden',
         background: '#1c1c1e',
         display: 'flex', flexDirection: 'column',
+        ...(isMobile ? {
+          position: 'fixed', top: 0, left: 0, zIndex: 100,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s cubic-bezier(0.4,0,0.2,1)',
+          boxShadow: sidebarOpen ? '4px 0 24px rgba(0,0,0,0.4)' : 'none',
+        } : {}),
       }}>
 
-        {/* Brand */}
         <div style={{ padding: '20px 14px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
@@ -243,48 +257,35 @@ export default function DashboardLayout() {
               <Waves size={17} color="white" strokeWidth={2.2} />
             </div>
             <div>
-              <p style={{
-                fontSize: 11.5, fontWeight: 600, color: 'white',
-                margin: 0, lineHeight: 1.3, letterSpacing: '-0.01em',
-              }}>
+              <p style={{ fontSize: 11.5, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
                 UD. Nelayan Widya Jaya
               </p>
-              <p style={{
-                fontSize: 9.5, color: 'rgba(255,255,255,0.35)',
-                margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase',
-                marginTop: 2,
-              }}>
+              <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>
                 Shrimp Supplier
               </p>
             </div>
           </div>
         </div>
 
-        {/* Divider */}
         <div style={{ height: 0.5, background: 'rgba(255,255,255,0.08)', margin: '0 14px 10px' }} />
 
-        {/* Nav */}
         <nav style={{ flex: 1, padding: '0 8px', overflowY: 'auto' }}>
           {NAV_ITEMS.map(({ path, label, icon: Icon, feature }) => (
             <SidebarLink
               key={path}
               path={path} label={label} Icon={Icon} feature={feature}
               hasPermission={hasPermission}
+              onNavClick={isMobile ? closeSidebar : undefined}
             />
           ))}
         </nav>
 
-        {/* User row */}
-        <div style={{
-          padding: '10px 10px 14px',
-          borderTop: '0.5px solid rgba(255,255,255,0.08)',
-        }}>
+        <div style={{ padding: '10px 10px 14px', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 9,
             padding: '8px 8px', borderRadius: 9,
             background: 'rgba(255,255,255,0.06)',
           }}>
-            {/* Avatar */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{
                 width: 30, height: 30, borderRadius: '50%',
@@ -297,28 +298,21 @@ export default function DashboardLayout() {
               <div style={{
                 position: 'absolute', bottom: 0, right: 0,
                 width: 8, height: 8, borderRadius: '50%',
-                background: '#30d158',
-                border: '1.5px solid #1c1c1e',
+                background: '#30d158', border: '1.5px solid #1c1c1e',
               }} />
             </div>
-            {/* Name */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{
-                fontSize: 12, fontWeight: 600, color: 'white',
-                margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'white', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {profile?.name}
               </p>
               <p style={{ fontSize: 10.5, color: roleColor, margin: 0 }}>
                 {ROLE_LABEL[profile?.role] || profile?.role}
               </p>
             </div>
-            {/* Logout */}
             <button onClick={signOut} title="Keluar" style={{
               background: 'none', border: 'none', cursor: 'pointer',
               color: 'rgba(255,255,255,0.28)', padding: 4,
-              display: 'flex', alignItems: 'center',
-              flexShrink: 0,
+              display: 'flex', alignItems: 'center', flexShrink: 0,
             }}>
               <LogOut size={13} />
             </button>
@@ -326,10 +320,8 @@ export default function DashboardLayout() {
         </div>
       </aside>
 
-      {/* ═══════ MAIN AREA ═══════ */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Topbar — white Apple-style */}
         <header style={{
           height: 48, flexShrink: 0,
           background: 'rgba(255,255,255,0.92)',
@@ -339,17 +331,25 @@ export default function DashboardLayout() {
           justifyContent: 'space-between',
           padding: '0 20px',
         }}>
-          {/* Title */}
-          <p style={{
-            fontSize: 15, fontWeight: 600, color: '#1c1c1e', margin: 0,
-          }}>
-            {pageTitle}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isMobile && (
+              <button
+                onClick={() => setSidebarOpen(v => !v)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 32, height: 32, borderRadius: 8, color: '#1c1c1e', padding: 0,
+                }}
+              >
+                <Menu size={20} strokeWidth={2} />
+              </button>
+            )}
+            <p style={{ fontSize: 15, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>
+              {pageTitle}
+            </p>
+          </div>
 
-          {/* Right: Bell + Avatar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-
-            {/* Bell */}
             <div style={{ position: 'relative' }} ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(v => !v)}
@@ -372,10 +372,8 @@ export default function DashboardLayout() {
               {notifOpen && <NotifPanel notifs={notifications} onClose={() => setNotifOpen(false)} />}
             </div>
 
-            {/* Divider */}
             <div style={{ width: 0.5, height: 20, background: 'rgba(0,0,0,0.12)' }} />
 
-            {/* User pill */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '4px 10px 4px 4px', borderRadius: 99,
@@ -396,7 +394,6 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        {/* Content */}
         <main style={{
           flex: 1, overflowY: 'auto',
           background: '#f2f2f7',
