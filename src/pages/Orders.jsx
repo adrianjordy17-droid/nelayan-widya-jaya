@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, X, ShoppingBag, Clock, CheckCircle2, TrendingUp } from 'lucide-react'
+import { Plus, Search, Eye, X, ShoppingBag, Clock, CheckCircle2, TrendingUp, Lock, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -21,6 +21,9 @@ function fmtDate(s) {
   if (!s) return '–'
   return new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
 }
+function todayStr() {
+  return new Date().toISOString().slice(0, 10)
+}
 function dbToSo(r) {
   return {
     id: r.id, number: r.number, date: r.date, status: r.status,
@@ -36,15 +39,70 @@ export default function Orders() {
   const { isRole } = useAuth()
   const canEdit = isRole('admin') || isRole('owner')
 
-  const [orders, setOrders]             = useState([])
-  const [search, setSearch]             = useState('')
-  const [statusFilter, setStatusFilter] = useState('semua')
-  const [view, setView]                 = useState(null)
+  const [orders, setOrders]               = useState([])
+  const [search, setSearch]               = useState('')
+  const [statusFilter, setStatusFilter]   = useState('semua')
+  const [view, setView]                   = useState(null)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [closing, setClosing]             = useState(false)
+  const [closeResult, setCloseResult]     = useState(null)
 
   useEffect(() => {
     supabase.from('documents').select('*').eq('type', 'SO').order('created_at', { ascending: false })
       .then(({ data }) => data && setOrders(data.map(dbToSo)))
   }, [])
+
+  async function updateOrderStatus(newStatus) {
+    if (!view) return
+    setUpdatingStatus(true)
+    const { error } = await supabase
+      .from('documents')
+      .update({ status: newStatus })
+      .eq('id', view.id)
+    if (!error) {
+      const updated = { ...view, status: newStatus }
+      setView(updated)
+      setOrders(prev => prev.map(o => o.id === view.id ? updated : o))
+    }
+    setUpdatingStatus(false)
+  }
+
+  async function closeDay() {
+    setClosing(true)
+    setCloseResult(null)
+    const today = todayStr()
+    const todayOrders = orders.filter(o => o.date === today)
+    const delivered   = todayOrders.filter(o => o.status === 'delivered')
+
+    const { data: existing } = await supabase
+      .from('daily_summaries')
+      .select('id')
+      .eq('date', today)
+      .maybeSingle()
+
+    if (existing) {
+      setCloseResult({ ok: false, msg: `Penjualan hari ini (${today}) sudah pernah ditutup.` })
+      setClosing(false)
+      return
+    }
+
+    const { data: products } = await supabase.from('products').select('id, nama, qty, satuan')
+    const snapshot = (products || []).map(p => ({ id: p.id, nama: p.nama, qty: p.qty, satuan: p.satuan }))
+
+    const { error } = await supabase.from('daily_summaries').insert({
+      date: today,
+      total_orders: todayOrders.length,
+      total_omzet: delivered.reduce((a, o) => a + (+o.total || 0), 0),
+      total_delivered: delivered.length,
+      stock_snapshot: snapshot,
+    })
+
+    setCloseResult(error
+      ? { ok: false, msg: 'Gagal menutup penjualan: ' + error.message }
+      : { ok: true,  msg: `Penjualan ${today} berhasil ditutup. ${delivered.length} SO terkirim, omzet ${fmt(delivered.reduce((a,o)=>a+(+o.total||0),0))}.` }
+    )
+    setClosing(false)
+  }
 
   const filtered = orders.filter(o => {
     const q = search.toLowerCase()
@@ -78,6 +136,7 @@ export default function Orders() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20,
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
 
+      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
           <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
@@ -93,6 +152,21 @@ export default function Orders() {
         ))}
       </div>
 
+      {/* Close result banner */}
+      {closeResult && (
+        <div style={{
+          background: closeResult.ok ? '#f0fdf4' : '#fef2f2',
+          border: `1px solid ${closeResult.ok ? '#bbf7d0' : '#fecaca'}`,
+          borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <p style={{ fontSize: 13, color: closeResult.ok ? '#16a34a' : '#dc2626', margin: 0, fontWeight: 500 }}>{closeResult.msg}</p>
+          <button onClick={() => setCloseResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, flexShrink: 0 }}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Filter + Search + Buttons */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {STATUS_OPTS.map(s => (
@@ -107,26 +181,39 @@ export default function Orders() {
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
             <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nomor SO atau klien..."
               style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px 8px 36px', fontSize: 13, outline: 'none', background: 'white', width: 220, color: '#0f172a', fontFamily: 'inherit' }} />
           </div>
           {canEdit && (
-            <button
-              onClick={() => navigate('/dashboard/documents', { state: { createType: 'SO' } })}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
-            >
-              <Plus size={15} /> Buat SO
-            </button>
+            <>
+              <button onClick={closeDay} disabled={closing} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: closing ? '#f1f5f9' : 'white',
+                color: closing ? '#94a3b8' : '#dc2626',
+                borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600,
+                border: '1.5px solid #fecaca', cursor: closing ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+              }}>
+                <Lock size={14} />
+                {closing ? 'Memproses...' : 'Tutup Penjualan Hari Ini'}
+              </button>
+              <button
+                onClick={() => navigate('/dashboard/documents', { state: { createType: 'SO' } })}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                <Plus size={15} /> Buat SO
+              </button>
+            </>
           )}
         </div>
       </div>
 
+      {/* Table */}
       <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 520 }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                 {['No. SO', 'Klien', 'Tanggal', 'Total', 'Status', 'Aksi'].map((h, i) => (
@@ -167,6 +254,7 @@ export default function Orders() {
                     </td>
                     <td style={{ padding: '13px 16px', textAlign: 'center' }}>
                       <button onClick={() => setView(order)}
+                        title="Detail"
                         style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', borderRadius: 8, display: 'inline-flex', alignItems: 'center' }}
                         onMouseEnter={e => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.background = '#eff6ff' }}
                         onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}>
@@ -181,6 +269,7 @@ export default function Orders() {
         </div>
       </div>
 
+      {/* Detail Modal */}
       {view && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 640, margin: 'auto' }}>
@@ -193,11 +282,11 @@ export default function Orders() {
                 <X size={20} />
               </button>
             </div>
+
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '65vh', overflowY: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {[
                   { label: 'Tanggal', val: fmtDate(view.date) },
-                  { label: 'Status', val: STATUS_CFG[view.status]?.label || view.status },
                   { label: 'Dibuat oleh', val: view.createdByName || '–' },
                   ...(canEdit && view.total != null ? [{ label: 'Total', val: fmt(view.total) }] : []),
                 ].map(({ label, val }) => (
@@ -206,7 +295,45 @@ export default function Orders() {
                     <p style={{ fontWeight: 600, color: '#0f172a', margin: 0, fontSize: 13 }}>{val}</p>
                   </div>
                 ))}
+
+                {/* Status — editable for canEdit */}
+                <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 14px' }}>
+                  <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status</p>
+                  {canEdit ? (
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={view.status}
+                        disabled={updatingStatus}
+                        onChange={e => updateOrderStatus(e.target.value)}
+                        style={{
+                          appearance: 'none', width: '100%', padding: '6px 28px 6px 10px',
+                          border: `1px solid ${STATUS_CFG[view.status]?.border || '#e2e8f0'}`,
+                          borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+                          background: STATUS_CFG[view.status]?.bg || 'white',
+                          color: STATUS_CFG[view.status]?.text || '#0f172a',
+                          cursor: updatingStatus ? 'wait' : 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        {Object.entries(STATUS_CFG).map(([k, v]) => (
+                          <option key={k} value={k}>{v.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={13} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+                    </div>
+                  ) : (
+                    <p style={{ fontWeight: 600, color: STATUS_CFG[view.status]?.text || '#0f172a', margin: 0, fontSize: 13 }}>
+                      {STATUS_CFG[view.status]?.label || view.status}
+                    </p>
+                  )}
+                </div>
               </div>
+
+              {canEdit && (
+                <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>
+                  * Stok otomatis dikurangi saat status diubah ke <strong>Terkirim</strong>
+                </p>
+              )}
+
               <div>
                 <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Item Pesanan</p>
                 <div style={{ border: '1px solid #f1f5f9', borderRadius: 10, overflow: 'hidden' }}>
@@ -239,6 +366,7 @@ export default function Orders() {
                   </table>
                 </div>
               </div>
+
               {view.notes && (
                 <div>
                   <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Catatan</p>
@@ -246,6 +374,7 @@ export default function Orders() {
                 </div>
               )}
             </div>
+
             <div style={{ display: 'flex', gap: 8, padding: '14px 24px', borderTop: '1px solid #f1f5f9', background: '#fafafa', borderRadius: '0 0 18px 18px' }}>
               {canEdit && (
                 <button onClick={() => { setView(null); navigate('/dashboard/documents') }}
