@@ -260,7 +260,7 @@ export default function DashboardLayout() {
               <p style={{ fontSize: 11.5, fontWeight: 600, color: 'white', margin: 0, lineHeight: 1.3, letterSpacing: '-0.01em' }}>
                 UD. Nelayan Widya Jaya
               </p>
-              <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', margin: 0, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>
+              <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>
                 Seafood Live, Fresh, Frozen Supplier
               </p>
             </div>
