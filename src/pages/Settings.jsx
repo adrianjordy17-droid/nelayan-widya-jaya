@@ -18,19 +18,12 @@ const INIT_COMPANY = {
   npwp: '12.345.678.9-012.000',
   nib: '1234567890123',
 }
-const INIT_USERS = [
-  { id: 1, name: 'Jordy',  email: 'jordy@nelayan.id',  role: 'owner', active: true },
-  { id: 2, name: 'April',  email: 'april@nelayan.id',  role: 'admin', active: true },
-  { id: 3, name: 'Bimbim', email: 'bimbim@nelayan.id', role: 'staff', active: true },
-  { id: 4, name: 'Wowo',   email: 'wowo@nelayan.id',   role: 'staff', active: true },
-]
 const ROLE_CFG = {
   owner: { bg: '#fff8e1', text: '#b45309', label: 'Pemilik' },
   admin: { bg: '#eff6ff', text: '#1d4ed8', label: 'Admin'   },
   staff: { bg: '#f0fdf4', text: '#15803d', label: 'Staff'   },
 }
 
-/* ── iOS-style Toggle ── */
 function Toggle({ on, onChange, color = '#34c759' }) {
   return (
     <div onClick={onChange} style={{
@@ -50,7 +43,6 @@ function Toggle({ on, onChange, color = '#34c759' }) {
   )
 }
 
-/* ── Section group ── */
 function Group({ label, footer, children }) {
   return (
     <div>
@@ -76,7 +68,6 @@ function Group({ label, footer, children }) {
   )
 }
 
-/* ── Row with right-aligned input ── */
 function InputRow({ icon: Icon, iconBg = '#007aff', label, value, onChange, type = 'text', placeholder, disabled, last, suffix }) {
   return (
     <div style={{
@@ -115,7 +106,6 @@ function InputRow({ icon: Icon, iconBg = '#007aff', label, value, onChange, type
   )
 }
 
-/* ── Row with toggle ── */
 function ToggleRow({ icon: Icon, iconBg = '#007aff', label, desc, on, onChange, last, toggleColor }) {
   return (
     <div style={{
@@ -142,7 +132,6 @@ function ToggleRow({ icon: Icon, iconBg = '#007aff', label, desc, on, onChange, 
   )
 }
 
-/* ── Action row (blue tap-able row) ── */
 function ActionRow({ icon: Icon, iconBg, label, onClick, disabled, color = '#007aff', last, destructive }) {
   const [hover, setHover] = useState(false)
   return (
@@ -175,21 +164,7 @@ function ActionRow({ icon: Icon, iconBg, label, onClick, disabled, color = '#007
   )
 }
 
-/* ── Info banner row ── */
-function InfoRow({ children, last }) {
-  return (
-    <div style={{
-      padding: '13px 16px',
-      borderBottom: last ? 'none' : '0.5px solid #f0f0f0',
-      background: 'white',
-    }}>
-      {children}
-    </div>
-  )
-}
-
-/* ── Save confirm row ── */
-function SaveRow({ onSave, saved, last }) {
+function SaveRow({ onSave, saved }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
@@ -210,7 +185,6 @@ function SaveRow({ onSave, saved, last }) {
   )
 }
 
-/* ── Modal (Apple sheet-style) ── */
 function Modal({ title, onClose, children, onSave }) {
   return (
     <div style={{
@@ -225,7 +199,6 @@ function Modal({ title, onClose, children, onSave }) {
         boxShadow: '0 24px 60px rgba(0,0,0,0.2)',
         overflow: 'hidden',
       }}>
-        {/* Modal header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 16px',
@@ -251,9 +224,9 @@ function Modal({ title, onClose, children, onSave }) {
 }
 
 export default function Settings() {
-  const { user, profile, demoMode, isRole, signOut } = useAuth()
+  const { user, profile, isRole, signOut } = useAuth()
   const [company, setCompany]   = useLocalStorage('nwj_company', INIT_COMPANY)
-  const [users, setUsers]       = useLocalStorage('nwj_users', INIT_USERS)
+  const [users, setUsers]       = useState([])
   const [notifs, setNotifs]     = useLocalStorage('nwj_notifs', { lowStock: true, newOrder: true, dailyReport: false })
   const [account, setAccount]   = useState({ name: profile?.name || '', email: profile?.email || '' })
   const [waConfig, setWaConfig] = useLocalStorage('nwj_wa_config', INIT_WA_CONFIG)
@@ -262,48 +235,71 @@ export default function Settings() {
     if (profile) setAccount({ name: profile.name || '', email: profile.email || '' })
   }, [profile])
 
-  const [waStatus, setWaStatus]       = useState({ loading: false, msg: '', ok: null })
-  const [showToken, setShowToken]     = useState(false)
+  useEffect(() => {
+    supabase.from('profiles').select('id, name, email, role')
+      .order('role')
+      .then(({ data, error }) => {
+        if (error) console.error('profiles fetch error:', error.message)
+        if (data) setUsers(data)
+      })
+  }, [])
+
+  const [waStatus, setWaStatus]         = useState({ loading: false, msg: '', ok: null })
+  const [showToken, setShowToken]       = useState(false)
   const [companySaved, setCompanySaved] = useState(false)
   const [accountSaved, setAccountSaved] = useState(false)
-  const [userModal, setUserModal]     = useState(false)
-  const [userForm, setUserForm]       = useState({ name: '', email: '', role: 'staff' })
-  const [editUserId, setEditUserId]   = useState(null)
+  const [userModal, setUserModal]       = useState(false)
+  const [userForm, setUserForm]         = useState({ name: '', email: '', role: 'staff' })
+  const [editUserId, setEditUserId]     = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const [newPassword, setNewPassword] = useState('')
-  const [showNewPw, setShowNewPw]     = useState(false)
 
   function saveCompany() { setCompanySaved(true); setTimeout(() => setCompanySaved(false), 2500) }
+
   async function saveAccount() {
-    if (!demoMode && user) {
+    if (user) {
       await supabase.from('profiles').update({ name: account.name, email: account.email }).eq('id', user.id)
     }
     setAccountSaved(true)
     setTimeout(() => setAccountSaved(false), 2500)
   }
 
-  function openAddUser()    { setUserForm({ name: '', email: '', role: 'staff' }); setEditUserId(null); setUserModal(true) }
-  function openEditUser(u)  { setUserForm({ name: u.name, email: u.email, role: u.role }); setEditUserId(u.id); setUserModal(true) }
+  function openEditUser(u) { setUserForm({ name: u.name, email: u.email || '', role: u.role }); setEditUserId(u.id); setUserModal(true) }
 
-  function saveUser() {
-    if (!userForm.name || !userForm.email) return
+  async function saveUser() {
+    if (!userForm.name) return
     if (editUserId) {
-      setUsers(prev => prev.map(u => u.id === editUserId ? { ...u, ...userForm } : u))
-    } else {
-      setUsers(prev => [...prev, { id: Date.now(), ...userForm, active: true }])
+      const { error } = await supabase.from('profiles').update({
+        name: userForm.name, role: userForm.role,
+      }).eq('id', editUserId)
+      if (!error) setUsers(prev => prev.map(u => u.id === editUserId ? { ...u, name: userForm.name, role: userForm.role } : u))
     }
     setUserModal(false)
   }
 
-  function delUser(id) { setUsers(prev => prev.filter(u => u.id !== id)); setDeleteConfirm(null) }
+  async function delUser(id) {
+    await supabase.from('profiles').delete().eq('id', id)
+    setUsers(prev => prev.filter(u => u.id !== id))
+    setDeleteConfirm(null)
+  }
 
   async function testSendWA() {
-    setWaStatus({ loading: true, msg: 'Mengirim...', ok: null })
+    setWaStatus({ loading: true, msg: 'Mengambil data...', ok: null })
     try {
-      const orders     = JSON.parse(localStorage.getItem('nwj_orders') || '[]')
-      const stock      = JSON.parse(localStorage.getItem('nwj_stock') || '[]')
-      const attendance = JSON.parse(localStorage.getItem('nwj_attendance') || '[]')
-      await sendToWhatsApp({ token: waConfig.token, target: waConfig.target, message: generateDailyReport(orders, stock, attendance) })
+      const todayStr = new Date().toISOString().slice(0, 10)
+      const [{ data: docs }, { data: products }, { data: attendance }] = await Promise.all([
+        supabase.from('documents').select('*').eq('type', 'SO'),
+        supabase.from('products').select('nama, qty, min_qty, satuan'),
+        supabase.from('attendance').select('name, status').eq('date', todayStr),
+      ])
+      const ordersWA = (docs || []).map(d => ({
+        id: d.number, client: d.client_name, date: d.date, catatan: d.notes || '',
+        status: d.status === 'delivered' ? 'selesai' : d.status === 'dispatched' ? 'proses' : d.status === 'cancelled' ? 'batal' : 'pending',
+        items: d.items || [],
+      }))
+      const stockWA = (products || []).map(p => ({ name: p.nama, qty: p.qty || 0, minQty: p.min_qty || 0, unit: p.satuan || 'kg' }))
+      const attendWA = (attendance || []).map(a => ({ name: a.name, status: a.status }))
+      setWaStatus({ loading: true, msg: 'Mengirim...', ok: null })
+      await sendToWhatsApp({ token: waConfig.token, target: waConfig.target, message: generateDailyReport(ordersWA, stockWA, attendWA) })
       setWaStatus({ loading: false, msg: 'Berhasil terkirim!', ok: true })
     } catch (err) {
       setWaStatus({ loading: false, msg: err.message, ok: false })
@@ -320,7 +316,6 @@ export default function Settings() {
       display: 'flex', flexDirection: 'column', gap: 32,
     }}>
 
-      {/* ── Profile card (top) ── */}
       <div style={{
         background: 'white', borderRadius: 13, overflow: 'hidden',
         boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)',
@@ -349,7 +344,6 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* ── Profil Akun ── */}
       <Group label="Profil Akun">
         <InputRow icon={User} iconBg="#007aff" label="Nama" value={account.name}
           onChange={e => setAccount(a => ({ ...a, name: e.target.value }))}
@@ -363,32 +357,24 @@ export default function Settings() {
         <SaveRow onSave={saveAccount} saved={accountSaved} />
       </Group>
 
-      {/* ── Profil Perusahaan ── */}
       {isRole('owner') && (
         <Group label="Profil Perusahaan">
           <InputRow icon={Building2} iconBg="#5856d6" label="Nama" value={company.name}
-            onChange={e => setCompany(c => ({ ...c, name: e.target.value }))}
-            disabled={!isRole('owner')} placeholder="Nama perusahaan" />
+            onChange={e => setCompany(c => ({ ...c, name: e.target.value }))} placeholder="Nama perusahaan" />
           <InputRow icon={Phone} iconBg="#34c759" label="Telepon" value={company.phone}
-            onChange={e => setCompany(c => ({ ...c, phone: e.target.value }))}
-            disabled={!isRole('owner')} placeholder="+62 ..." />
+            onChange={e => setCompany(c => ({ ...c, phone: e.target.value }))} placeholder="+62 ..." />
           <InputRow icon={MapPin} iconBg="#ff3b30" label="Alamat" value={company.address}
-            onChange={e => setCompany(c => ({ ...c, address: e.target.value }))}
-            disabled={!isRole('owner')} placeholder="Alamat usaha" />
+            onChange={e => setCompany(c => ({ ...c, address: e.target.value }))} placeholder="Alamat usaha" />
           <InputRow icon={Mail} iconBg="#34aadc" label="Email" type="email" value={company.email}
-            onChange={e => setCompany(c => ({ ...c, email: e.target.value }))}
-            disabled={!isRole('owner')} placeholder="info@perusahaan.id" />
+            onChange={e => setCompany(c => ({ ...c, email: e.target.value }))} placeholder="info@perusahaan.id" />
           <InputRow icon={Hash} iconBg="#ff9500" label="NPWP" value={company.npwp}
-            onChange={e => setCompany(c => ({ ...c, npwp: e.target.value }))}
-            disabled={!isRole('owner')} placeholder="xx.xxx.xxx.x-xxx.xxx" />
+            onChange={e => setCompany(c => ({ ...c, npwp: e.target.value }))} placeholder="xx.xxx.xxx.x-xxx.xxx" />
           <InputRow icon={FileText} iconBg="#af52de" label="No. NIB" value={company.nib}
-            onChange={e => setCompany(c => ({ ...c, nib: e.target.value }))}
-            disabled={!isRole('owner')} placeholder="NIB 13 digit" last={!isRole('owner')} />
-          {isRole('owner') && <SaveRow onSave={saveCompany} saved={companySaved} />}
+            onChange={e => setCompany(c => ({ ...c, nib: e.target.value }))} placeholder="NIB 13 digit" last />
+          <SaveRow onSave={saveCompany} saved={companySaved} />
         </Group>
       )}
 
-      {/* ── Notifikasi ── */}
       <Group label="Notifikasi">
         <ToggleRow icon={Bell} iconBg="#ff9500" label="Stok Rendah"
           desc="Peringatan saat stok di bawah minimum"
@@ -398,24 +384,15 @@ export default function Settings() {
           on={notifs.newOrder} onChange={() => setNotifs(p => ({ ...p, newOrder: !p.newOrder }))} />
         <ToggleRow icon={Bell} iconBg="#5856d6" label="Laporan Harian"
           desc="Ringkasan operasional setiap pukul 18.00"
-          on={notifs.dailyReport} onChange={() => setNotifs(p => ({ ...p, dailyReport: !p.dailyReport }))}
-          last />
+          on={notifs.dailyReport} onChange={() => setNotifs(p => ({ ...p, dailyReport: !p.dailyReport }))} last />
       </Group>
 
-      {/* ── WhatsApp ── */}
       {isRole('owner') && <Group
         label="WhatsApp — Laporan Otomatis"
         footer="Daftar di fonnte.com → sambungkan nomor WA → salin token ke form ini. Browser harus aktif agar laporan otomatis terkirim."
       >
-        {/* Token row with eye toggle */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 13,
-          padding: '11px 16px', borderBottom: '0.5px solid #f0f0f0',
-        }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#25d366',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '11px 16px', borderBottom: '0.5px solid #f0f0f0' }}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#25d366', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <MessageSquare size={15} color="white" strokeWidth={1.9} />
           </div>
           <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flexShrink: 0, minWidth: 80, fontWeight: 400 }}>Token</p>
@@ -424,96 +401,54 @@ export default function Settings() {
             value={waConfig.token}
             onChange={e => setWaConfig(c => ({ ...c, token: e.target.value }))}
             placeholder="Token fonnte.com"
-            style={{
-              flex: 1, border: 'none', outline: 'none', textAlign: 'right',
-              fontSize: 15, color: '#3c3c43', background: 'transparent',
-              padding: 0, fontFamily: 'inherit',
-            }}
+            style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', padding: 0, fontFamily: 'inherit' }}
           />
-          <button type="button" onClick={() => setShowToken(v => !v)} style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: '#c7c7cc', padding: 0, display: 'flex',
-          }}>
+          <button type="button" onClick={() => setShowToken(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c7c7cc', padding: 0, display: 'flex' }}>
             {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
-
         <InputRow icon={Phone} iconBg="#25d366" label="Nomor WA" value={waConfig.target}
-          onChange={e => setWaConfig(c => ({ ...c, target: e.target.value }))}
-          placeholder="628xxxxxxxxxx" />
-
+          onChange={e => setWaConfig(c => ({ ...c, target: e.target.value }))} placeholder="628xxxxxxxxxx" />
         <InputRow icon={Clock} iconBg="#ff9500" label="Jam Kirim" type="time"
           value={waConfig.sendTime || '18:00'}
           onChange={e => setWaConfig(c => ({ ...c, sendTime: e.target.value }))} />
-
         <ToggleRow icon={Send} iconBg="#25d366" label="Laporan Otomatis"
           desc={waConfig.enabled ? `Aktif — setiap pukul ${waConfig.sendTime || '18:00'} WIB` : 'Nonaktif'}
-          on={waConfig.enabled}
-          onChange={() => setWaConfig(c => ({ ...c, enabled: !c.enabled }))}
-          toggleColor="#25d366" />
-
+          on={waConfig.enabled} onChange={() => setWaConfig(c => ({ ...c, enabled: !c.enabled }))} toggleColor="#25d366" />
         <ActionRow icon={Send} iconBg="#25d366" label={waStatus.loading ? 'Mengirim...' : 'Test Kirim Laporan Sekarang'}
-          onClick={testSendWA}
-          disabled={waStatus.loading || !waConfig.token || !waConfig.target}
+          onClick={testSendWA} disabled={waStatus.loading || !waConfig.token || !waConfig.target}
           color="#25d366" last={!waStatus.msg} />
-
         {waStatus.msg && (
-          <div style={{
-            padding: '10px 16px', borderTop: '0.5px solid #f0f0f0',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
+          <div style={{ padding: '10px 16px', borderTop: '0.5px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 14 }}>{waStatus.ok ? '✅' : '❌'}</span>
-            <p style={{ fontSize: 13.5, color: waStatus.ok ? '#34c759' : '#ff3b30', margin: 0 }}>
-              {waStatus.msg}
-            </p>
+            <p style={{ fontSize: 13.5, color: waStatus.ok ? '#34c759' : '#ff3b30', margin: 0 }}>{waStatus.msg}</p>
           </div>
         )}
       </Group>}
 
-      {/* ── Manajemen Pengguna ── */}
       {(isRole('owner') || isRole('admin')) && (
         <Group label="Pengguna">
           {users.map((u, idx) => {
             const rc = ROLE_CFG[u.role] || ROLE_CFG.staff
-            const isLast = idx === users.length - 1
+            const isLast = idx === users.length - 1 && !isRole('owner')
             return (
-              <div key={u.id} style={{
-                display: 'flex', alignItems: 'center', gap: 13,
-                padding: '10px 16px',
-                borderBottom: isLast ? 'none' : '0.5px solid #f0f0f0',
-                opacity: u.active ? 1 : 0.45,
-              }}>
-                {/* Avatar */}
-                <div style={{
-                  width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                  background: `linear-gradient(135deg, ${rc.text}, ${rc.text}99)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14, fontWeight: 700, color: 'white',
-                }}>
-                  {u.name[0]}
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '10px 16px', borderBottom: isLast ? 'none' : '0.5px solid #f0f0f0' }}>
+                <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(135deg, ${rc.text}, ${rc.text}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: 'white' }}>
+                  {(u.name || '?')[0]}
                 </div>
-                {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <p style={{ fontSize: 15, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{u.name}</p>
-                    <span style={{
-                      fontSize: 10.5, fontWeight: 600, padding: '1.5px 7px',
-                      borderRadius: 99, background: rc.bg, color: rc.text,
-                    }}>
-                      {rc.label}
-                    </span>
+                    <span style={{ fontSize: 10.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 99, background: rc.bg, color: rc.text }}>{rc.label}</span>
                   </div>
                   <p style={{ fontSize: 12.5, color: '#8e8e93', marginTop: 2 }}>{u.email}</p>
                 </div>
-                {/* Actions */}
                 {isRole('owner') && u.role !== 'owner' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <button onClick={() => openEditUser(u)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c7c7cc', padding: 6 }}>
+                    <button onClick={() => openEditUser(u)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c7c7cc', padding: 6 }}>
                       <Edit2 size={15} />
                     </button>
-                    <button onClick={() => setDeleteConfirm(u.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff3b30', padding: 6, opacity: 0.7 }}>
+                    <button onClick={() => setDeleteConfirm(u.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff3b30', padding: 6, opacity: 0.7 }}>
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -521,46 +456,34 @@ export default function Settings() {
               </div>
             )
           })}
-
           {isRole('owner') && (
-            <ActionRow icon={Plus} iconBg="#007aff" label="Tambah Pengguna Baru"
-              onClick={openAddUser} last />
+            <div style={{ padding: '11px 16px', borderTop: '0.5px solid #f0f0f0', background: '#fafafa' }}>
+              <p style={{ fontSize: 12, color: '#8e8e93', margin: 0, lineHeight: 1.5 }}>
+                Untuk menambah pengguna baru, minta mereka mendaftar di halaman login atau tambahkan via Supabase Auth.
+              </p>
+            </div>
           )}
         </Group>
       )}
 
-      {/* ── Danger zone ── */}
       <Group>
         <ActionRow label="Keluar dari Akun" onClick={signOut} destructive color="#ff3b30" last />
       </Group>
 
-      {/* ────── MODAL: Add/Edit User ────── */}
       {userModal && (
-        <Modal title={editUserId ? 'Edit Pengguna' : 'Tambah Pengguna'}
-          onClose={() => setUserModal(false)} onSave={saveUser}>
+        <Modal title="Edit Pengguna" onClose={() => setUserModal(false)} onSave={saveUser}>
           <Group>
             <InputRow icon={User} iconBg="#007aff" label="Nama"
-              value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Nama lengkap" />
+              value={userForm.name} onChange={e => setUserForm(f => ({ ...f, name: e.target.value }))} placeholder="Nama lengkap" />
             <InputRow icon={Mail} iconBg="#34aadc" label="Email" type="email"
-              value={userForm.email} onChange={e => setUserForm(f => ({ ...f, email: e.target.value }))}
-              placeholder="email@nelayan.id" />
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 13,
-              padding: '11px 16px', background: 'white',
-            }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#ff9500',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
+              value={userForm.email} disabled placeholder="email@nelayan.id" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '11px 16px', background: 'white' }}>
+              <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Shield size={15} color="white" strokeWidth={1.9} />
               </div>
               <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flexShrink: 0, fontWeight: 400, minWidth: 80 }}>Role</p>
               <select value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))}
-                style={{
-                  flex: 1, textAlign: 'right', border: 'none', outline: 'none',
-                  fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit',
-                }}>
+                style={{ flex: 1, textAlign: 'right', border: 'none', outline: 'none', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}>
                 <option value="admin">Admin</option>
                 <option value="staff">Staff</option>
               </select>
@@ -569,42 +492,16 @@ export default function Settings() {
         </Modal>
       )}
 
-      {/* ────── MODAL: Delete Confirm ────── */}
       {deleteConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        }}>
-          <div style={{
-            background: 'white', borderRadius: 14, overflow: 'hidden',
-            width: '100%', maxWidth: 280, textAlign: 'center',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-          }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'white', borderRadius: 14, overflow: 'hidden', width: '100%', maxWidth: 280, textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '24px 20px 16px' }}>
-              <p style={{ fontSize: 17, fontWeight: 600, color: '#1c1c1e', margin: '0 0 6px' }}>
-                Hapus Pengguna?
-              </p>
-              <p style={{ fontSize: 13.5, color: '#8e8e93', margin: 0, lineHeight: 1.5 }}>
-                Akun pengguna ini akan dihapus secara permanen.
-              </p>
+              <p style={{ fontSize: 17, fontWeight: 600, color: '#1c1c1e', margin: '0 0 6px' }}>Hapus Pengguna?</p>
+              <p style={{ fontSize: 13.5, color: '#8e8e93', margin: 0, lineHeight: 1.5 }}>Profil pengguna ini akan dihapus. Akun Supabase Auth tetap ada.</p>
             </div>
             <div style={{ borderTop: '0.5px solid #f0f0f0' }}>
-              <button onClick={() => delUser(deleteConfirm)} style={{
-                display: 'block', width: '100%', padding: '13px',
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 16, fontWeight: 600, color: '#ff3b30',
-                borderBottom: '0.5px solid #f0f0f0', fontFamily: 'inherit',
-              }}>
-                Hapus
-              </button>
-              <button onClick={() => setDeleteConfirm(null)} style={{
-                display: 'block', width: '100%', padding: '13px',
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 16, color: '#007aff', fontFamily: 'inherit',
-              }}>
-                Batal
-              </button>
+              <button onClick={() => delUser(deleteConfirm)} style={{ display: 'block', width: '100%', padding: '13px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, fontWeight: 600, color: '#ff3b30', borderBottom: '0.5px solid #f0f0f0', fontFamily: 'inherit' }}>Hapus</button>
+              <button onClick={() => setDeleteConfirm(null)} style={{ display: 'block', width: '100%', padding: '13px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#007aff', fontFamily: 'inherit' }}>Batal</button>
             </div>
           </div>
         </div>
