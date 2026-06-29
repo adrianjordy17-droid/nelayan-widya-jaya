@@ -35,9 +35,9 @@ const inputStyle = {
 const selectStyle = { ...inputStyle, cursor: 'pointer' }
 
 function StockBar({ qty, minQty }) {
-  const pct    = Math.min((qty / Math.max(minQty * 5, qty + 1)) * 100, 100)
-  const isLow  = qty <= minQty
-  const color  = isLow ? '#f87171' : pct < 50 ? '#fbbf24' : '#34d399'
+  const pct   = Math.min((qty / Math.max(minQty * 5, qty + 1)) * 100, 100)
+  const isLow = qty <= minQty
+  const color = isLow ? '#f87171' : pct < 50 ? '#fbbf24' : '#34d399'
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 100 }}>
       <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
@@ -50,46 +50,52 @@ function StockBar({ qty, minQty }) {
   )
 }
 
-const BLANK = { name: '', category: 'Ikan Laut', qty: '', unit: 'kg', minQty: '', price: '', location: '' }
+const BLANK = { name: '', category: 'Ikan Laut', qty: '', unit: 'kg', min_qty: '', price: '', location: '' }
 
 export default function Stock() {
-  const [stock,          setStock]          = useState([])
-  const [catalog,        setCatalog]        = useState([])
-  const [search,         setSearch]         = useState('')
-  const [catFilter,      setCatFilter]      = useState('semua')
-  const [modal,          setModal]          = useState(null)
-  const [form,           setForm]           = useState(null)
-  const [deleteConfirm,  setDeleteConfirm]  = useState(null)
+  const [stock,         setStock]         = useState([])
+  const [catalog,       setCatalog]       = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [search,        setSearch]        = useState('')
+  const [catFilter,     setCatFilter]     = useState('semua')
+  const [modal,         setModal]         = useState(null)
+  const [form,          setForm]          = useState(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
   const { hasPermission } = useAuth()
   const canEdit = hasPermission('stock')
 
+  async function loadStock() {
+    setLoading(true)
+    const { data } = await supabase.from('stock').select('*').order('name')
+    setStock(data || [])
+    setLoading(false)
+  }
+
   useEffect(() => {
-    supabase.from('stock').select('*').order('name')
-      .then(({ data }) => setStock(data || []))
+    loadStock()
     supabase.from('products').select('*').order('kategori').order('nama')
       .then(({ data }) => setCatalog(data || []))
   }, [])
 
   const cats     = ['semua', ...CATEGORIES]
-  const lowStock = stock.filter(s => s.qty <= s.minQty)
+  const lowStock = stock.filter(s => s.qty <= s.min_qty)
   const filtered = stock.filter(s =>
     (s.name?.toLowerCase().includes(search.toLowerCase()) ||
      s.category?.toLowerCase().includes(search.toLowerCase())) &&
     (catFilter === 'semua' || s.category === catFilter)
   )
 
-  function openAdd()       { setModal('add');  setForm({ ...BLANK }) }
-  function openEdit(item)  { setModal('edit'); setForm({ ...item }) }
-  function setF(k, v)      { setForm(f => ({ ...f, [k]: v })) }
+  function openAdd()      { setModal('add');  setForm({ ...BLANK }) }
+  function openEdit(item) { setModal('edit'); setForm({ ...item }) }
+  function setF(k, v)     { setForm(f => ({ ...f, [k]: v })) }
 
   function pickFromCatalog(productId) {
     if (!productId) return
     const p = catalog.find(c => c.id === productId)
     if (!p) return
-    const label = p.ukuran ? `${p.nama} ${p.ukuran}` : p.nama
     setForm(f => ({
       ...f,
-      name:     label,
+      name:     p.ukuran ? `${p.nama} ${p.ukuran}` : p.nama,
       category: KAT_MAP[p.kategori] || 'Lainnya',
       price:    p.harga_jual ?? f.price,
     }))
@@ -97,32 +103,40 @@ export default function Stock() {
 
   async function save() {
     if (!form.name || form.qty === '' || !form.price) return
-    const item = { ...form, qty: +form.qty, minQty: +form.minQty || 0, price: +form.price }
+    const payload = {
+      name:     form.name,
+      category: form.category,
+      qty:      Number(form.qty),
+      unit:     form.unit,
+      min_qty:  Number(form.min_qty) || 0,
+      price:    Number(form.price),
+      location: form.location,
+    }
     if (modal === 'edit') {
-      setStock(prev => prev.map(s => s.id === form.id ? item : s))
-      await supabase.from('stock').update(item).eq('id', form.id)
+      const { data } = await supabase.from('stock').update(payload).eq('id', form.id).select().single()
+      setStock(prev => prev.map(s => s.id === form.id ? (data || { ...form, ...payload }) : s))
     } else {
-      const { data } = await supabase.from('stock').insert(item).select().single()
-      setStock(prev => [...prev, data || item])
+      const { data } = await supabase.from('stock').insert(payload).select().single()
+      if (data) setStock(prev => [...prev, data])
     }
     setModal(null)
     setForm(null)
   }
 
   async function del(id) {
+    await supabase.from('stock').delete().eq('id', id)
     setStock(prev => prev.filter(s => s.id !== id))
     setDeleteConfirm(null)
-    await supabase.from('stock').delete().eq('id', id)
   }
 
   const totalNilai = stock.reduce((a, s) => a + (s.qty * s.price), 0)
   const uniqueCats = new Set(stock.map(s => s.category)).size
 
   const STATS = [
-    { label: 'Total Produk', value: stock.length,    sub: 'jenis produk',  Icon: Package,       iconColor: '#2563eb', iconBg: '#eff6ff' },
-    { label: 'Stok Kritis',  value: lowStock.length, sub: 'perlu restok',  Icon: AlertTriangle, iconColor: '#dc2626', iconBg: '#fef2f2' },
-    { label: 'Nilai Stok',   value: fmt(totalNilai), sub: 'estimasi total', Icon: DollarSign,    iconColor: '#16a34a', iconBg: '#f0fdf4' },
-    { label: 'Kategori',     value: uniqueCats,      sub: 'jenis kategori', Icon: Tag,           iconColor: '#d97706', iconBg: '#fffbeb' },
+    { label: 'Total Produk', value: stock.length,    sub: 'jenis produk',   Icon: Package,       iconColor: '#2563eb', iconBg: '#eff6ff' },
+    { label: 'Stok Kritis',  value: lowStock.length, sub: 'perlu restok',   Icon: AlertTriangle, iconColor: '#dc2626', iconBg: '#fef2f2' },
+    { label: 'Nilai Stok',   value: fmt(totalNilai), sub: 'estimasi total',  Icon: DollarSign,    iconColor: '#16a34a', iconBg: '#f0fdf4' },
+    { label: 'Kategori',     value: uniqueCats,      sub: 'jenis kategori',  Icon: Tag,           iconColor: '#d97706', iconBg: '#fffbeb' },
   ]
 
   return (
@@ -176,16 +190,11 @@ export default function Stock() {
             </button>
           ))}
         </div>
-
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <div style={{ position: 'relative' }}>
             <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Cari produk..."
-              style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px 8px 32px', fontSize: 13, outline: 'none', width: 200, background: 'white', color: '#0f172a' }}
-            />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari produk..."
+              style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px 8px 32px', fontSize: 13, outline: 'none', width: 200, background: 'white', color: '#0f172a' }} />
           </div>
           {canEdit && (
             <button onClick={openAdd} style={{
@@ -218,15 +227,14 @@ export default function Stock() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={canEdit ? 6 : 5} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                    Tidak ada produk ditemukan.
-                  </td>
-                </tr>
+              {loading && (
+                <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Memuat data...</td></tr>
+              )}
+              {!loading && filtered.length === 0 && (
+                <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Belum ada data stok.</td></tr>
               )}
               {filtered.map((item, idx) => {
-                const isLow = item.qty <= item.minQty
+                const isLow = item.qty <= item.min_qty
                 return (
                   <tr key={item.id}
                     style={{ borderTop: idx > 0 ? '1px solid #f8fafc' : 'none', background: isLow ? '#fffbeb' : 'white', transition: 'background 0.15s' }}
@@ -240,19 +248,19 @@ export default function Stock() {
                         {isLow && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 20, background: '#fef2f2', color: '#dc2626', fontWeight: 600 }}>Kritis</span>}
                       </div>
                     </td>
-                    <td style={{ padding: '12px 16px' }}><StockBar qty={item.qty} minQty={item.minQty} /></td>
-                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: 12 }}>{item.minQty} {item.unit}</td>
+                    <td style={{ padding: '12px 16px' }}><StockBar qty={item.qty} minQty={item.min_qty} /></td>
+                    <td style={{ padding: '12px 16px', color: '#64748b', fontSize: 12 }}>{item.min_qty} {item.unit}</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{fmt(item.price)}</td>
                     <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12 }}>{item.location}</td>
                     {canEdit && (
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                          <button onClick={() => openEdit(item)} title="Edit" style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}
+                          <button onClick={() => openEdit(item)} style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#fef9c3'; e.currentTarget.style.color = '#ca8a04' }}
                             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
                             <Edit2 size={14} />
                           </button>
-                          <button onClick={() => setDeleteConfirm(item.id)} title="Hapus" style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}
+                          <button onClick={() => setDeleteConfirm(item.id)} style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
                             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
                             <Trash2 size={14} />
@@ -282,18 +290,12 @@ export default function Stock() {
             </div>
 
             <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, maxHeight: '60vh', overflowY: 'auto' }}>
-
-              {/* Pilih dari katalog produk */}
               {modal === 'add' && catalog.length > 0 && (
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={{ display: 'block', color: '#0a84ff', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
                     Pilih dari Katalog Produk
                   </label>
-                  <select
-                    defaultValue=""
-                    onChange={e => pickFromCatalog(e.target.value)}
-                    style={{ ...selectStyle, borderColor: '#bfdbfe' }}
-                  >
+                  <select defaultValue="" onChange={e => pickFromCatalog(e.target.value)} style={{ ...selectStyle, borderColor: '#bfdbfe' }}>
                     <option value="">— Pilih produk (opsional) —</option>
                     {['UDANG PANCET','UDANG VANAMEI','CUMI','IKAN','OTHER'].map(kat => {
                       const items = catalog.filter(c => c.kategori === kat)
@@ -329,7 +331,7 @@ export default function Stock() {
                 </div>
               </Field>
               <Field label="Stok Minimum">
-                <input type="number" value={form.minQty} onChange={e => setF('minQty', e.target.value)} placeholder="0" style={inputStyle} />
+                <input type="number" value={form.min_qty} onChange={e => setF('min_qty', e.target.value)} placeholder="0" style={inputStyle} />
               </Field>
               <Field label="Harga per Unit (Rp)">
                 <input type="number" value={form.price} onChange={e => setF('price', e.target.value)} placeholder="0" style={inputStyle} />
@@ -348,10 +350,7 @@ export default function Stock() {
               }}>
                 <Check size={14} /> Simpan
               </button>
-              <button onClick={() => { setModal(null); setForm(null) }} style={{
-                padding: '9px 16px', border: '1px solid #e2e8f0', color: '#64748b',
-                borderRadius: 10, fontSize: 13, background: 'white', cursor: 'pointer',
-              }}>
+              <button onClick={() => { setModal(null); setForm(null) }} style={{ padding: '9px 16px', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: 10, fontSize: 13, background: 'white', cursor: 'pointer' }}>
                 Batal
               </button>
             </div>
