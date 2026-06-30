@@ -26,11 +26,26 @@ function rpFmt(n) {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
 
+function localToday() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+}
+
 // ── Staff Dashboard ──────────────────────────────────────────────────────────
 function StaffDashboard() {
   const { profile } = useAuth()
   const navigate    = useNavigate()
-  const todayLabel  = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
+  const [todayLabel, setTodayLabel] = useState(() => format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
+  const [todayKey, setTodayKey] = useState(localToday)
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setTodayLabel(format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
+      const now = localToday()
+      if (now !== todayKey) setTodayKey(now)
+    }, 10_000)
+    return () => clearInterval(t)
+  }, [todayKey])
 
   const [pendingDOs, setPendingDOs]    = useState([])
   const [deliveredCount, setDelivered] = useState(0)
@@ -137,9 +152,9 @@ function StaffDashboard() {
 function OwnerAdminDashboard() {
   const { profile } = useAuth()
 
-  const [todayKey,  setTodayKey]  = useState(() => new Date().toISOString().slice(0, 10))
-  const [thisMonth, setThisMonth] = useState(() => new Date().toISOString().slice(0, 7))
-  const todayLabel = format(new Date(todayKey + 'T12:00:00'), "EEEE, d MMMM yyyy", { locale: idLocale })
+  const [todayLabel, setTodayLabel] = useState(() => format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
+  const [todayKey,  setTodayKey]  = useState(localToday)
+  const [thisMonth, setThisMonth] = useState(() => localToday().slice(0, 7))
 
   const [products, setProducts]         = useState([])
   const [hadirCount, setHadirCount]     = useState(0)
@@ -148,24 +163,37 @@ function OwnerAdminDashboard() {
   const [penjualanBulanIni, setPenjualan] = useState(0)
   const [orderPending, setOrderPending] = useState(0)
 
-  // Midnight / month-change auto-refresh
+  // Real-time date label + midnight auto-refresh
   useEffect(() => {
     const t = setInterval(() => {
-      const nowDate  = new Date().toISOString().slice(0, 10)
+      setTodayLabel(format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
+      const nowDate  = localToday()
       const nowMonth = nowDate.slice(0, 7)
       if (nowDate !== todayKey) {
         setTodayKey(nowDate)
         setThisMonth(nowMonth)
       }
-    }, 60_000)
+    }, 10_000)
     return () => clearInterval(t)
   }, [todayKey])
 
+  // Real-time stock sync
   useEffect(() => {
-    // Load products for stock display
-    supabase.from('products').select('id, nama, kategori, qty, min_qty, satuan')
-      .then(({ data }) => setProducts(data || []))
+    const fetchProducts = () =>
+      supabase.from('products').select('id, nama, kategori, qty, min_qty, satuan')
+        .then(({ data }) => setProducts(data || []))
 
+    fetchProducts()
+
+    const sub = supabase
+      .channel('dashboard-products')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchProducts)
+      .subscribe()
+
+    return () => supabase.removeChannel(sub)
+  }, [])
+
+  useEffect(() => {
     // Load attendance for today — count unique names with type === 'masuk'
     supabase.from('attendance').select('id, name, type').eq('date', todayKey)
       .then(({ data }) => {
@@ -187,13 +215,12 @@ function OwnerAdminDashboard() {
         if (!data) return
         setRecentDocs(data.slice(0, 5))
         setOrderPending(data.filter(d => d.type === 'SO' && d.status === 'draft').length)
-        // Penjualan bulan ini: SO with status 'delivered' in this month
         const soTotal = data
           .filter(d => d.type === 'SO' && d.status === 'delivered' && (d.date || '').startsWith(thisMonth))
           .reduce((sum, d) => sum + (d.total || 0), 0)
         setPenjualan(soTotal)
       })
-  }, [todayKey])
+  }, [todayKey, thisMonth])
 
   const stokTipis = products.filter(p => (p.min_qty || 0) > 0 && (p.qty || 0) <= (p.min_qty || 0)).length
 
