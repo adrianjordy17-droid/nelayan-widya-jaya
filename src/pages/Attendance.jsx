@@ -5,9 +5,6 @@ import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 
-const TODAY = new Date().toISOString().slice(0, 10)
-const THIS_MONTH = TODAY.slice(0, 7)
-
 const STATUS_CFG = {
   hadir: { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' },
   telat: { bg: '#fefce8', text: '#ca8a04', border: '#fde68a' },
@@ -55,35 +52,63 @@ export default function Attendance() {
   const isStaff  = profile?.role === 'staff'
   const canManage = profile?.role === 'owner' || profile?.role === 'admin'
 
+  // ── Reactive today (auto-updates at midnight) ──
+  const [today, setToday] = useState(() => new Date().toISOString().slice(0, 10))
+  const thisMonth = today.slice(0, 7)
+
   const [log, setLog]                       = useState([])
   const [selfie, setSelfie]                 = useState(null)
   const [submitted, setSubmitted]           = useState(false)
   const [submittedPulang, setSubmittedPulang] = useState(false)
-  const [dateView, setDateView]             = useState(TODAY)
+  const [dateView, setDateView]             = useState(today)
   const [modal, setModal]                   = useState(null)
   const [form, setForm]                     = useState(null)
   const [deleteConfirm, setDeleteConfirm]   = useState(null)
   const [staffList, setStaffList]           = useState([])
+  const [totalEmployees, setTotalEmployees] = useState(0)
   const [schedule, setSchedule]             = useState(loadSchedule)
   const [schedForm, setSchedForm]           = useState(null)
   const fileRef = useRef()
 
+  // ── Midnight detection: update today, reset check-in state ──
+  useEffect(() => {
+    const t = setInterval(() => {
+      const now = new Date().toISOString().slice(0, 10)
+      if (now !== today) {
+        setToday(now)
+        setDateView(now)
+        setSubmitted(false)
+        setSubmittedPulang(false)
+      }
+    }, 60_000)
+    return () => clearInterval(t)
+  }, [today])
+
+  // ── Fetch attendance: staff only see their own records, re-fetch when today changes ──
   useEffect(() => {
     if (!profile) return
     let q = supabase.from('attendance').select('*').order('created_at', { ascending: false })
     if (isStaff) q = q.eq('name', profile.name)
     q.then(({ data }) => setLog(data || []))
-  }, [profile?.name, isStaff])
+  }, [profile?.name, isStaff, today])
 
+  // ── Employee list from employees table (auto-updates when employees are added) ──
   useEffect(() => {
     if (!canManage) return
-    supabase.from('profiles').select('id, name, role').in('role', ['staff', 'admin'])
+    supabase.from('employees').select('id, name, jabatan, role').eq('active', true).order('name')
       .then(({ data }) => setStaffList(data || []))
   }, [canManage])
 
-  const today    = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
-  const nowTime  = format(new Date(), 'HH:mm')
-  const jamMasuk = schedule.jamMasuk || '08:00'
+  // ── Total active employees for stat card ──
+  useEffect(() => {
+    if (!canManage) return
+    supabase.from('employees').select('id', { count: 'exact' }).eq('active', true)
+      .then(({ count }) => setTotalEmployees(count || 0))
+  }, [canManage])
+
+  const todayLabel = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
+  const nowTime    = format(new Date(), 'HH:mm')
+  const jamMasuk   = schedule.jamMasuk || '08:00'
 
   function handlePhoto(e) {
     const file = e.target.files[0]
@@ -99,7 +124,7 @@ export default function Attendance() {
       role: profile?.role || 'staff',
       type: 'masuk',
       time: nowTime,
-      date: TODAY,
+      date: today,
       photo: null,
       status,
       catatan: status === 'telat' ? `Terlambat — jam masuk: ${jamMasuk}` : '',
@@ -111,13 +136,13 @@ export default function Attendance() {
   }
 
   async function submitPulang() {
-    const masukEntry = log.find(e => e.date === TODAY && e.name === profile?.name && e.type === 'masuk')
+    const masukEntry = log.find(e => e.date === today && e.name === profile?.name && e.type === 'masuk')
     const entry = {
       name: profile?.name || 'User',
       role: profile?.role || 'staff',
       type: 'pulang',
       time: nowTime,
-      date: TODAY,
+      date: today,
       photo: null,
       status: masukEntry?.status || 'hadir',
       catatan: '',
@@ -131,8 +156,9 @@ export default function Attendance() {
     setModal('add')
     setForm({
       name: staffList[0]?.name || '',
-      role: 'staff', type: 'masuk',
-      time: '07:00', date: TODAY,
+      role: staffList[0]?.role || 'staff',
+      type: 'masuk',
+      time: '07:00', date: today,
       photo: null, status: 'hadir', catatan: '',
     })
   }
@@ -166,27 +192,34 @@ export default function Attendance() {
     setSchedForm(null)
   }
 
-  const todayLog   = log.filter(e => e.date === TODAY && e.type !== 'pulang')
+  // ── Computed stats ──
+  const todayLog   = log.filter(e => e.date === today && e.type !== 'pulang')
   const hadirAll   = todayLog.filter(e => e.status === 'hadir').length
   const telatAll   = todayLog.filter(e => e.status === 'telat').length
   const absenAll   = todayLog.filter(e => e.status === 'absen').length
-  const totalStaff = new Set(log.filter(e => e.type !== 'pulang').map(e => e.name)).size
 
-  const myMonthMasuk = log.filter(e => e.date.startsWith(THIS_MONTH) && e.type === 'masuk')
+  const myMonthMasuk = log.filter(e => e.date.startsWith(thisMonth) && e.type === 'masuk')
   const myHadir = myMonthMasuk.filter(e => e.status === 'hadir').length
   const myTelat = myMonthMasuk.filter(e => e.status === 'telat').length
   const myIzin  = myMonthMasuk.filter(e => e.status === 'izin').length
   const myAbsen = myMonthMasuk.filter(e => e.status === 'absen').length
 
-  const myMasukEntry  = log.find(e => e.date === TODAY && e.name === profile?.name && e.type === 'masuk')
-  const myPulangEntry = log.find(e => e.date === TODAY && e.name === profile?.name && e.type === 'pulang')
+  const myMasukEntry  = log.find(e => e.date === today && e.name === profile?.name && e.type === 'masuk')
+  const myPulangEntry = log.find(e => e.date === today && e.name === profile?.name && e.type === 'pulang')
 
   const viewLog = log.filter(e => e.date === dateView)
 
+  // ── Auto-fill jabatan when name selected in form ──
+  function handleFormName(name) {
+    const emp = staffList.find(s => s.name === name)
+    setForm(f => ({ ...f, name, role: emp?.role || f.role }))
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* ── OWNER: Atur Jam Kerja ── */}
+      {/* ── OWNER ONLY: Atur Jam Kerja ── */}
       {isOwner && (
         <div style={{
           borderRadius: 14, padding: '20px 24px',
@@ -201,19 +234,21 @@ export default function Attendance() {
               {' — '}lewat jam ini otomatis <span style={{ color: '#fde68a' }}>Telat</span>
             </p>
           </div>
-          <button onClick={() => setSchedForm({ jamMasuk })} style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: 'white', color: '#1e3a8a',
-            border: 'none', borderRadius: 10, padding: '10px 18px',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-          }}>
+          <button
+            onClick={() => setSchedForm({ jamMasuk })}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'white', color: '#1e3a8a',
+              border: 'none', borderRadius: 10, padding: '10px 18px',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+            }}>
             <Settings size={15} /> Atur Jam Kerja
           </button>
         </div>
       )}
 
-      {/* ── STAFF / ADMIN: Selfie card ── */}
+      {/* ── STAFF / ADMIN: Selfie Check-in Card ── */}
       {!isOwner && (
         <div style={{
           borderRadius: 14, padding: '22px 24px',
@@ -222,7 +257,7 @@ export default function Attendance() {
         }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'white', margin: '0 0 4px' }}>Absensi Selfie</h3>
           <p style={{ fontSize: 12.5, color: '#93c5fd', margin: '0 0 18px', textTransform: 'capitalize' }}>
-            {today} — {nowTime} WIB &nbsp;·&nbsp; Batas masuk: <strong style={{ color: 'white' }}>{jamMasuk} WIB</strong>
+            {todayLabel} — {nowTime} WIB &nbsp;·&nbsp; Batas masuk: <strong style={{ color: 'white' }}>{jamMasuk} WIB</strong>
           </p>
 
           {(myPulangEntry || submittedPulang) ? (
@@ -328,15 +363,16 @@ export default function Attendance() {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-          <StatCard label="Hadir Hari Ini"  value={hadirAll}   sub="tepat waktu"     Icon={UserCheck} iconColor="#16a34a" iconBg="#f0fdf4" />
-          <StatCard label="Telat"           value={telatAll}   sub="terlambat masuk" Icon={Clock}     iconColor="#d97706" iconBg="#fffbeb" />
-          <StatCard label="Absen"           value={absenAll}   sub="tidak hadir"     Icon={UserX}     iconColor="#dc2626" iconBg="#fef2f2" />
-          <StatCard label="Total Karyawan"  value={totalStaff} sub="tercatat"        Icon={Users}     iconColor="#2563eb" iconBg="#eff6ff" />
+          <StatCard label="Hadir Hari Ini"  value={hadirAll}         sub="tepat waktu"          Icon={UserCheck} iconColor="#16a34a" iconBg="#f0fdf4" />
+          <StatCard label="Telat"           value={telatAll}         sub="terlambat masuk"       Icon={Clock}     iconColor="#d97706" iconBg="#fffbeb" />
+          <StatCard label="Absen"           value={absenAll}         sub="tidak hadir hari ini"  Icon={UserX}     iconColor="#dc2626" iconBg="#fef2f2" />
+          <StatCard label="Total Karyawan"  value={totalEmployees}   sub="karyawan aktif"        Icon={Users}     iconColor="#2563eb" iconBg="#eff6ff" />
         </div>
       )}
 
       {/* ── Log Absensi ── */}
       <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
+
         <div style={{
           display: 'flex', flexWrap: 'wrap', alignItems: 'center',
           justifyContent: 'space-between', padding: '16px 20px',
@@ -390,7 +426,10 @@ export default function Attendance() {
             <tbody>
               {viewLog.length === 0 && (
                 <tr>
-                  <td colSpan={isStaff ? 5 : 8} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                  <td
+                    colSpan={isStaff ? 5 : 8}
+                    style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}
+                  >
                     Tidak ada data absensi untuk tanggal ini.
                   </td>
                 </tr>
@@ -398,7 +437,8 @@ export default function Attendance() {
               {viewLog.map((entry, idx) => {
                 const sc = STATUS_CFG[entry.status] || STATUS_CFG.hadir
                 return (
-                  <tr key={entry.id}
+                  <tr
+                    key={entry.id}
                     style={{ borderTop: idx > 0 ? '1px solid #f8fafc' : 'none', background: 'white', transition: 'background 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                     onMouseLeave={e => e.currentTarget.style.background = 'white'}
@@ -436,21 +476,28 @@ export default function Attendance() {
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       {entry.photo
                         ? <img src={entry.photo} alt="selfie" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0', display: 'inline-block' }} />
-                        : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>}
+                        : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>
+                      }
                     </td>
                     {!isStaff && (
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                          <button onClick={() => openEdit(entry)} title="Edit"
+                          <button
+                            onClick={() => openEdit(entry)}
+                            title="Edit"
                             style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#fef9c3'; e.currentTarget.style.color = '#ca8a04' }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
+                          >
                             <Edit2 size={14} />
                           </button>
-                          <button onClick={() => setDeleteConfirm(entry.id)} title="Hapus"
+                          <button
+                            onClick={() => setDeleteConfirm(entry.id)}
+                            title="Hapus"
                             style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}
+                          >
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -464,7 +511,7 @@ export default function Attendance() {
         </div>
       </div>
 
-      {/* ── Modal: Atur Jam Kerja ── */}
+      {/* ── Modal: Atur Jam Kerja (owner only) ── */}
       {schedForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 380 }}>
@@ -507,7 +554,7 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* ── Modal: Tambah / Edit ── */}
+      {/* ── Modal: Tambah / Edit (manager only) ── */}
       {modal && form && canManage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 460 }}>
@@ -521,9 +568,9 @@ export default function Attendance() {
             </div>
             <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Nama</label>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Nama Karyawan</label>
                 {staffList.length > 0 ? (
-                  <select value={form.name} onChange={e => setF('name', e.target.value)} style={inputStyle}>
+                  <select value={form.name} onChange={e => handleFormName(e.target.value)} style={inputStyle}>
                     {staffList.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                   </select>
                 ) : (
@@ -553,10 +600,7 @@ export default function Attendance() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Jabatan</label>
-                <select value={form.role} onChange={e => setF('role', e.target.value)} style={inputStyle}>
-                  <option value="staff">Staff</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <input value={form.role || ''} onChange={e => setF('role', e.target.value)} placeholder="staff / admin" style={inputStyle} />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Catatan</label>
@@ -580,7 +624,7 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* ── Modal: Konfirmasi Hapus ── */}
+      {/* ── Modal: Konfirmasi Hapus (manager only) ── */}
       {deleteConfirm && canManage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center' }}>
