@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Plus, Printer, X, Check, Trash2, FileText,
-  ClipboardList, Truck, PackageCheck, Receipt, ChevronDown, Bell, BellOff,
+  ClipboardList, Truck, PackageCheck, Receipt, ChevronDown,
+  ChevronLeft, ChevronRight, Calendar,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import PdfPoImport from '../components/PdfPoImport'
 
 const FF = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }
 
@@ -19,6 +19,7 @@ const DOC_CFG = {
 
 const STATUS_CFG = {
   draft:      { label: 'Draft',         color: '#8e8e93', bg: '#f2f2f7' },
+  pending:    { label: 'Menunggu',      color: '#5856d6', bg: '#f0f0ff' },
   confirmed:  { label: 'Dikonfirmasi',  color: '#007aff', bg: '#eff6ff' },
   dispatched: { label: 'Dikirim',       color: '#ff9500', bg: '#fff8e1' },
   delivered:  { label: 'Terkirim',      color: '#34c759', bg: '#f0fdf4' },
@@ -32,6 +33,20 @@ const STATUS_CFG = {
 const UNITS = ['kg', 'ekor', 'ikat', 'box', 'pcs', 'liter', 'ton']
 const CONDITIONS = ['Baik', 'Cukup', 'Kurang']
 
+const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
+function currentYM() { return new Date().toISOString().slice(0, 7) }
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+function fmtMonth(ym) {
+  if (!ym) return ''
+  const [y, m] = ym.split('-').map(Number)
+  return `${MONTH_NAMES[m - 1]} ${y}`
+}
+
+// ── Helpers ──
 function fmtRp(n) { return n != null ? 'Rp ' + Math.round(n).toLocaleString('id-ID') : '–' }
 function fmtDate(s) {
   if (!s) return '–'
@@ -54,7 +69,7 @@ function recalcForm(f) {
 function emptyForm(type) {
   const withPrice = type === 'SO' || type === 'Invoice'
   return {
-    type, date: todayStr(), status: 'draft',
+    type, date: todayStr(), status: type === 'DO' ? 'pending' : 'draft',
     clientName: '', clientAddress: '', clientPhone: '', clientPoNumber: '',
     refNumber: '', driverName: '', vehicle: '',
     items: [blankItem(withPrice)],
@@ -126,7 +141,6 @@ function printDocument(doc) {
     body = `
       <table style="margin-bottom:20px"><tbody>${meta([
         ['Tanggal', fmtDate(doc.date)],
-        doc.clientPoNumber ? ['No. PO Klien', doc.clientPoNumber] : null,
         doc.paymentTerms ? ['Termin Pembayaran', doc.paymentTerms] : null,
         ['Status', (STATUS_CFG[doc.status]||{}).label || doc.status],
       ])}</tbody></table>
@@ -354,6 +368,7 @@ function FieldRow({ label, children, last }) {
 const inputR = { border: 'none', outline: 'none', textAlign: 'right', fontSize: 14, color: '#3c3c43', background: 'transparent', ...FF, width: '100%' }
 const selectR = { border: 'none', outline: 'none', textAlign: 'right', fontSize: 14, color: '#3c3c43', background: 'transparent', ...FF }
 
+// ── Section label ──
 function SLabel({ text }) {
   return <p style={{ fontSize: 11, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 7 }}>{text}</p>
 }
@@ -368,24 +383,22 @@ export default function Documents() {
   const canEdit = isRole('admin') || isRole('owner')
   const isStaff = isRole('staff')
 
-  const [docs, setDocs]     = useState([])
+  const [docs, setDocs]   = useState([])
   const [clients, setClients] = useState([])
   const [staffList, setStaffList] = useState([])
-  const [tab, setTab]       = useState(isStaff ? 'DO' : 'all')
-  const [menu, setMenu]     = useState(false)
-  const [form, setForm]     = useState(null)
+  const [tab, setTab]     = useState(isStaff ? 'DO' : 'all')
+  const [menu, setMenu]   = useState(false)
+  const [form, setForm]   = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [detail, setDetail] = useState(null)
-  const [toast, setToast]   = useState(null)   // { title, body, doc }
-  const [notifPerm, setNotifPerm] = useState(
-    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
-  )
+  const [selectedMonth, setSelectedMonth] = useState(currentYM)
+  const [liveMonth, setLiveMonth]         = useState(currentYM)
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
 
   const navigate = useNavigate()
   const createType = form?.type || null
 
-  // ── Initial fetch ──
   useEffect(() => {
     supabase.from('documents').select('*').order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -394,66 +407,7 @@ export default function Documents() {
       })
   }, [])
 
-  // ── Request notification permission on load ──
-  useEffect(() => {
-    if (typeof Notification === 'undefined') return
-    if (Notification.permission === 'default') {
-      Notification.requestPermission().then(p => setNotifPerm(p))
-    }
-  }, [])
-
-  // ── Realtime subscription ──
-  useEffect(() => {
-    const channel = supabase
-      .channel('docs-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'documents' }, ({ new: r }) => {
-        const doc = dbToDoc(r)
-        setDocs(prev => {
-          if (prev.find(d => d.id === doc.id)) return prev
-          if (doc.type === 'SO' && doc.status === 'confirmed') return prev
-          return [doc, ...prev]
-        })
-        // Notify only if created by someone else
-        if (r.created_by !== user?.id) {
-          const title = `${DOC_CFG[doc.type]?.label || 'Dokumen'} Baru`
-          const body  = `${doc.number} · ${doc.clientName}`
-          showToast(title, body, doc)
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'documents' }, ({ new: r }) => {
-        const doc = dbToDoc(r)
-        setDocs(prev =>
-          prev.map(d => d.id === doc.id ? doc : d)
-            .filter(d => !(d.type === 'SO' && d.status === 'confirmed'))
-        )
-        if (r.created_by !== user?.id) {
-          const title = `Update ${DOC_CFG[doc.type]?.label || 'Dokumen'}`
-          const body  = `${doc.number} · ${STATUS_CFG[doc.status]?.label || doc.status}`
-          showToast(title, body, doc)
-        }
-      })
-      .subscribe()
-
-    return () => supabase.removeChannel(channel)
-  }, [user?.id])
-
-  function showToast(title, body, doc) {
-    setToast({ title, body, doc })
-    setTimeout(() => setToast(null), 6000)
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      try {
-        const n = new Notification(title, { body, icon: '/pwa-192x192.png', tag: doc?.id })
-        n.onclick = () => { window.focus(); n.close() }
-      } catch { /* Safari may block */ }
-    }
-  }
-
-  async function requestNotif() {
-    if (typeof Notification === 'undefined') return
-    const p = await Notification.requestPermission()
-    setNotifPerm(p)
-  }
-
+  // Auto-open creation if navigated from Orders page
   useEffect(() => {
     if (location.state?.createType) {
       openCreate(location.state.createType)
@@ -471,6 +425,18 @@ export default function Documents() {
       .then(({ data }) => data && setStaffList(data))
   }, [])
 
+  // Auto-advance to new month at midnight
+  useEffect(() => {
+    const t = setInterval(() => {
+      const now = currentYM()
+      if (now !== liveMonth) {
+        setSelectedMonth(prev => prev === liveMonth ? now : prev)
+        setLiveMonth(now)
+      }
+    }, 60_000)
+    return () => clearInterval(t)
+  }, [liveMonth])
+
   async function getNextNumber(type) {
     const prefix = type === 'Invoice' ? 'INV' : type
     const ym = new Date().toISOString().slice(0, 7).replace('-', '')
@@ -479,7 +445,11 @@ export default function Documents() {
     return `${prefix}-${ym}-${String((count || 0) + 1).padStart(3, '0')}`
   }
 
-  function openCreate(type) { setForm(emptyForm(type)); setMenu(false); setSaved(false) }
+  function openCreate(type) {
+    setForm(emptyForm(type))
+    setMenu(false)
+    setSaved(false)
+  }
 
   function openCreateFrom(type, sourceDoc) {
     const withPrice = type === 'SO' || type === 'Invoice'
@@ -493,11 +463,15 @@ export default function Documents() {
       items: sourceDoc.items.map(it => ({
         ...it, id: newId(),
         price: withPrice ? (it.price ?? '') : null,
-        receivedQty: '', condition: 'Baik',
+        receivedQty: '',
+        condition: 'Baik',
         total: withPrice ? (it.total ?? 0) : null,
       })),
     }
-    setDetail(null); setForm(withPrice ? recalcForm(f) : f); setMenu(false); setSaved(false)
+    setDetail(null)
+    setForm(withPrice ? recalcForm(f) : f)
+    setMenu(false)
+    setSaved(false)
   }
 
   function openEdit(doc) {
@@ -513,7 +487,10 @@ export default function Documents() {
       bankName: doc.bankName || '', accountNumber: doc.accountNumber || '', accountName: doc.accountName || '',
       notes: doc.notes || '',
     }
-    setDetail(null); setForm(withPrice ? recalcForm(f) : f); setMenu(false); setSaved(false)
+    setDetail(null)
+    setForm(withPrice ? recalcForm(f) : f)
+    setMenu(false)
+    setSaved(false)
   }
 
   function setF(patch) {
@@ -524,7 +501,10 @@ export default function Documents() {
   }
 
   function updateItem(idx, updated) {
-    setF(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? updated : it) }))
+    setF(prev => {
+      const items = prev.items.map((it, i) => i === idx ? updated : it)
+      return { ...prev, items }
+    })
   }
   function addItem() {
     setF(prev => ({ ...prev, items: [...prev.items, blankItem(prev.type === 'SO' || prev.type === 'Invoice')] }))
@@ -553,28 +533,6 @@ export default function Documents() {
         receivedQty: '', condition: 'Baik',
         total: (prev.type === 'Invoice') ? it.total : null,
       })),
-    }))
-  }
-
-  function handlePoImport({ poNumber, clientName, date, notes, items }) {
-    const matched = clientName
-      ? clients.find(c => c.name.toLowerCase().includes(clientName.toLowerCase()))
-      : null
-    setF(prev => ({
-      ...prev,
-      clientPoNumber: poNumber || prev.clientPoNumber,
-      clientName: matched ? matched.name : (clientName || prev.clientName),
-      clientAddress: matched ? (matched.address || prev.clientAddress) : prev.clientAddress,
-      clientPhone: matched ? (matched.phone || prev.clientPhone) : prev.clientPhone,
-      date: date || prev.date,
-      notes: notes ? (prev.notes ? prev.notes + '\n' + notes : notes) : prev.notes,
-      items: items.length > 0
-        ? items.map(it => ({
-            id: newId(), name: it.name, qty: String(it.qty || ''), unit: 'kg',
-            price: it.price ? String(it.price) : '', receivedQty: '', condition: 'Baik',
-            total: Math.round((Number(it.qty) || 0) * (Number(it.price) || 0))
-          }))
-        : prev.items
     }))
   }
 
@@ -618,7 +576,7 @@ export default function Documents() {
     const doNumber = await getNextNumber('DO')
     const doDoc = {
       id: doId, number: doNumber,
-      type: 'DO', date: soDoc.date, status: 'draft',
+      type: 'DO', date: soDoc.date, status: 'pending',
       clientName: soDoc.clientName, clientAddress: soDoc.clientAddress || '',
       clientPhone: soDoc.clientPhone || '', clientPoNumber: soDoc.clientPoNumber || '',
       refNumber: soDoc.number, driverName: '', vehicle: '',
@@ -631,7 +589,7 @@ export default function Documents() {
     }
     setDocs(prev => [doDoc, ...prev.filter(d => !(d.type === 'SO' && d.id === soDoc.id))])
     const { error } = await supabase.from('documents').insert({
-      id: doId, number: doNumber, type: 'DO', date: doDoc.date, status: 'draft',
+      id: doId, number: doNumber, type: 'DO', date: doDoc.date, status: 'pending',
       client_name: doDoc.clientName, client_address: doDoc.clientAddress || null,
       client_phone: doDoc.clientPhone || null,
       ref_number: soDoc.number, driver_name: null, vehicle: null,
@@ -651,14 +609,18 @@ export default function Documents() {
         const doc = buildDoc({ id: form.editId, number: orig.number || '', createdByName: orig.createdByName || profile?.name || '', createdAt: orig.createdAt || new Date().toISOString() })
         setDocs(prev => prev.map(d => d.id === form.editId ? doc : d))
         await pushDocToDB(doc, false)
-        if (doc.type === 'SO' && doc.status === 'confirmed' && orig.status !== 'confirmed') await autoCreateDO(doc)
+        if (doc.type === 'SO' && doc.status === 'confirmed' && orig.status !== 'confirmed') {
+          await autoCreateDO(doc)
+        }
       } else {
         const id = newId()
         const number = await getNextNumber(form.type)
         const doc = buildDoc({ id, number, createdByName: profile?.name || '', createdAt: new Date().toISOString() })
         setDocs(prev => [doc, ...prev])
         await pushDocToDB(doc, true)
-        if (doc.type === 'SO' && doc.status === 'confirmed') await autoCreateDO(doc)
+        if (doc.type === 'SO' && doc.status === 'confirmed') {
+          await autoCreateDO(doc)
+        }
       }
       setSaved(true)
       setTimeout(() => { setSaved(false); setForm(null) }, 900)
@@ -671,95 +633,62 @@ export default function Documents() {
   const visibleDocs = isStaff
     ? docs.filter(d => d.type === 'DO' && d.status === 'dispatched' && d.driverName?.toLowerCase() === myName)
     : docs.filter(d => !(d.type === 'SO' && d.status === 'confirmed'))
-  const filtered = tab === 'all' ? visibleDocs : visibleDocs.filter(d => d.type === tab)
+  const tabFiltered = tab === 'all' ? visibleDocs : visibleDocs.filter(d => d.type === tab)
+  const filtered = isStaff ? tabFiltered : tabFiltered.filter(d => (d.date || '').startsWith(selectedMonth))
+  const monthsWithData = isStaff ? [] : [...new Set(
+    (tab === 'all' ? visibleDocs : visibleDocs.filter(d => d.type === tab))
+      .map(d => (d.date || '').slice(0, 7)).filter(Boolean)
+  )].sort()
+  const isCurrentMonth = selectedMonth === liveMonth
   const soList = docs.filter(d => d.type === 'SO')
   const doList = docs.filter(d => d.type === 'DO')
 
+  // ── Render ──
   return (
     <div style={{ maxWidth: 720, ...FF, display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* ── In-app toast ── */}
-      {toast && (
-        <div
-          onClick={() => { if (toast.doc) setDetail(toast.doc); setToast(null) }}
-          style={{
-            position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 999, background: '#1c1c1e', color: 'white', borderRadius: 16,
-            padding: '12px 16px', boxShadow: '0 8px 32px rgba(0,0,0,.28)',
-            display: 'flex', alignItems: 'center', gap: 12, maxWidth: 340, width: 'calc(100% - 40px)',
-            cursor: 'pointer', ...FF, animation: 'slideDown .25s ease',
-          }}
-        >
-          {toast.doc && (() => { const cfg = DOC_CFG[toast.doc.type]; if (!cfg) return null; const I = cfg.Icon; return (
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <I size={15} color={cfg.color} />
-            </div>
-          )})()}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>{toast.title}</p>
-            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,.65)', marginTop: 1 }}>{toast.body}</p>
-          </div>
-          <button onClick={e => { e.stopPropagation(); setToast(null) }}
-            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
-            <X size={14} />
-          </button>
-        </div>
-      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>
           {isStaff ? 'Tugas Pengiriman' : 'Dokumen'}
         </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Bell button */}
-          {notifPerm !== 'unsupported' && (
-            <button
-              onClick={requestNotif}
-              title={notifPerm === 'granted' ? 'Notifikasi aktif' : 'Klik untuk aktifkan notifikasi'}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 8, color: notifPerm === 'granted' ? '#34c759' : '#c7c7cc', display: 'flex', alignItems: 'center' }}
-            >
-              {notifPerm === 'granted' ? <Bell size={18} /> : <BellOff size={18} />}
+        {canEdit && (
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setMenu(v => !v)} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: '#007aff', color: 'white', border: 'none',
+              borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF,
+            }}>
+              <Plus size={15} /> Buat <ChevronDown size={13} />
             </button>
-          )}
-          {canEdit && (
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setMenu(v => !v)} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: '#007aff', color: 'white', border: 'none',
-                borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF,
+            {menu && (
+              <div style={{
+                position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20,
+                background: 'white', borderRadius: 13, overflow: 'hidden', minWidth: 180,
+                boxShadow: '0 8px 32px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.08)',
               }}>
-                <Plus size={15} /> Buat <ChevronDown size={13} />
-              </button>
-              {menu && (
-                <div style={{
-                  position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20,
-                  background: 'white', borderRadius: 13, overflow: 'hidden', minWidth: 180,
-                  boxShadow: '0 8px 32px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.08)',
-                }}>
-                  {Object.entries(DOC_CFG).map(([type, cfg]) => (
-                    <button key={type} onClick={() => openCreate(type)} style={{
-                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                      padding: '11px 16px', background: 'none', border: 'none', cursor: 'pointer',
-                      borderBottom: type !== 'Invoice' ? '0.5px solid #f0f0f0' : 'none', textAlign: 'left', ...FF,
-                    }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 7, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <cfg.Icon size={14} color={cfg.color} />
-                      </div>
-                      <div>
-                        <p style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{cfg.label}</p>
-                        <p style={{ fontSize: 11, color: '#8e8e93', margin: 0 }}>{type}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                {Object.entries(DOC_CFG).map(([type, cfg]) => (
+                  <button key={type} onClick={() => openCreate(type)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                    padding: '11px 16px', background: 'none', border: 'none', cursor: 'pointer',
+                    borderBottom: type !== 'Invoice' ? '0.5px solid #f0f0f0' : 'none', textAlign: 'left', ...FF,
+                  }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <cfg.Icon size={14} color={cfg.color} />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{cfg.label}</p>
+                      <p style={{ fontSize: 11, color: '#8e8e93', margin: 0 }}>{type}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — hidden for staff (they only see DO) */}
       {!isStaff && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[['all', 'Semua'], ...Object.entries(DOC_CFG).map(([k, v]) => [k, v.label])].map(([val, label]) => (
@@ -771,6 +700,56 @@ export default function Documents() {
               boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)',
             }}>{label}</button>
           ))}
+        </div>
+      )}
+
+      {/* Month Navigator — hidden for staff */}
+      {!isStaff && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', borderRadius: 13, padding: '11px 16px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)' }}>
+          <button
+            onClick={() => setSelectedMonth(m => shiftMonth(m, -1))}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 4, display: 'flex', alignItems: 'center' }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setShowMonthPicker(p => !p)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+            >
+              <Calendar size={14} color="#007aff" />
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e' }}>{fmtMonth(selectedMonth)}</span>
+              {isCurrentMonth && <span style={{ fontSize: 10, background: '#007aff', color: 'white', borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>Sekarang</span>}
+              <ChevronDown size={13} color="#8e8e93" />
+            </button>
+            {showMonthPicker && (
+              <>
+                <div onClick={() => setShowMonthPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)', background: 'white', borderRadius: 13, border: '0.5px solid #e5e5ea', boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 50, padding: 10, minWidth: 210, maxHeight: 260, overflowY: 'auto' }}>
+                  <p style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px 4px' }}>Pilih Bulan</p>
+                  {monthsWithData.length === 0 && <p style={{ fontSize: 12, color: '#8e8e93', textAlign: 'center', padding: '10px 0', margin: 0 }}>Belum ada data</p>}
+                  {[...monthsWithData].reverse().map(ym => (
+                    <button key={ym} onClick={() => { setSelectedMonth(ym); setShowMonthPicker(false) }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 2, textAlign: 'left', ...FF,
+                        background: ym === selectedMonth ? '#eff6ff' : 'transparent',
+                        color: ym === selectedMonth ? '#007aff' : '#1c1c1e',
+                      }}>
+                      {fmtMonth(ym)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={() => setSelectedMonth(m => shiftMonth(m, 1))}
+            disabled={isCurrentMonth}
+            style={{ background: 'none', border: 'none', cursor: isCurrentMonth ? 'default' : 'pointer', color: isCurrentMonth ? '#c7c7cc' : '#8e8e93', padding: 4, display: 'flex', alignItems: 'center' }}
+          >
+            <ChevronRight size={18} />
+          </button>
         </div>
       )}
 
@@ -803,7 +782,9 @@ export default function Documents() {
                   {doc.refNumber && <p style={{ fontSize: 11.5, color: '#8e8e93', margin: '2px 0 0' }}>Ref: {doc.refNumber}</p>}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{doc.total ? fmtRp(doc.total) : ''}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>
+                    {doc.total ? fmtRp(doc.total) : ''}
+                  </p>
                   <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>{fmtDate(doc.date)}</p>
                 </div>
               </div>
@@ -816,6 +797,7 @@ export default function Documents() {
       {form && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && setForm(null)}>
           <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 620, maxHeight: '94vh', overflowY: 'auto', ...FF }}>
+            {/* Modal header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
               <button onClick={() => setForm(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}><X size={22} /></button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -834,15 +816,7 @@ export default function Documents() {
             </div>
 
             <div style={{ padding: '20px 16px' }}>
-              {createType === 'SO' && !form.editId && (
-                <>
-                  <SLabel text="Import dari PO Klien (Opsional)" />
-                  <div style={{ marginBottom: 22 }}>
-                    <PdfPoImport onImport={handlePoImport} />
-                  </div>
-                </>
-              )}
-
+              {/* Info Dasar */}
               <SLabel text="Informasi Dasar" />
               <Card>
                 <FieldRow label="Tanggal">
@@ -851,13 +825,14 @@ export default function Documents() {
                 <FieldRow label="Status" last>
                   <select value={form.status} onChange={e => setF({ status: e.target.value })} style={selectR}>
                     {createType === 'SO' && <><option value="draft">Draft</option><option value="confirmed">Dikonfirmasi</option><option value="cancelled">Batal</option></>}
-                    {createType === 'DO' && <><option value="draft">Draft</option><option value="dispatched">Dikirim</option><option value="delivered">Terkirim</option></>}
+                    {createType === 'DO' && <><option value="pending">Menunggu</option><option value="draft">Draft</option><option value="dispatched">Dikirim</option><option value="delivered">Terkirim</option></>}
                     {createType === 'GR' && <><option value="draft">Draft</option><option value="received">Diterima</option></>}
                     {createType === 'Invoice' && <><option value="draft">Draft</option><option value="sent">Terkirim</option><option value="paid">Dibayar</option><option value="overdue">Jatuh Tempo</option></>}
                   </select>
                 </FieldRow>
               </Card>
 
+              {/* Referensi dokumen */}
               {(createType === 'DO' || createType === 'GR' || createType === 'Invoice') && (
                 <>
                   <SLabel text={createType === 'GR' ? 'Referensi DO' : 'Referensi SO'} />
@@ -874,6 +849,7 @@ export default function Documents() {
                 </>
               )}
 
+              {/* Klien */}
               <SLabel text="Data Klien / Tujuan" />
               <Card>
                 <FieldRow label="Nama Klien">
@@ -906,6 +882,7 @@ export default function Documents() {
                 </FieldRow>
               </Card>
 
+              {/* DO: Info pengiriman */}
               {createType === 'DO' && (
                 <>
                   <SLabel text="Info Pengiriman" />
@@ -930,6 +907,7 @@ export default function Documents() {
                 </>
               )}
 
+              {/* Invoice: Due date & bank */}
               {createType === 'Invoice' && (
                 <>
                   <SLabel text="Info Pembayaran" />
@@ -953,8 +931,10 @@ export default function Documents() {
                 </>
               )}
 
+              {/* Items */}
               <SLabel text={createType === 'GR' ? 'Barang Diterima' : 'Item / Barang'} />
               <div style={{ background: 'white', borderRadius: 13, padding: '12px 14px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)', marginBottom: 10 }}>
+                {/* Column headers */}
                 <div style={{ display: 'flex', gap: 6, padding: '0 0 8px', borderBottom: '0.5px solid #f0f0f0', marginBottom: 4 }}>
                   <span style={{ flex: 2, minWidth: 120, fontSize: 11, color: '#8e8e93', fontWeight: 600 }}>PRODUK</span>
                   <span style={{ width: 62, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>QTY</span>
@@ -977,6 +957,7 @@ export default function Documents() {
                 }}>+ Tambah Item</button>
               </div>
 
+              {/* Totals (SO & Invoice) */}
               {(createType === 'SO' || createType === 'Invoice') && (
                 <>
                   <SLabel text="Total" />
@@ -997,6 +978,7 @@ export default function Documents() {
                 </>
               )}
 
+              {/* Catatan */}
               <SLabel text="Catatan (opsional)" />
               <div style={{ background: 'white', borderRadius: 13, padding: '12px 16px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)', marginBottom: 8 }}>
                 <textarea value={form.notes} onChange={e => setF({ notes: e.target.value })}
@@ -1013,6 +995,7 @@ export default function Documents() {
       {detail && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && setDetail(null)}>
           <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 620, maxHeight: '88vh', overflowY: 'auto', ...FF }}>
+            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {(() => { const cfg = DOC_CFG[detail.type]; const I = cfg.Icon; return (
@@ -1041,6 +1024,7 @@ export default function Documents() {
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* Status & meta */}
               <Card>
                 {[
                   ['Nomor', detail.number],
@@ -1058,6 +1042,7 @@ export default function Documents() {
                 ))}
               </Card>
 
+              {/* Client */}
               <div>
                 <SLabel text="Klien" />
                 <Card>
@@ -1070,6 +1055,7 @@ export default function Documents() {
                 </Card>
               </div>
 
+              {/* Items */}
               <div>
                 <SLabel text="Item" />
                 <div style={{ background: 'white', borderRadius: 13, overflow: 'hidden', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)' }}>
@@ -1089,6 +1075,7 @@ export default function Documents() {
                 </div>
               </div>
 
+              {/* Totals — hidden from staff */}
               {!isStaff && detail.total != null && (
                 <div>
                   <SLabel text="Total" />
@@ -1101,6 +1088,7 @@ export default function Documents() {
                 </div>
               )}
 
+              {/* Bank (Invoice) — hidden from staff */}
               {!isStaff && detail.bankName && (
                 <div>
                   <SLabel text="Info Pembayaran" />
@@ -1112,6 +1100,7 @@ export default function Documents() {
                 </div>
               )}
 
+              {/* Notes */}
               {detail.notes && (
                 <div>
                   <SLabel text="Catatan" />
@@ -1121,33 +1110,44 @@ export default function Documents() {
                 </div>
               )}
 
-              {canEdit && (detail.status === 'draft' || (detail.type === 'DO' && detail.status === 'dispatched')) && (
-                <button onClick={() => openEdit(detail)}
-                  style={{ width: '100%', padding: '15px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  {detail.type === 'DO' && detail.status === 'dispatched' ? 'Ganti Driver' : 'Edit / Konfirmasi'}
+              {/* Action Buttons */}
+              {canEdit && (detail.status === 'draft' || detail.status === 'pending' || (detail.type === 'DO' && detail.status === 'dispatched')) && (
+                <button
+                  onClick={() => openEdit(detail)}
+                  style={{ width: '100%', padding: '15px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {detail.type === 'DO' && detail.status === 'dispatched' ? 'Ganti Driver' : detail.status === 'pending' ? 'Tugaskan Driver & Kirim' : 'Edit / Konfirmasi'}
                 </button>
               )}
               {isStaff && detail.type === 'DO' && detail.status === 'dispatched' && (
-                <button onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
-                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
+                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <Truck size={16} /> Kirim Laporan
                 </button>
               )}
               {canEdit && detail.type === 'SO' && detail.status === 'confirmed' && (
-                <button onClick={() => openCreateFrom('DO', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => openCreateFrom('DO', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <Truck size={16} /> Buat Delivery Order
                 </button>
               )}
               {canEdit && detail.type === 'DO' && detail.status === 'delivered' && (
-                <button onClick={() => openCreateFrom('GR', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => openCreateFrom('GR', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <PackageCheck size={16} /> Buat Goods Receipt
                 </button>
               )}
               {canEdit && detail.type === 'GR' && detail.status === 'received' && (
-                <button onClick={() => openCreateFrom('Invoice', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#af52de', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => openCreateFrom('Invoice', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#af52de', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <Receipt size={16} /> Buat Invoice
                 </button>
               )}
@@ -1157,6 +1157,7 @@ export default function Documents() {
         </div>
       )}
 
+      {/* Close menu on outside click */}
       {menu && <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setMenu(false)} />}
     </div>
   )
