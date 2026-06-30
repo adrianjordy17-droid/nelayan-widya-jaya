@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { path: '/dashboard/stock', label: 'Stok', feature: 'stock' },
   { path: '/dashboard/reports', label: 'Laporan', feature: 'reports' },
   { path: '/dashboard/attendance', label: 'Absensi', feature: 'attendance' },
+  { path: '/dashboard/employees', label: 'Karyawan', feature: 'settings' },
   { path: '/dashboard/settings', label: 'Pengaturan', feature: 'settings' },
 ]
 
