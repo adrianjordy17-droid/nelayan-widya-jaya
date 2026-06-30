@@ -98,18 +98,17 @@ export default function Jobdesk() {
     boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
     overflow: 'hidden',
   }
-  const inputStyle = {
+  const input = {
     width: '100%', boxSizing: 'border-box',
     padding: '10px 12px', borderRadius: 10,
     border: '1px solid #e2e8f0', fontSize: 14,
     color: '#1e293b', outline: 'none',
-    fontFamily: 'inherit',
+    fontFamily: "inherit",
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>Jobdesk Staf</h2>
@@ -131,7 +130,6 @@ export default function Jobdesk() {
         </button>
       </div>
 
-      {/* Filter tabs */}
       <div style={{ display: 'flex', gap: 8 }}>
         {[
           { key: 'all',     label: 'Semua',        count: tasks.length },
@@ -161,7 +159,6 @@ export default function Jobdesk() {
         ))}
       </div>
 
-      {/* Task list grouped by staff */}
       {Object.keys(grouped).length === 0 ? (
         <div style={{ ...card, padding: '48px 20px', textAlign: 'center' }}>
           <div style={{
@@ -265,7 +262,6 @@ export default function Jobdesk() {
         })
       )}
 
-      {/* Create Task Modal */}
       {showForm && (
         <div
           onClick={() => setShowForm(false)}
@@ -305,7 +301,6 @@ export default function Jobdesk() {
             </div>
 
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>
                   Judul Tugas
@@ -314,7 +309,7 @@ export default function Jobdesk() {
                   value={form.title}
                   onChange={e => setF({ title: e.target.value })}
                   placeholder="Contoh: Siapkan box pengemasan..."
-                  style={inputStyle}
+                  style={input}
                   autoFocus
                   onKeyDown={e => e.key === 'Enter' && save()}
                 />
@@ -328,9 +323,9 @@ export default function Jobdesk() {
                   <select
                     value={form.assignedTo}
                     onChange={e => setF({ assignedTo: e.target.value })}
-                    style={{ ...inputStyle, color: form.assignedTo ? '#1e293b' : '#94a3b8' }}
+                    style={{ ...input, color: form.assignedTo ? '#1e293b' : '#94a3b8' }}
                   >
-                    <option value="">Pilih karyawan...</option>
+                    <option value="">Pilih staf...</option>
                     {staffList.map(s => (
                       <option key={s.id} value={s.name}>{s.name}{s.jabatan ? ` — ${s.jabatan}` : ''}</option>
                     ))}
@@ -339,8 +334,8 @@ export default function Jobdesk() {
                   <input
                     value={form.assignedTo}
                     onChange={e => setF({ assignedTo: e.target.value })}
-                    placeholder="Ketik nama karyawan"
-                    style={inputStyle}
+                    placeholder="Ketik nama staf (mis. Bimbim)"
+                    style={input}
                   />
                 )}
               </div>
@@ -353,7 +348,7 @@ export default function Jobdesk() {
                   type="date"
                   value={form.dueDate}
                   onChange={e => setF({ dueDate: e.target.value })}
-                  style={inputStyle}
+                  style={input}
                 />
               </div>
 
