@@ -1,17 +1,23 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, X, ShoppingBag, Clock, CheckCircle2, TrendingUp, ChevronDown, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { Plus, Search, Eye, X, ShoppingBag, Clock, CheckCircle2, TrendingUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, Truck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 const STATUS_CFG = {
   draft:      { label: 'Draft',         bg: '#f8fafc', text: '#64748b', border: '#e2e8f0' },
+  pending:    { label: 'Menunggu',      bg: '#f0f0ff', text: '#5856d6', border: '#c7c7f0' },
   confirmed:  { label: 'Dikonfirmasi',  bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' },
   dispatched: { label: 'Dikirim',       bg: '#fff8e1', text: '#d97706', border: '#fde68a' },
   delivered:  { label: 'Terkirim',      bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' },
   cancelled:  { label: 'Batal',         bg: '#fff1f2', text: '#dc2626', border: '#fecaca' },
 }
-const STATUS_OPTS = ['semua', 'draft', 'confirmed', 'dispatched', 'delivered', 'cancelled']
+// SO tabs
+const SO_OPTS = ['semua', 'draft', 'confirmed', 'cancelled']
+// DO tabs
+const DO_OPTS = ['dispatched', 'delivered']
+const ALL_OPTS = ['semua', 'draft', 'confirmed', 'dispatched', 'delivered', 'cancelled']
+
 const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
 function fmt(n) {
@@ -28,7 +34,8 @@ function fmtMonth(ym) {
   return `${MONTH_NAMES[m - 1]} ${y}`
 }
 function currentYM() {
-  return new Date().toISOString().slice(0, 7)
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
 }
 function shiftMonth(ym, delta) {
   const [y, m] = ym.split('-').map(Number)
@@ -37,10 +44,21 @@ function shiftMonth(ym, delta) {
 }
 function dbToSo(r) {
   return {
-    id: r.id, number: r.number, date: r.date, status: r.status,
+    id: r.id, type: 'SO', number: r.number, date: r.date, status: r.status,
     clientName: r.client_name, clientAddress: r.client_address, clientPhone: r.client_phone,
     items: r.items || [],
     subtotal: r.subtotal, taxPct: r.tax_pct, discount: r.discount, total: r.total,
+    notes: r.notes || '', createdByName: r.created_by_name || '', createdAt: r.created_at,
+  }
+}
+function dbToDo(r) {
+  return {
+    id: r.id, type: 'DO', number: r.number, date: r.date, status: r.status,
+    clientName: r.client_name, clientAddress: r.client_address,
+    driverName: r.driver_name || '', vehicle: r.vehicle || '',
+    refNumber: r.ref_number || '',
+    items: r.items || [],
+    total: null,
     notes: r.notes || '', createdByName: r.created_by_name || '', createdAt: r.created_at,
   }
 }
@@ -50,7 +68,8 @@ export default function Orders() {
   const { isRole } = useAuth()
   const canEdit = isRole('admin') || isRole('owner')
 
-  const [orders, setOrders]                 = useState([])
+  const [soList, setSoList]               = useState([])
+  const [doList, setDoList]               = useState([])
   const [selectedMonth, setSelectedMonth]   = useState(currentYM)
   const [liveMonth, setLiveMonth]           = useState(currentYM)
   const [search, setSearch]                 = useState('')
@@ -60,8 +79,12 @@ export default function Orders() {
   const [showMonthPicker, setShowMonthPicker] = useState(false)
 
   useEffect(() => {
-    supabase.from('documents').select('*').eq('type', 'SO').order('created_at', { ascending: false })
-      .then(({ data }) => data && setOrders(data.map(dbToSo)))
+    supabase.from('documents').select('*').in('type', ['SO', 'DO']).order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (!data) return
+        setSoList(data.filter(r => r.type === 'SO').map(dbToSo))
+        setDoList(data.filter(r => r.type === 'DO').map(dbToDo))
+      })
   }, [])
 
   // Auto-advance to new month at midnight
@@ -76,28 +99,30 @@ export default function Orders() {
     return () => clearInterval(t)
   }, [liveMonth])
 
-  async function updateOrderStatus(newStatus) {
-    if (!view) return
+  async function updateSoStatus(newStatus) {
+    if (!view || view.type !== 'SO') return
     setUpdatingStatus(true)
-    const { error } = await supabase
-      .from('documents')
-      .update({ status: newStatus })
-      .eq('id', view.id)
+    const { error } = await supabase.from('documents').update({ status: newStatus }).eq('id', view.id)
     if (!error) {
       const updated = { ...view, status: newStatus }
       setView(updated)
-      setOrders(prev => prev.map(o => o.id === view.id ? updated : o))
+      setSoList(prev => prev.map(o => o.id === view.id ? updated : o))
     }
     setUpdatingStatus(false)
   }
 
-  // Months that have at least one order (for picker highlights)
-  const monthsWithData = [...new Set(orders.map(o => (o.date || '').slice(0, 7)).filter(Boolean))].sort()
+  const isDoTab = DO_OPTS.includes(statusFilter)
 
-  // Orders scoped to selected month
-  const monthOrders = orders.filter(o => (o.date || '').startsWith(selectedMonth))
+  // Month-scoped lists
+  const monthSoList = soList.filter(o => (o.date || '').startsWith(selectedMonth))
+  const monthDoList = doList.filter(o => (o.date || '').startsWith(selectedMonth))
 
-  const filtered = monthOrders.filter(o => {
+  // Active list based on tab
+  const activeList = statusFilter === 'semua'
+    ? [...monthSoList, ...monthDoList]
+    : isDoTab ? monthDoList : monthSoList
+
+  const filtered = activeList.filter(o => {
     const q = search.toLowerCase()
     return (
       ((o.clientName || '').toLowerCase().includes(q) || (o.number || '').toLowerCase().includes(q)) &&
@@ -105,16 +130,21 @@ export default function Orders() {
     )
   })
 
-  const draftCount    = monthOrders.filter(o => o.status === 'draft').length
-  const confCount     = monthOrders.filter(o => o.status === 'confirmed').length
-  const omzetBulan    = monthOrders
+  // Stats (SO-based)
+  const draftCount = monthSoList.filter(o => o.status === 'draft').length
+  const confCount  = monthSoList.filter(o => o.status === 'confirmed').length
+  const omzetBulan = monthSoList
     .filter(o => o.status === 'delivered')
     .reduce((a, o) => a + (+o.total || 0), 0)
 
+  const monthsWithData = [...new Set(
+    [...soList, ...doList].map(o => (o.date || '').slice(0, 7)).filter(Boolean)
+  )].sort()
+
   const STATS = [
-    { label: 'Total SO',     value: String(monthOrders.length), sub: 'bulan ini',              Icon: ShoppingBag,  iconColor: '#2563eb', iconBg: '#eff6ff' },
-    { label: 'Draft',        value: String(draftCount),         sub: 'belum dikonfirmasi',      Icon: Clock,        iconColor: '#d97706', iconBg: '#fffbeb' },
-    { label: 'Dikonfirmasi', value: String(confCount),          sub: 'menunggu pengiriman',     Icon: CheckCircle2, iconColor: '#16a34a', iconBg: '#f0fdf4' },
+    { label: 'Total SO',     value: String(monthSoList.length), sub: 'bulan ini',          Icon: ShoppingBag,  iconColor: '#2563eb', iconBg: '#eff6ff' },
+    { label: 'Draft',        value: String(draftCount),         sub: 'belum dikonfirmasi',  Icon: Clock,        iconColor: '#d97706', iconBg: '#fffbeb' },
+    { label: 'Dikonfirmasi', value: String(confCount),          sub: 'menunggu pengiriman', Icon: CheckCircle2, iconColor: '#16a34a', iconBg: '#f0fdf4' },
     {
       label: 'Total Omzet',
       value: omzetBulan >= 1_000_000
@@ -166,7 +196,7 @@ export default function Orders() {
                     }}>
                     {fmtMonth(ym)}
                     <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
-                      {orders.filter(o => (o.date || '').startsWith(ym)).length} SO
+                      {soList.filter(o => (o.date || '').startsWith(ym)).length} SO
                     </span>
                   </button>
                 ))}
@@ -203,7 +233,7 @@ export default function Orders() {
       {/* Filter + Search + Buttons */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {STATUS_OPTS.map(s => (
+          {ALL_OPTS.map(s => (
             <button key={s} onClick={() => setStatusFilter(s)} style={{
               padding: '7px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 600,
               cursor: 'pointer', outline: 'none', border: 'none', transition: 'all 0.15s',
@@ -212,13 +242,17 @@ export default function Orders() {
               boxShadow: statusFilter === s ? 'none' : '0 0 0 1px #e2e8f0',
             }}>
               {s === 'semua' ? 'Semua' : (STATUS_CFG[s]?.label || s)}
+              {/* badge for DO tabs */}
+              {s === 'dispatched' && <span style={{ marginLeft: 5, fontSize: 10, background: statusFilter === s ? 'rgba(255,255,255,0.25)' : '#fff8e1', color: statusFilter === s ? 'white' : '#d97706', borderRadius: 99, padding: '1px 5px', fontWeight: 700 }}>DO</span>}
+              {s === 'delivered' && <span style={{ marginLeft: 5, fontSize: 10, background: statusFilter === s ? 'rgba(255,255,255,0.25)' : '#f0fdf4', color: statusFilter === s ? 'white' : '#16a34a', borderRadius: 99, padding: '1px 5px', fontWeight: 700 }}>DO</span>}
             </button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
             <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nomor SO atau klien..."
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={isDoTab ? 'Cari nomor DO atau klien...' : 'Cari nomor SO atau klien...'}
               style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px 8px 36px', fontSize: 13, outline: 'none', background: 'white', width: 220, color: '#0f172a', fontFamily: 'inherit' }} />
           </div>
           {canEdit && (
@@ -238,7 +272,14 @@ export default function Orders() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 520 }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                {['No. SO', 'Klien', 'Tanggal', 'Total', 'Status', 'Aksi'].map((h, i) => (
+                {[
+                  isDoTab ? 'No. DO' : 'No. SO',
+                  'Klien',
+                  'Tanggal',
+                  isDoTab ? 'Driver' : 'Total',
+                  'Status',
+                  'Aksi',
+                ].map((h, i) => (
                   <th key={h} style={{ padding: '12px 16px', fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: i === 3 ? 'right' : i >= 4 ? 'center' : 'left' }}>{h}</th>
                 ))}
               </tr>
@@ -247,10 +288,12 @@ export default function Orders() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                    {monthOrders.length === 0
-                      ? `Belum ada SO di ${fmtMonth(selectedMonth)}.`
-                      : 'Tidak ada SO yang cocok dengan filter.'}
-                    {canEdit && monthOrders.length === 0 && (
+                    {isDoTab
+                      ? `Belum ada DO ${STATUS_CFG[statusFilter]?.label || ''} di ${fmtMonth(selectedMonth)}.`
+                      : monthSoList.length === 0
+                        ? `Belum ada SO di ${fmtMonth(selectedMonth)}.`
+                        : 'Tidak ada SO yang cocok dengan filter.'}
+                    {canEdit && !isDoTab && monthSoList.length === 0 && (
                       <span onClick={() => navigate('/dashboard/documents', { state: { createType: 'SO' } })}
                         style={{ color: '#2563eb', cursor: 'pointer', marginLeft: 6, fontWeight: 600 }}>
                         Buat SO pertama →
@@ -267,10 +310,14 @@ export default function Orders() {
                     onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <td style={{ padding: '13px 16px', fontFamily: 'monospace', color: '#2563eb', fontWeight: 700, fontSize: 12 }}>{order.number}</td>
+                    <td style={{ padding: '13px 16px', fontFamily: 'monospace', color: order.type === 'DO' ? '#d97706' : '#2563eb', fontWeight: 700, fontSize: 12 }}>{order.number}</td>
                     <td style={{ padding: '13px 16px', color: '#0f172a', fontWeight: 500 }}>{order.clientName}</td>
                     <td style={{ padding: '13px 16px', color: '#94a3b8', fontSize: 12 }}>{fmtDate(order.date)}</td>
-                    <td style={{ padding: '13px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{fmt(order.total)}</td>
+                    <td style={{ padding: '13px 16px', textAlign: 'right', fontWeight: 600, color: order.type === 'DO' ? '#0f172a' : '#0f172a' }}>
+                      {order.type === 'DO'
+                        ? (order.driverName || <span style={{ color: '#cbd5e1', fontWeight: 400 }}>Belum ditugaskan</span>)
+                        : fmt(order.total)}
+                    </td>
                     <td style={{ padding: '13px 16px', textAlign: 'center' }}>
                       <span style={{ fontSize: 11.5, fontWeight: 600, padding: '4px 10px', borderRadius: 20, background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`, display: 'inline-block', whiteSpace: 'nowrap' }}>
                         {sc.label}
@@ -299,7 +346,12 @@ export default function Orders() {
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 640, margin: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid #f1f5f9' }}>
               <div>
-                <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: 15, margin: 0 }}>{view.number}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: 15, margin: 0 }}>{view.number}</h3>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: view.type === 'DO' ? '#fff8e1' : '#eff6ff', color: view.type === 'DO' ? '#d97706' : '#2563eb' }}>
+                    {view.type}
+                  </span>
+                </div>
                 <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0' }}>{view.clientName}</p>
               </div>
               <button onClick={() => setView(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex', alignItems: 'center' }}>
@@ -312,7 +364,13 @@ export default function Orders() {
                 {[
                   { label: 'Tanggal', val: fmtDate(view.date) },
                   { label: 'Dibuat oleh', val: view.createdByName || '–' },
-                  ...(canEdit && view.total != null ? [{ label: 'Total', val: fmt(view.total) }] : []),
+                  ...(view.type === 'DO' ? [
+                    { label: 'Driver', val: view.driverName || 'Belum ditugaskan' },
+                    { label: 'Kendaraan', val: view.vehicle || '–' },
+                    ...(view.refNumber ? [{ label: 'Ref. SO', val: view.refNumber }] : []),
+                  ] : [
+                    ...(canEdit && view.total != null ? [{ label: 'Total', val: fmt(view.total) }] : []),
+                  ]),
                 ].map(({ label, val }) => (
                   <div key={label} style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 14px' }}>
                     <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
@@ -322,12 +380,12 @@ export default function Orders() {
 
                 <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 14px' }}>
                   <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status</p>
-                  {canEdit ? (
+                  {canEdit && view.type === 'SO' ? (
                     <div style={{ position: 'relative' }}>
                       <select
                         value={view.status}
                         disabled={updatingStatus}
-                        onChange={e => updateOrderStatus(e.target.value)}
+                        onChange={e => updateSoStatus(e.target.value)}
                         style={{
                           appearance: 'none', width: '100%', padding: '6px 28px 6px 10px',
                           border: `1px solid ${STATUS_CFG[view.status]?.border || '#e2e8f0'}`,
@@ -337,7 +395,7 @@ export default function Orders() {
                           cursor: updatingStatus ? 'wait' : 'pointer', fontFamily: 'inherit',
                         }}
                       >
-                        {Object.entries(STATUS_CFG).map(([k, v]) => (
+                        {Object.entries(STATUS_CFG).filter(([k]) => SO_OPTS.includes(k) || k === 'confirmed').map(([k, v]) => (
                           <option key={k} value={k}>{v.label}</option>
                         ))}
                       </select>
@@ -351,19 +409,31 @@ export default function Orders() {
                 </div>
               </div>
 
-              {canEdit && (
+              {canEdit && view.type === 'SO' && (
                 <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>
                   * Stok otomatis dikurangi saat status diubah ke <strong>Terkirim</strong>
                 </p>
               )}
+              {view.type === 'DO' && view.status === 'dispatched' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#fff8e1', borderRadius: 10, border: '1px solid #fde68a' }}>
+                  <Truck size={14} color="#d97706" />
+                  <p style={{ fontSize: 12.5, color: '#92400e', margin: 0 }}>Menunggu laporan pengiriman dari driver</p>
+                </div>
+              )}
+              {view.type === 'DO' && view.status === 'delivered' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0' }}>
+                  <CheckCircle2 size={14} color="#16a34a" />
+                  <p style={{ fontSize: 12.5, color: '#14532d', margin: 0 }}>Pengiriman selesai — laporan sudah masuk</p>
+                </div>
+              )}
 
               <div>
-                <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Item Pesanan</p>
+                <p style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Item {view.type === 'DO' ? 'Pengiriman' : 'Pesanan'}</p>
                 <div style={{ border: '1px solid #f1f5f9', borderRadius: 10, overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                     <thead>
                       <tr style={{ background: '#f8fafc' }}>
-                        {['Produk', 'Qty', ...(canEdit ? ['Harga', 'Subtotal'] : [])].map((h, i) => (
+                        {['Produk', 'Qty', ...(canEdit && view.type === 'SO' ? ['Harga', 'Subtotal'] : [])].map((h, i) => (
                           <th key={h} style={{ padding: '10px 12px', textAlign: i === 0 ? 'left' : 'right', color: '#94a3b8', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
                         ))}
                       </tr>
@@ -373,13 +443,13 @@ export default function Orders() {
                         <tr key={i} style={{ borderTop: '1px solid #f8fafc' }}>
                           <td style={{ padding: '10px 12px', color: '#0f172a' }}>{item.name}</td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{item.qty} {item.unit}</td>
-                          {canEdit && <>
+                          {canEdit && view.type === 'SO' && <>
                             <td style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8' }}>{fmt(item.price)}</td>
                             <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>{fmt(item.total)}</td>
                           </>}
                         </tr>
                       ))}
-                      {canEdit && view.total != null && (
+                      {canEdit && view.type === 'SO' && view.total != null && (
                         <tr style={{ borderTop: '1px solid #f1f5f9', background: '#f8fafc' }}>
                           <td colSpan={3} style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Total</td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>{fmt(view.total)}</td>
