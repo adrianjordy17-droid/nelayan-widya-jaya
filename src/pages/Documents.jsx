@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Plus, Printer, X, Check, Trash2, FileText,
-  ClipboardList, Truck, PackageCheck, Receipt, ChevronDown,
+  ClipboardList, Truck, PackageCheck, Receipt, ChevronDown, Bell, BellOff,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -32,7 +32,6 @@ const STATUS_CFG = {
 const UNITS = ['kg', 'ekor', 'ikat', 'box', 'pcs', 'liter', 'ton']
 const CONDITIONS = ['Baik', 'Cukup', 'Kurang']
 
-// ── Helpers ──
 function fmtRp(n) { return n != null ? 'Rp ' + Math.round(n).toLocaleString('id-ID') : '–' }
 function fmtDate(s) {
   if (!s) return '–'
@@ -355,7 +354,6 @@ function FieldRow({ label, children, last }) {
 const inputR = { border: 'none', outline: 'none', textAlign: 'right', fontSize: 14, color: '#3c3c43', background: 'transparent', ...FF, width: '100%' }
 const selectR = { border: 'none', outline: 'none', textAlign: 'right', fontSize: 14, color: '#3c3c43', background: 'transparent', ...FF }
 
-// ── Section label ──
 function SLabel({ text }) {
   return <p style={{ fontSize: 11, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 7 }}>{text}</p>
 }
@@ -370,19 +368,24 @@ export default function Documents() {
   const canEdit = isRole('admin') || isRole('owner')
   const isStaff = isRole('staff')
 
-  const [docs, setDocs]   = useState([])
+  const [docs, setDocs]     = useState([])
   const [clients, setClients] = useState([])
   const [staffList, setStaffList] = useState([])
-  const [tab, setTab]     = useState(isStaff ? 'DO' : 'all')
-  const [menu, setMenu]   = useState(false)
-  const [form, setForm]   = useState(null)
+  const [tab, setTab]       = useState(isStaff ? 'DO' : 'all')
+  const [menu, setMenu]     = useState(false)
+  const [form, setForm]     = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [detail, setDetail] = useState(null)
+  const [toast, setToast]   = useState(null)   // { title, body, doc }
+  const [notifPerm, setNotifPerm] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  )
 
   const navigate = useNavigate()
   const createType = form?.type || null
 
+  // ── Initial fetch ──
   useEffect(() => {
     supabase.from('documents').select('*').order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -390,6 +393,66 @@ export default function Documents() {
         setDocs(data.map(dbToDoc).filter(d => !(d.type === 'SO' && d.status === 'confirmed')))
       })
   }, [])
+
+  // ── Request notification permission on load ──
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then(p => setNotifPerm(p))
+    }
+  }, [])
+
+  // ── Realtime subscription ──
+  useEffect(() => {
+    const channel = supabase
+      .channel('docs-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'documents' }, ({ new: r }) => {
+        const doc = dbToDoc(r)
+        setDocs(prev => {
+          if (prev.find(d => d.id === doc.id)) return prev
+          if (doc.type === 'SO' && doc.status === 'confirmed') return prev
+          return [doc, ...prev]
+        })
+        // Notify only if created by someone else
+        if (r.created_by !== user?.id) {
+          const title = `${DOC_CFG[doc.type]?.label || 'Dokumen'} Baru`
+          const body  = `${doc.number} · ${doc.clientName}`
+          showToast(title, body, doc)
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'documents' }, ({ new: r }) => {
+        const doc = dbToDoc(r)
+        setDocs(prev =>
+          prev.map(d => d.id === doc.id ? doc : d)
+            .filter(d => !(d.type === 'SO' && d.status === 'confirmed'))
+        )
+        if (r.created_by !== user?.id) {
+          const title = `Update ${DOC_CFG[doc.type]?.label || 'Dokumen'}`
+          const body  = `${doc.number} · ${STATUS_CFG[doc.status]?.label || doc.status}`
+          showToast(title, body, doc)
+        }
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [user?.id])
+
+  function showToast(title, body, doc) {
+    setToast({ title, body, doc })
+    setTimeout(() => setToast(null), 6000)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try {
+        const n = new Notification(title, { body, icon: '/pwa-192x192.png', tag: doc?.id })
+        n.onclick = () => { window.focus(); n.close() }
+      } catch { /* Safari may block */ }
+    }
+  }
+
+  async function requestNotif() {
+    if (typeof Notification === 'undefined') return
+    const p = await Notification.requestPermission()
+    setNotifPerm(p)
+  }
 
   useEffect(() => {
     if (location.state?.createType) {
@@ -416,11 +479,7 @@ export default function Documents() {
     return `${prefix}-${ym}-${String((count || 0) + 1).padStart(3, '0')}`
   }
 
-  function openCreate(type) {
-    setForm(emptyForm(type))
-    setMenu(false)
-    setSaved(false)
-  }
+  function openCreate(type) { setForm(emptyForm(type)); setMenu(false); setSaved(false) }
 
   function openCreateFrom(type, sourceDoc) {
     const withPrice = type === 'SO' || type === 'Invoice'
@@ -434,15 +493,11 @@ export default function Documents() {
       items: sourceDoc.items.map(it => ({
         ...it, id: newId(),
         price: withPrice ? (it.price ?? '') : null,
-        receivedQty: '',
-        condition: 'Baik',
+        receivedQty: '', condition: 'Baik',
         total: withPrice ? (it.total ?? 0) : null,
       })),
     }
-    setDetail(null)
-    setForm(withPrice ? recalcForm(f) : f)
-    setMenu(false)
-    setSaved(false)
+    setDetail(null); setForm(withPrice ? recalcForm(f) : f); setMenu(false); setSaved(false)
   }
 
   function openEdit(doc) {
@@ -458,10 +513,7 @@ export default function Documents() {
       bankName: doc.bankName || '', accountNumber: doc.accountNumber || '', accountName: doc.accountName || '',
       notes: doc.notes || '',
     }
-    setDetail(null)
-    setForm(withPrice ? recalcForm(f) : f)
-    setMenu(false)
-    setSaved(false)
+    setDetail(null); setForm(withPrice ? recalcForm(f) : f); setMenu(false); setSaved(false)
   }
 
   function setF(patch) {
@@ -472,10 +524,7 @@ export default function Documents() {
   }
 
   function updateItem(idx, updated) {
-    setF(prev => {
-      const items = prev.items.map((it, i) => i === idx ? updated : it)
-      return { ...prev, items }
-    })
+    setF(prev => ({ ...prev, items: prev.items.map((it, i) => i === idx ? updated : it) }))
   }
   function addItem() {
     setF(prev => ({ ...prev, items: [...prev.items, blankItem(prev.type === 'SO' || prev.type === 'Invoice')] }))
@@ -521,13 +570,8 @@ export default function Documents() {
       notes: notes ? (prev.notes ? prev.notes + '\n' + notes : notes) : prev.notes,
       items: items.length > 0
         ? items.map(it => ({
-            id: newId(),
-            name: it.name,
-            qty: String(it.qty || ''),
-            unit: 'kg',
-            price: it.price ? String(it.price) : '',
-            receivedQty: '',
-            condition: 'Baik',
+            id: newId(), name: it.name, qty: String(it.qty || ''), unit: 'kg',
+            price: it.price ? String(it.price) : '', receivedQty: '', condition: 'Baik',
             total: Math.round((Number(it.qty) || 0) * (Number(it.price) || 0))
           }))
         : prev.items
@@ -607,18 +651,14 @@ export default function Documents() {
         const doc = buildDoc({ id: form.editId, number: orig.number || '', createdByName: orig.createdByName || profile?.name || '', createdAt: orig.createdAt || new Date().toISOString() })
         setDocs(prev => prev.map(d => d.id === form.editId ? doc : d))
         await pushDocToDB(doc, false)
-        if (doc.type === 'SO' && doc.status === 'confirmed' && orig.status !== 'confirmed') {
-          await autoCreateDO(doc)
-        }
+        if (doc.type === 'SO' && doc.status === 'confirmed' && orig.status !== 'confirmed') await autoCreateDO(doc)
       } else {
         const id = newId()
         const number = await getNextNumber(form.type)
         const doc = buildDoc({ id, number, createdByName: profile?.name || '', createdAt: new Date().toISOString() })
         setDocs(prev => [doc, ...prev])
         await pushDocToDB(doc, true)
-        if (doc.type === 'SO' && doc.status === 'confirmed') {
-          await autoCreateDO(doc)
-        }
+        if (doc.type === 'SO' && doc.status === 'confirmed') await autoCreateDO(doc)
       }
       setSaved(true)
       setTimeout(() => { setSaved(false); setForm(null) }, 900)
@@ -635,49 +675,88 @@ export default function Documents() {
   const soList = docs.filter(d => d.type === 'SO')
   const doList = docs.filter(d => d.type === 'DO')
 
-  // ── Render ──
   return (
     <div style={{ maxWidth: 720, ...FF, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ── In-app toast ── */}
+      {toast && (
+        <div
+          onClick={() => { if (toast.doc) setDetail(toast.doc); setToast(null) }}
+          style={{
+            position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 999, background: '#1c1c1e', color: 'white', borderRadius: 16,
+            padding: '12px 16px', boxShadow: '0 8px 32px rgba(0,0,0,.28)',
+            display: 'flex', alignItems: 'center', gap: 12, maxWidth: 340, width: 'calc(100% - 40px)',
+            cursor: 'pointer', ...FF, animation: 'slideDown .25s ease',
+          }}
+        >
+          {toast.doc && (() => { const cfg = DOC_CFG[toast.doc.type]; if (!cfg) return null; const I = cfg.Icon; return (
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <I size={15} color={cfg.color} />
+            </div>
+          )})()}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>{toast.title}</p>
+            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,.65)', marginTop: 1 }}>{toast.body}</p>
+          </div>
+          <button onClick={e => { e.stopPropagation(); setToast(null) }}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>
           {isStaff ? 'Tugas Pengiriman' : 'Dokumen'}
         </h2>
-        {canEdit && (
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setMenu(v => !v)} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: '#007aff', color: 'white', border: 'none',
-              borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF,
-            }}>
-              <Plus size={15} /> Buat <ChevronDown size={13} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Bell button */}
+          {notifPerm !== 'unsupported' && (
+            <button
+              onClick={requestNotif}
+              title={notifPerm === 'granted' ? 'Notifikasi aktif' : 'Klik untuk aktifkan notifikasi'}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 8, color: notifPerm === 'granted' ? '#34c759' : '#c7c7cc', display: 'flex', alignItems: 'center' }}
+            >
+              {notifPerm === 'granted' ? <Bell size={18} /> : <BellOff size={18} />}
             </button>
-            {menu && (
-              <div style={{
-                position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20,
-                background: 'white', borderRadius: 13, overflow: 'hidden', minWidth: 180,
-                boxShadow: '0 8px 32px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.08)',
+          )}
+          {canEdit && (
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setMenu(v => !v)} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: '#007aff', color: 'white', border: 'none',
+                borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF,
               }}>
-                {Object.entries(DOC_CFG).map(([type, cfg]) => (
-                  <button key={type} onClick={() => openCreate(type)} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                    padding: '11px 16px', background: 'none', border: 'none', cursor: 'pointer',
-                    borderBottom: type !== 'Invoice' ? '0.5px solid #f0f0f0' : 'none', textAlign: 'left', ...FF,
-                  }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 7, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <cfg.Icon size={14} color={cfg.color} />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{cfg.label}</p>
-                      <p style={{ fontSize: 11, color: '#8e8e93', margin: 0 }}>{type}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                <Plus size={15} /> Buat <ChevronDown size={13} />
+              </button>
+              {menu && (
+                <div style={{
+                  position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20,
+                  background: 'white', borderRadius: 13, overflow: 'hidden', minWidth: 180,
+                  boxShadow: '0 8px 32px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.08)',
+                }}>
+                  {Object.entries(DOC_CFG).map(([type, cfg]) => (
+                    <button key={type} onClick={() => openCreate(type)} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      padding: '11px 16px', background: 'none', border: 'none', cursor: 'pointer',
+                      borderBottom: type !== 'Invoice' ? '0.5px solid #f0f0f0' : 'none', textAlign: 'left', ...FF,
+                    }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 7, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <cfg.Icon size={14} color={cfg.color} />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{cfg.label}</p>
+                        <p style={{ fontSize: 11, color: '#8e8e93', margin: 0 }}>{type}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -724,9 +803,7 @@ export default function Documents() {
                   {doc.refNumber && <p style={{ fontSize: 11.5, color: '#8e8e93', margin: '2px 0 0' }}>Ref: {doc.refNumber}</p>}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>
-                    {doc.total ? fmtRp(doc.total) : ''}
-                  </p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{doc.total ? fmtRp(doc.total) : ''}</p>
                   <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>{fmtDate(doc.date)}</p>
                 </div>
               </div>
@@ -739,7 +816,6 @@ export default function Documents() {
       {form && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && setForm(null)}>
           <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 620, maxHeight: '94vh', overflowY: 'auto', ...FF }}>
-            {/* Modal header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
               <button onClick={() => setForm(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}><X size={22} /></button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -758,8 +834,6 @@ export default function Documents() {
             </div>
 
             <div style={{ padding: '20px 16px' }}>
-
-              {/* ── IMPORT PO — hanya untuk SO baru ── */}
               {createType === 'SO' && !form.editId && (
                 <>
                   <SLabel text="Import dari PO Klien (Opsional)" />
@@ -769,7 +843,6 @@ export default function Documents() {
                 </>
               )}
 
-              {/* Info Dasar */}
               <SLabel text="Informasi Dasar" />
               <Card>
                 <FieldRow label="Tanggal">
@@ -785,7 +858,6 @@ export default function Documents() {
                 </FieldRow>
               </Card>
 
-              {/* Referensi dokumen */}
               {(createType === 'DO' || createType === 'GR' || createType === 'Invoice') && (
                 <>
                   <SLabel text={createType === 'GR' ? 'Referensi DO' : 'Referensi SO'} />
@@ -802,7 +874,6 @@ export default function Documents() {
                 </>
               )}
 
-              {/* Klien */}
               <SLabel text="Data Klien / Tujuan" />
               <Card>
                 <FieldRow label="Nama Klien">
@@ -835,7 +906,6 @@ export default function Documents() {
                 </FieldRow>
               </Card>
 
-              {/* DO: Info pengiriman */}
               {createType === 'DO' && (
                 <>
                   <SLabel text="Info Pengiriman" />
@@ -860,7 +930,6 @@ export default function Documents() {
                 </>
               )}
 
-              {/* Invoice: Due date & bank */}
               {createType === 'Invoice' && (
                 <>
                   <SLabel text="Info Pembayaran" />
@@ -884,7 +953,6 @@ export default function Documents() {
                 </>
               )}
 
-              {/* Items */}
               <SLabel text={createType === 'GR' ? 'Barang Diterima' : 'Item / Barang'} />
               <div style={{ background: 'white', borderRadius: 13, padding: '12px 14px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)', marginBottom: 10 }}>
                 <div style={{ display: 'flex', gap: 6, padding: '0 0 8px', borderBottom: '0.5px solid #f0f0f0', marginBottom: 4 }}>
@@ -909,7 +977,6 @@ export default function Documents() {
                 }}>+ Tambah Item</button>
               </div>
 
-              {/* Totals (SO & Invoice) */}
               {(createType === 'SO' || createType === 'Invoice') && (
                 <>
                   <SLabel text="Total" />
@@ -930,7 +997,6 @@ export default function Documents() {
                 </>
               )}
 
-              {/* Catatan */}
               <SLabel text="Catatan (opsional)" />
               <div style={{ background: 'white', borderRadius: 13, padding: '12px 16px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)', marginBottom: 8 }}>
                 <textarea value={form.notes} onChange={e => setF({ notes: e.target.value })}
@@ -947,7 +1013,6 @@ export default function Documents() {
       {detail && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && setDetail(null)}>
           <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 620, maxHeight: '88vh', overflowY: 'auto', ...FF }}>
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {(() => { const cfg = DOC_CFG[detail.type]; const I = cfg.Icon; return (
@@ -976,7 +1041,6 @@ export default function Documents() {
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-              {/* Status & meta */}
               <Card>
                 {[
                   ['Nomor', detail.number],
@@ -994,7 +1058,6 @@ export default function Documents() {
                 ))}
               </Card>
 
-              {/* Client */}
               <div>
                 <SLabel text="Klien" />
                 <Card>
@@ -1007,7 +1070,6 @@ export default function Documents() {
                 </Card>
               </div>
 
-              {/* Items */}
               <div>
                 <SLabel text="Item" />
                 <div style={{ background: 'white', borderRadius: 13, overflow: 'hidden', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)' }}>
@@ -1027,7 +1089,6 @@ export default function Documents() {
                 </div>
               </div>
 
-              {/* Totals — hidden from staff */}
               {!isStaff && detail.total != null && (
                 <div>
                   <SLabel text="Total" />
@@ -1040,7 +1101,6 @@ export default function Documents() {
                 </div>
               )}
 
-              {/* Bank (Invoice) — hidden from staff */}
               {!isStaff && detail.bankName && (
                 <div>
                   <SLabel text="Info Pembayaran" />
@@ -1052,7 +1112,6 @@ export default function Documents() {
                 </div>
               )}
 
-              {/* Notes */}
               {detail.notes && (
                 <div>
                   <SLabel text="Catatan" />
@@ -1062,44 +1121,33 @@ export default function Documents() {
                 </div>
               )}
 
-              {/* Action Buttons */}
               {canEdit && (detail.status === 'draft' || (detail.type === 'DO' && detail.status === 'dispatched')) && (
-                <button
-                  onClick={() => openEdit(detail)}
-                  style={{ width: '100%', padding: '15px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
+                <button onClick={() => openEdit(detail)}
+                  style={{ width: '100%', padding: '15px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   {detail.type === 'DO' && detail.status === 'dispatched' ? 'Ganti Driver' : 'Edit / Konfirmasi'}
                 </button>
               )}
               {isStaff && detail.type === 'DO' && detail.status === 'dispatched' && (
-                <button
-                  onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
-                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
+                <button onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
+                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <Truck size={16} /> Kirim Laporan
                 </button>
               )}
               {canEdit && detail.type === 'SO' && detail.status === 'confirmed' && (
-                <button
-                  onClick={() => openCreateFrom('DO', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
+                <button onClick={() => openCreateFrom('DO', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <Truck size={16} /> Buat Delivery Order
                 </button>
               )}
               {canEdit && detail.type === 'DO' && detail.status === 'delivered' && (
-                <button
-                  onClick={() => openCreateFrom('GR', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
+                <button onClick={() => openCreateFrom('GR', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <PackageCheck size={16} /> Buat Goods Receipt
                 </button>
               )}
               {canEdit && detail.type === 'GR' && detail.status === 'received' && (
-                <button
-                  onClick={() => openCreateFrom('Invoice', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#af52de', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
+                <button onClick={() => openCreateFrom('Invoice', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#af52de', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <Receipt size={16} /> Buat Invoice
                 </button>
               )}
@@ -1109,7 +1157,6 @@ export default function Documents() {
         </div>
       )}
 
-      {/* Close menu on outside click */}
       {menu && <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setMenu(false)} />}
     </div>
   )
