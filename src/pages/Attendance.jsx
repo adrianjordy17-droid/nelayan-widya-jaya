@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Camera, CheckCircle, Clock, XCircle, Upload, Plus, Edit2, Trash2, X, Check, UserCheck, UserX, Users, Settings } from 'lucide-react'
+import { Camera, CheckCircle, Clock, XCircle, Upload, Plus, Edit2, Trash2, X, Check, UserCheck, UserX, Users, Settings, CalendarDays } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 
 const TODAY = new Date().toISOString().slice(0, 10)
+const THIS_MONTH = TODAY.slice(0, 7)
 
 const STATUS_CFG = {
   hadir: { bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' },
@@ -30,42 +31,65 @@ const inputStyle = {
   background: 'white', outline: 'none', boxSizing: 'border-box',
 }
 
-export default function Attendance() {
-  const { profile, hasPermission } = useAuth()
-  const isOwner = profile?.role === 'owner'
-  const canManage = hasPermission('attendance')
+function StatCard({ label, value, sub, Icon, iconColor, iconBg }) {
+  return (
+    <div style={{
+      background: 'white', borderRadius: 14, padding: '18px 20px',
+      border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+        <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0 }}>{label}</p>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon size={16} color={iconColor} strokeWidth={2} />
+        </div>
+      </div>
+      <p style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.02em' }}>{value}</p>
+      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
+    </div>
+  )
+}
 
-  const [log, setLog]               = useState([])
-  const [selfie, setSelfie]           = useState(null)
-  const [submitted, setSubmitted]     = useState(false)
+export default function Attendance() {
+  const { user, profile } = useAuth()
+  const isOwner  = profile?.role === 'owner'
+  const isStaff  = profile?.role === 'staff'
+  const canManage = profile?.role === 'owner' || profile?.role === 'admin'
+
+  const [log, setLog]                       = useState([])
+  const [selfie, setSelfie]                 = useState(null)
+  const [submitted, setSubmitted]           = useState(false)
   const [submittedPulang, setSubmittedPulang] = useState(false)
-  const [dateView, setDateView]     = useState(TODAY)
-  const [modal, setModal]           = useState(null)
-  const [form, setForm]             = useState(null)
-  const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const [staffList, setStaffList]   = useState([])
-  const [schedule, setSchedule]     = useState(loadSchedule)
-  const [schedForm, setSchedForm]   = useState(null)
+  const [dateView, setDateView]             = useState(TODAY)
+  const [modal, setModal]                   = useState(null)
+  const [form, setForm]                     = useState(null)
+  const [deleteConfirm, setDeleteConfirm]   = useState(null)
+  const [staffList, setStaffList]           = useState([])
+  const [schedule, setSchedule]             = useState(loadSchedule)
+  const [schedForm, setSchedForm]           = useState(null)
   const fileRef = useRef()
 
   useEffect(() => {
-    supabase.from('attendance').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => setLog(data || []))
-  }, [])
+    if (!profile) return
+    let q = supabase.from('attendance').select('*').order('created_at', { ascending: false })
+    if (isStaff) q = q.eq('name', profile.name)
+    q.then(({ data }) => setLog(data || []))
+  }, [profile?.name, isStaff])
 
   useEffect(() => {
+    if (!canManage) return
     supabase.from('profiles').select('id, name, role').in('role', ['staff', 'admin'])
       .then(({ data }) => setStaffList(data || []))
-  }, [])
+  }, [canManage])
 
-  const today   = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
-  const nowTime = format(new Date(), 'HH:mm')
+  const today    = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
+  const nowTime  = format(new Date(), 'HH:mm')
   const jamMasuk = schedule.jamMasuk || '08:00'
 
   function handlePhoto(e) {
     const file = e.target.files[0]
     if (!file) return
     setSelfie(URL.createObjectURL(file))
+    e.target.value = ''
   }
 
   async function submitSelfie() {
@@ -104,9 +128,13 @@ export default function Attendance() {
   }
 
   function openAdd() {
-    const defaultName = staffList[0]?.name || ''
     setModal('add')
-    setForm({ name: defaultName, role: 'staff', type: 'masuk', time: '07:00', date: TODAY, photo: null, status: 'hadir', catatan: '' })
+    setForm({
+      name: staffList[0]?.name || '',
+      role: 'staff', type: 'masuk',
+      time: '07:00', date: TODAY,
+      photo: null, status: 'hadir', catatan: '',
+    })
   }
 
   function openEdit(entry) { setModal('edit'); setForm({ ...entry }) }
@@ -138,20 +166,27 @@ export default function Attendance() {
     setSchedForm(null)
   }
 
-  const viewLog  = log.filter(e => e.date === dateView)
-  const todayLog = log.filter(e => e.date === TODAY && e.type !== 'pulang')
-  const hadir    = todayLog.filter(e => e.status === 'hadir').length
-  const telat    = todayLog.filter(e => e.status === 'telat').length
-  const absen    = todayLog.filter(e => e.status === 'absen').length
+  const todayLog   = log.filter(e => e.date === TODAY && e.type !== 'pulang')
+  const hadirAll   = todayLog.filter(e => e.status === 'hadir').length
+  const telatAll   = todayLog.filter(e => e.status === 'telat').length
+  const absenAll   = todayLog.filter(e => e.status === 'absen').length
   const totalStaff = new Set(log.filter(e => e.type !== 'pulang').map(e => e.name)).size
+
+  const myMonthMasuk = log.filter(e => e.date.startsWith(THIS_MONTH) && e.type === 'masuk')
+  const myHadir = myMonthMasuk.filter(e => e.status === 'hadir').length
+  const myTelat = myMonthMasuk.filter(e => e.status === 'telat').length
+  const myIzin  = myMonthMasuk.filter(e => e.status === 'izin').length
+  const myAbsen = myMonthMasuk.filter(e => e.status === 'absen').length
 
   const myMasukEntry  = log.find(e => e.date === TODAY && e.name === profile?.name && e.type === 'masuk')
   const myPulangEntry = log.find(e => e.date === TODAY && e.name === profile?.name && e.type === 'pulang')
 
+  const viewLog = log.filter(e => e.date === dateView)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* ── OWNER: Jam Kerja Settings card ── */}
+      {/* ── OWNER: Atur Jam Kerja ── */}
       {isOwner && (
         <div style={{
           borderRadius: 14, padding: '20px 24px',
@@ -162,18 +197,17 @@ export default function Attendance() {
           <div>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: 'white', margin: '0 0 4px' }}>Jam Kerja</h3>
             <p style={{ fontSize: 12.5, color: '#93c5fd', margin: 0 }}>
-              Batas masuk: <strong style={{ color: 'white' }}>{jamMasuk} WIB</strong> — lewat jam ini otomatis <span style={{ color: '#fde68a' }}>Telat</span>
+              Batas masuk: <strong style={{ color: 'white' }}>{jamMasuk} WIB</strong>
+              {' — '}lewat jam ini otomatis <span style={{ color: '#fde68a' }}>Telat</span>
             </p>
           </div>
-          <button
-            onClick={() => setSchedForm({ jamMasuk })}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: 'white', color: '#1e3a8a',
-              border: 'none', borderRadius: 10, padding: '10px 18px',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-            }}>
+          <button onClick={() => setSchedForm({ jamMasuk })} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'white', color: '#1e3a8a',
+            border: 'none', borderRadius: 10, padding: '10px 18px',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+          }}>
             <Settings size={15} /> Atur Jam Kerja
           </button>
         </div>
@@ -194,15 +228,12 @@ export default function Attendance() {
           {(myPulangEntry || submittedPulang) ? (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 12,
-              background: 'rgba(34,197,94,0.15)',
-              border: '1px solid rgba(134,239,172,0.3)',
+              background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(134,239,172,0.3)',
               borderRadius: 12, padding: '14px 18px',
             }}>
               <CheckCircle size={22} color="#86efac" style={{ flexShrink: 0 }} />
               <div>
-                <p style={{ fontWeight: 600, color: 'white', margin: '0 0 2px', fontSize: 14 }}>
-                  Absensi hari ini lengkap!
-                </p>
+                <p style={{ fontWeight: 600, color: 'white', margin: '0 0 2px', fontSize: 14 }}>Absensi hari ini lengkap!</p>
                 <p style={{ fontSize: 12, color: '#93c5fd', margin: 0 }}>
                   Masuk: {myMasukEntry?.time || '—'} WIB &nbsp;·&nbsp; Pulang: {myPulangEntry?.time || nowTime} WIB
                 </p>
@@ -221,9 +252,7 @@ export default function Attendance() {
                   <p style={{ fontWeight: 600, color: 'white', margin: '0 0 2px', fontSize: 14 }}>
                     {myMasukEntry?.status === 'telat' ? 'Absen masuk tercatat — Terlambat' : 'Absen masuk sudah tercatat!'}
                   </p>
-                  <p style={{ fontSize: 12, color: '#93c5fd', margin: 0 }}>
-                    Pukul {myMasukEntry?.time || nowTime} WIB
-                  </p>
+                  <p style={{ fontSize: 12, color: '#93c5fd', margin: 0 }}>Pukul {myMasukEntry?.time || nowTime} WIB</p>
                 </div>
               </div>
               <button onClick={submitPulang} style={{
@@ -247,8 +276,7 @@ export default function Attendance() {
                       <button onClick={submitSelfie} style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         background: '#16a34a', color: 'white', border: 'none',
-                        borderRadius: 10, padding: '9px 16px', fontSize: 13,
-                        fontWeight: 600, cursor: 'pointer',
+                        borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       }}>
                         <CheckCircle size={15} /> Konfirmasi Hadir
                       </button>
@@ -291,39 +319,41 @@ export default function Attendance() {
       )}
 
       {/* ── Stat Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-        {[
-          { label: 'Hadir Hari Ini', value: hadir,      sub: 'tepat waktu',     Icon: UserCheck, iconColor: '#16a34a', iconBg: '#f0fdf4' },
-          { label: 'Telat',          value: telat,      sub: 'terlambat masuk', Icon: Clock,     iconColor: '#d97706', iconBg: '#fffbeb' },
-          { label: 'Absen',          value: absen,      sub: 'tidak hadir',     Icon: UserX,     iconColor: '#dc2626', iconBg: '#fef2f2' },
-          { label: 'Total Karyawan', value: totalStaff, sub: 'tercatat',        Icon: Users,     iconColor: '#2563eb', iconBg: '#eff6ff' },
-        ].map(({ label, value, sub, Icon, iconColor, iconBg }) => (
-          <div key={label} style={{
-            background: 'white', borderRadius: 14, padding: '18px 20px',
-            border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-              <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0 }}>{label}</p>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icon size={16} color={iconColor} strokeWidth={2} />
-              </div>
-            </div>
-            <p style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.02em' }}>{value}</p>
-            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
-          </div>
-        ))}
-      </div>
+      {isStaff ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+          <StatCard label="Hadir"  value={myHadir} sub="bulan ini" Icon={UserCheck}    iconColor="#16a34a" iconBg="#f0fdf4" />
+          <StatCard label="Telat"  value={myTelat} sub="bulan ini" Icon={Clock}        iconColor="#d97706" iconBg="#fffbeb" />
+          <StatCard label="Izin"   value={myIzin}  sub="bulan ini" Icon={CalendarDays} iconColor="#2563eb" iconBg="#eff6ff" />
+          <StatCard label="Absen"  value={myAbsen} sub="bulan ini" Icon={UserX}        iconColor="#dc2626" iconBg="#fef2f2" />
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+          <StatCard label="Hadir Hari Ini"  value={hadirAll}   sub="tepat waktu"     Icon={UserCheck} iconColor="#16a34a" iconBg="#f0fdf4" />
+          <StatCard label="Telat"           value={telatAll}   sub="terlambat masuk" Icon={Clock}     iconColor="#d97706" iconBg="#fffbeb" />
+          <StatCard label="Absen"           value={absenAll}   sub="tidak hadir"     Icon={UserX}     iconColor="#dc2626" iconBg="#fef2f2" />
+          <StatCard label="Total Karyawan"  value={totalStaff} sub="tercatat"        Icon={Users}     iconColor="#2563eb" iconBg="#eff6ff" />
+        </div>
+      )}
 
-      {/* ── Log Table ── */}
+      {/* ── Log Absensi ── */}
       <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #f1f5f9', gap: 12 }}>
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center',
+          justifyContent: 'space-between', padding: '16px 20px',
+          borderBottom: '1px solid #f1f5f9', gap: 12,
+        }}>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Log Absensi</p>
-            <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0 }}>{viewLog.length} catatan untuk tanggal yang dipilih</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>
+              {isStaff ? 'Riwayat Absensi Saya' : 'Log Absensi'}
+            </p>
+            <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0 }}>
+              {viewLog.length} catatan untuk tanggal yang dipilih
+            </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
-              type="date" value={dateView} onChange={e => setDateView(e.target.value)}
+              type="date" value={dateView}
+              onChange={e => setDateView(e.target.value)}
               style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', color: '#0f172a', background: 'white' }}
             />
             {canManage && (
@@ -344,9 +374,13 @@ export default function Attendance() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                {['Nama', 'Jabatan', 'Tipe', 'Jam', 'Status', 'Catatan', 'Foto', canManage ? 'Aksi' : null].filter(Boolean).map(h => (
+                {(isStaff
+                  ? ['Tipe', 'Jam', 'Status', 'Catatan', 'Foto']
+                  : ['Nama', 'Jabatan', 'Tipe', 'Jam', 'Status', 'Catatan', 'Foto', 'Aksi']
+                ).map(h => (
                   <th key={h} style={{
-                    padding: '12px 16px', textAlign: h === 'Status' || h === 'Foto' || h === 'Aksi' ? 'center' : 'left',
+                    padding: '12px 16px',
+                    textAlign: ['Status', 'Foto', 'Aksi'].includes(h) ? 'center' : 'left',
                     fontSize: 11, fontWeight: 600, color: '#64748b',
                     textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
                   }}>{h}</th>
@@ -356,7 +390,7 @@ export default function Attendance() {
             <tbody>
               {viewLog.length === 0 && (
                 <tr>
-                  <td colSpan={canManage ? 8 : 7} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                  <td colSpan={isStaff ? 5 : 8} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
                     Tidak ada data absensi untuk tanggal ini.
                   </td>
                 </tr>
@@ -369,8 +403,12 @@ export default function Attendance() {
                     onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                     onMouseLeave={e => e.currentTarget.style.background = 'white'}
                   >
-                    <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>{entry.name}</td>
-                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12, textTransform: 'capitalize' }}>{entry.role}</td>
+                    {!isStaff && (
+                      <>
+                        <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>{entry.name}</td>
+                        <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12, textTransform: 'capitalize' }}>{entry.role}</td>
+                      </>
+                    )}
                     <td style={{ padding: '12px 16px' }}>
                       <span style={{
                         fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 20, textTransform: 'capitalize',
@@ -387,7 +425,10 @@ export default function Attendance() {
                       </div>
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      <span style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 20, textTransform: 'capitalize', background: sc.bg, color: sc.text, border: `1px solid ${sc.border}` }}>
+                      <span style={{
+                        fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 20, textTransform: 'capitalize',
+                        background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`,
+                      }}>
                         {entry.status}
                       </span>
                     </td>
@@ -397,15 +438,17 @@ export default function Attendance() {
                         ? <img src={entry.photo} alt="selfie" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0', display: 'inline-block' }} />
                         : <span style={{ color: '#cbd5e1', fontSize: 12 }}>—</span>}
                     </td>
-                    {canManage && (
+                    {!isStaff && (
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                          <button onClick={() => openEdit(entry)} title="Edit" style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+                          <button onClick={() => openEdit(entry)} title="Edit"
+                            style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#fef9c3'; e.currentTarget.style.color = '#ca8a04' }}
                             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
                             <Edit2 size={14} />
                           </button>
-                          <button onClick={() => setDeleteConfirm(entry.id)} title="Hapus" style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+                          <button onClick={() => setDeleteConfirm(entry.id)} title="Hapus"
+                            style={{ padding: 6, border: 'none', borderRadius: 8, background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626' }}
                             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
                             <Trash2 size={14} />
@@ -421,7 +464,7 @@ export default function Attendance() {
         </div>
       </div>
 
-      {/* ── Jam Kerja Modal ── */}
+      {/* ── Modal: Atur Jam Kerja ── */}
       {schedForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 380 }}>
@@ -443,7 +486,8 @@ export default function Attendance() {
                 />
               </div>
               <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
-                Karyawan yang absen setelah <strong>{schedForm.jamMasuk} WIB</strong> akan otomatis ditandai <span style={{ color: '#ca8a04', fontWeight: 600 }}>Telat</span>.
+                Karyawan yang absen setelah <strong>{schedForm.jamMasuk} WIB</strong> akan otomatis ditandai{' '}
+                <span style={{ color: '#ca8a04', fontWeight: 600 }}>Telat</span>.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, padding: '16px 24px', borderTop: '1px solid #f1f5f9', background: '#fafafa', borderRadius: '0 0 18px 18px' }}>
@@ -463,8 +507,8 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* ── Add/Edit Modal ── */}
-      {modal && form && (
+      {/* ── Modal: Tambah / Edit ── */}
+      {modal && form && canManage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 460 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #f1f5f9' }}>
@@ -495,9 +539,23 @@ export default function Attendance() {
                 <input type="time" value={form.time} onChange={e => setF('time', e.target.value)} style={inputStyle} />
               </div>
               <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Tipe</label>
+                <select value={form.type} onChange={e => setF('type', e.target.value)} style={inputStyle}>
+                  <option value="masuk">Masuk</option>
+                  <option value="pulang">Pulang</option>
+                </select>
+              </div>
+              <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Status</label>
                 <select value={form.status} onChange={e => setF('status', e.target.value)} style={inputStyle}>
                   {['hadir', 'telat', 'absen', 'izin'].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Jabatan</label>
+                <select value={form.role} onChange={e => setF('role', e.target.value)} style={inputStyle}>
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
                 </select>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
@@ -522,8 +580,8 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* ── Delete Confirm ── */}
-      {deleteConfirm && (
+      {/* ── Modal: Konfirmasi Hapus ── */}
+      {deleteConfirm && canManage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center' }}>
             <div style={{ width: 48, height: 48, background: '#fef2f2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
@@ -542,6 +600,7 @@ export default function Attendance() {
           </div>
         </div>
       )}
+
     </div>
   )
 }
