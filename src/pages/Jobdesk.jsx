@@ -3,9 +3,10 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { Plus, X, Check, Trash2, ClipboardList, User } from 'lucide-react'
 
-const todayStr = () => new Date().toISOString().slice(0, 10)
+const todayStr = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}` }
 const newId    = () => crypto.randomUUID()
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function groupByAssignee(tasks) {
   const map = {}
   tasks.forEach(t => {
@@ -22,15 +23,17 @@ function avatarColor(name) {
   return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
 
+// ── Main component ───────────────────────────────────────────────────────────
 export default function Jobdesk() {
   const { profile } = useAuth()
   const [tasks, setTasks]       = useState([])
   const [staffList, setStaff]   = useState([])
-  const [filter, setFilter]     = useState('all')
+  const [filter, setFilter]     = useState('all') // all | pending | done
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving]     = useState(false)
   const [form, setForm]         = useState({ title: '', assignedTo: '', dueDate: todayStr() })
 
+  // Fetch
   useEffect(() => {
     supabase.from('employees').select('id,name,jabatan')
       .eq('active', true)
@@ -48,6 +51,7 @@ export default function Jobdesk() {
 
   const setF = v => setForm(f => ({ ...f, ...v }))
 
+  // Toggle done
   async function toggleDone(task) {
     const updated = { ...task, done: !task.done }
     setTasks(prev => prev.map(t => t.id === task.id ? updated : t))
@@ -55,11 +59,13 @@ export default function Jobdesk() {
     if (error) setTasks(prev => prev.map(t => t.id === task.id ? task : t))
   }
 
+  // Delete
   async function deleteTask(id) {
     setTasks(prev => prev.filter(t => t.id !== id))
     await supabase.from('tasks').delete().eq('id', id)
   }
 
+  // Save new task
   async function save() {
     if (!form.title.trim() || !form.assignedTo) return
     setSaving(true)
@@ -85,6 +91,7 @@ export default function Jobdesk() {
     setSaving(false)
   }
 
+  // Filtered tasks
   const visible = tasks.filter(t =>
     filter === 'all' ? true : filter === 'done' ? t.done : !t.done
   )
@@ -92,6 +99,7 @@ export default function Jobdesk() {
   const pendingCount = tasks.filter(t => !t.done).length
   const doneCount    = tasks.filter(t => t.done).length
 
+  // ── Styles ────────────────────────────────────────────────────────────────
   const card = {
     background: 'white', borderRadius: 14,
     border: '1px solid #f1f5f9',
@@ -109,6 +117,7 @@ export default function Jobdesk() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
+      {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>Jobdesk Staf</h2>
@@ -130,6 +139,7 @@ export default function Jobdesk() {
         </button>
       </div>
 
+      {/* ── Filter tabs ── */}
       <div style={{ display: 'flex', gap: 8 }}>
         {[
           { key: 'all',     label: 'Semua',        count: tasks.length },
@@ -159,6 +169,7 @@ export default function Jobdesk() {
         ))}
       </div>
 
+      {/* ── Task list grouped by staff ── */}
       {Object.keys(grouped).length === 0 ? (
         <div style={{ ...card, padding: '48px 20px', textAlign: 'center' }}>
           <div style={{
@@ -178,6 +189,7 @@ export default function Jobdesk() {
           const color = avatarColor(name)
           return (
             <div key={name} style={card}>
+              {/* Staff header */}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '14px 18px 12px',
@@ -199,6 +211,7 @@ export default function Jobdesk() {
                 </div>
               </div>
 
+              {/* Task rows */}
               {taskList.map((task, idx) => (
                 <div key={task.id} style={{
                   display: 'flex', alignItems: 'flex-start', gap: 12,
@@ -207,6 +220,7 @@ export default function Jobdesk() {
                   background: task.done ? '#fafafa' : 'white',
                   transition: 'background 0.15s',
                 }}>
+                  {/* Checkbox */}
                   <button
                     onClick={() => toggleDone(task)}
                     style={{
@@ -220,6 +234,7 @@ export default function Jobdesk() {
                     {task.done && <Check size={11} color="white" strokeWidth={3} />}
                   </button>
 
+                  {/* Content */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{
                       fontSize: 13.5, color: task.done ? '#94a3b8' : '#1e293b',
@@ -242,6 +257,7 @@ export default function Jobdesk() {
                     </div>
                   </div>
 
+                  {/* Delete */}
                   <button
                     onClick={() => deleteTask(task.id)}
                     style={{
@@ -262,6 +278,7 @@ export default function Jobdesk() {
         })
       )}
 
+      {/* ── Create Task Modal ── */}
       {showForm && (
         <div
           onClick={() => setShowForm(false)}
@@ -280,6 +297,7 @@ export default function Jobdesk() {
               overflow: 'hidden',
             }}
           >
+            {/* Modal header */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '18px 20px 15px',
@@ -300,7 +318,10 @@ export default function Jobdesk() {
               </button>
             </div>
 
+            {/* Form body */}
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* Title */}
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>
                   Judul Tugas
@@ -315,6 +336,7 @@ export default function Jobdesk() {
                 />
               </div>
 
+              {/* Assign to */}
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>
                   Tugaskan ke
@@ -340,6 +362,7 @@ export default function Jobdesk() {
                 )}
               </div>
 
+              {/* Due date */}
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>
                   Tenggat Waktu
@@ -352,6 +375,7 @@ export default function Jobdesk() {
                 />
               </div>
 
+              {/* Actions */}
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button
                   onClick={() => setShowForm(false)}
