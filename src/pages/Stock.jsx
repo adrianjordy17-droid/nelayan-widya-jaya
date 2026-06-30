@@ -39,19 +39,17 @@ const inputStyle = {
 
 export default function Stock() {
   const { isRole } = useAuth()
-  const [stock, setStock]         = useState([])
-  const [search, setSearch]       = useState('')
-  const [katFilter, setKatFilter] = useState('semua')
+  const [stock, setStock]               = useState([])
+  const [search, setSearch]             = useState('')
+  const [katFilter, setKatFilter]       = useState('semua')
   const [showAddModal, setShowAddModal] = useState(false)
-  const [addForm, setAddForm]     = useState({ product_id: '', qty: '', min_qty: '', notes: '' })
-  const [addLoading, setAddLoading] = useState(false)
-  const [addError, setAddError]   = useState('')
+  const [addForm, setAddForm]           = useState({ product_id: '', qty: '', min_qty: '', notes: '' })
+  const [addLoading, setAddLoading]     = useState(false)
+  const [addError, setAddError]         = useState('')
 
   const canEdit = isRole('admin') || isRole('owner')
 
-  useEffect(() => {
-    loadStock()
-  }, [])
+  useEffect(() => { loadStock() }, [])
 
   function loadStock() {
     supabase.from('products')
@@ -77,14 +75,10 @@ export default function Stock() {
   const kritisItems = stock.filter(s => (s.qty || 0) <= (s.min_qty > 0 ? s.min_qty : 10))
 
   const STATS = [
-    { label: 'Total Produk',  value: String(totalProduk), sub: 'terdaftar',             Icon: Package,       iconColor: '#2563eb', iconBg: '#eff6ff' },
-    { label: 'Stok Kritis',   value: String(stokKritis),  sub: 'perlu restok segera',   Icon: AlertTriangle, iconColor: stokKritis > 0 ? '#dc2626' : '#64748b', iconBg: stokKritis > 0 ? '#fef2f2' : '#f8fafc' },
-    {
-      label: 'Est. Nilai Stok',
-      value: estNilai >= 1_000_000 ? `Rp ${(estNilai / 1_000_000).toFixed(1)}jt` : fmt(estNilai),
-      sub: 'berdasarkan harga jual', Icon: DollarSign, iconColor: '#16a34a', iconBg: '#f0fdf4',
-    },
-    { label: 'Kategori', value: String(totalKat), sub: 'jenis produk', Icon: Tag, iconColor: '#7c3aed', iconBg: '#f5f3ff' },
+    { label: 'Total Produk',    value: String(totalProduk), sub: 'terdaftar',           Icon: Package,       iconColor: '#2563eb', iconBg: '#eff6ff' },
+    { label: 'Stok Kritis',     value: String(stokKritis),  sub: 'perlu restok segera', Icon: AlertTriangle, iconColor: stokKritis > 0 ? '#dc2626' : '#64748b', iconBg: stokKritis > 0 ? '#fef2f2' : '#f8fafc' },
+    { label: 'Est. Nilai Stok', value: estNilai >= 1_000_000 ? `Rp ${(estNilai / 1_000_000).toFixed(1)}jt` : fmt(estNilai), sub: 'berdasarkan harga jual', Icon: DollarSign, iconColor: '#16a34a', iconBg: '#f0fdf4' },
+    { label: 'Kategori',        value: String(totalKat),    sub: 'jenis produk',        Icon: Tag,           iconColor: '#7c3aed', iconBg: '#f5f3ff' },
   ]
 
   async function handleAddStock() {
@@ -96,17 +90,14 @@ export default function Stock() {
     setAddLoading(true)
     const product = stock.find(s => s.id === addForm.product_id)
     const newQty  = (product?.qty || 0) + addQty
-
     const updates = { qty: newQty }
     if (addForm.min_qty !== '' && parseFloat(addForm.min_qty) >= 0) {
       updates.min_qty = parseFloat(addForm.min_qty)
     }
 
     const { error: e1 } = await supabase.from('products').update(updates).eq('id', addForm.product_id)
-
     if (e1) { setAddError(e1.message); setAddLoading(false); return }
 
-    // Log the stock addition
     await supabase.from('stock_logs').insert({
       product_id: addForm.product_id,
       product_name: product?.nama || '',
@@ -115,7 +106,7 @@ export default function Stock() {
       qty_after: newQty,
       notes: addForm.notes || null,
       created_at: new Date().toISOString(),
-    }).then(() => {}) // ignore error if table doesn't exist
+    }).then(() => {})
 
     setAddLoading(false)
     setShowAddModal(false)
@@ -126,7 +117,6 @@ export default function Stock() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
 
-      {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
           <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
@@ -142,7 +132,6 @@ export default function Stock() {
         ))}
       </div>
 
-      {/* Info banner */}
       <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <BarChart2 size={16} color="#2563eb" strokeWidth={2} style={{ flexShrink: 0 }} />
         <p style={{ fontSize: 13, color: '#1d4ed8', margin: 0, fontWeight: 500 }}>
@@ -150,7 +139,6 @@ export default function Stock() {
         </p>
       </div>
 
-      {/* Stok Kritis Alert */}
       {kritisItems.length > 0 && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -167,7 +155,6 @@ export default function Stock() {
         </div>
       )}
 
-      {/* Filter + Search + Add Button */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {kats.map(k => (
@@ -188,10 +175,8 @@ export default function Stock() {
           </div>
           {canEdit && (
             <button onClick={() => { setShowAddModal(true); setAddError('') }} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 16px', borderRadius: 10, border: 'none',
-              background: '#2563eb', color: 'white', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: 'none',
+              background: '#2563eb', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
             }}>
               <Plus size={15} /> Tambah Stok
             </button>
@@ -199,7 +184,6 @@ export default function Stock() {
         </div>
       </div>
 
-      {/* Table */}
       <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -212,18 +196,15 @@ export default function Stock() {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                    {stock.length === 0 ? 'Belum ada produk. Tambah produk di menu Produk & Harga.' : 'Tidak ada produk yang cocok.'}
-                  </td>
-                </tr>
+                <tr><td colSpan={6} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                  {stock.length === 0 ? 'Belum ada produk. Tambah produk di menu Produk & Harga.' : 'Tidak ada produk yang cocok.'}
+                </td></tr>
               )}
               {filtered.map((s, idx) => {
                 const kat      = KAT_MAP[s.kategori] || s.kategori || 'Lainnya'
                 const isKritis = (s.qty || 0) <= (s.min_qty > 0 ? s.min_qty : 10)
                 return (
-                  <tr key={s.id}
-                    style={{ borderBottom: idx < filtered.length - 1 ? '1px solid #f8fafc' : 'none' }}
+                  <tr key={s.id} style={{ borderBottom: idx < filtered.length - 1 ? '1px solid #f8fafc' : 'none' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                     <td style={{ padding: '12px 16px' }}>
@@ -242,12 +223,8 @@ export default function Stock() {
                     <td style={{ padding: '12px 16px', color: '#64748b', fontSize: 12 }}>
                       {s.min_qty > 0 ? s.min_qty : 10} {s.satuan || 'kg'}
                     </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
-                      {fmt(s.harga_jual)}
-                    </td>
-                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12 }}>
-                      {s.location || '–'}
-                    </td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>{fmt(s.harga_jual)}</td>
+                    <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: 12 }}>{s.location || '–'}</td>
                   </tr>
                 )
               })}
@@ -256,71 +233,47 @@ export default function Stock() {
         </div>
       </div>
 
-      {/* ── Tambah Stok Modal ── */}
       {showAddModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 50,
-          background: 'rgba(0,0,0,0.4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20,
-        }}>
-          <div style={{
-            background: 'white', borderRadius: 16,
-            width: '100%', maxWidth: 440,
-            boxShadow: '0 24px 60px rgba(0,0,0,0.18)',
-            overflow: 'hidden',
-          }}>
-            {/* Modal header */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '18px 20px 16px', borderBottom: '1px solid #f1f5f9',
-            }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 440, boxShadow: '0 24px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 16px', borderBottom: '1px solid #f1f5f9' }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Tambah Stok</h3>
               <button onClick={() => { setShowAddModal(false); setAddForm({ product_id: '', qty: '', min_qty: '', notes: '' }); setAddError('') }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}>
                 <X size={18} />
               </button>
             </div>
-
-            {/* Form */}
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {addError && (
                 <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px' }}>
                   <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>{addError}</p>
                 </div>
               )}
-
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Produk *</label>
-                <select value={addForm.product_id} onChange={e => setAddForm(f => ({ ...f, product_id: e.target.value }))}
-                  style={{ ...inputStyle }}>
+                <select value={addForm.product_id} onChange={e => setAddForm(f => ({ ...f, product_id: e.target.value }))} style={{ ...inputStyle }}>
                   <option value="">-- Pilih produk --</option>
                   {stock.map(s => (
                     <option key={s.id} value={s.id}>{s.nama} {s.ukuran ? `(${s.ukuran})` : ''} — stok: {s.qty || 0} {s.satuan || 'kg'}</option>
                   ))}
                 </select>
               </div>
-
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Jumlah Ditambahkan *</label>
                 <input type="number" min="0.01" step="0.01" placeholder="cth: 50" value={addForm.qty}
                   onChange={e => setAddForm(f => ({ ...f, qty: e.target.value }))} style={inputStyle} />
               </div>
-
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Min. Stok (default: 10)</label>
                 <input type="number" min="0" step="1" placeholder="cth: 10 (kosongkan untuk pakai default)" value={addForm.min_qty}
                   onChange={e => setAddForm(f => ({ ...f, min_qty: e.target.value }))} style={inputStyle} />
               </div>
-
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Catatan</label>
                 <input type="text" placeholder="Opsional — cth: pembelian dari supplier" value={addForm.notes}
                   onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} style={inputStyle} />
               </div>
             </div>
-
-            {/* Footer */}
             <div style={{ padding: '0 20px 20px', display: 'flex', gap: 10 }}>
               <button onClick={() => { setShowAddModal(false); setAddForm({ product_id: '', qty: '', min_qty: '', notes: '' }); setAddError('') }}
                 style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: 'white', fontSize: 14, fontWeight: 600, color: '#64748b', cursor: 'pointer', fontFamily: 'inherit' }}>
