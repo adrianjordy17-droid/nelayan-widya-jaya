@@ -174,7 +174,10 @@ function OwnerAdminDashboard() {
       })
   }, [])
 
-  const stokTipis = products.filter(p => (p.min_qty || 0) > 0 && (p.qty || 0) <= (p.min_qty || 0)).length
+  const stokTipis = products.filter(p => {
+    const effectiveMin = (p.min_qty || 0) > 0 ? p.min_qty : 10
+    return (p.qty || 0) <= effectiveMin
+  }).length
 
   const STATS = [
     { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO terkirim bulan ini', Icon: TrendingUp,   iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
