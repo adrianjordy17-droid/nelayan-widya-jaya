@@ -400,8 +400,7 @@ export default function Deliveries() {
                             <img src={r.photoSentUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </div>
                         )}
-                        {r.photoReceivedUrl && (
-                        {r.photoReceivedUrl && (
+                                                {r.photoReceivedUrl && (
                           <div style={{ width: 20, height: 20, borderRadius: 4, overflow: 'hidden', background: '#f0f0f0' }}>
                             <img src={r.photoReceivedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </div>
@@ -827,3 +826,4 @@ export default function Deliveries() {
     </div>
   )
 }
+                        
