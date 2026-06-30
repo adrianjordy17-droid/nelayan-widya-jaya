@@ -34,7 +34,7 @@ const UNITS = ['kg', 'ekor', 'ikat', 'box', 'pcs', 'liter', 'ton']
 const CONDITIONS = ['Baik', 'Cukup', 'Kurang']
 
 const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
-function currentYM() { return new Date().toISOString().slice(0, 7) }
+function currentYM() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}` }
 function shiftMonth(ym, delta) {
   const [y, m] = ym.split('-').map(Number)
   const d = new Date(y, m - 1 + delta, 1)
@@ -52,7 +52,7 @@ function fmtDate(s) {
   if (!s) return '–'
   return new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 }
-function todayStr() { return new Date().toISOString().slice(0, 10) }
+function todayStr() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}` }
 function newId()    { return crypto.randomUUID() }
 function blankItem(withPrice) {
   return { id: newId(), name: '', qty: '', unit: 'kg', price: withPrice ? '' : null, receivedQty: '', condition: 'Baik', total: 0 }
@@ -69,7 +69,7 @@ function recalcForm(f) {
 function emptyForm(type) {
   const withPrice = type === 'SO' || type === 'Invoice'
   return {
-    type, date: todayStr(), status: type === 'DO' ? 'pending' : 'draft',
+    type, date: todayStr(), status: 'draft',
     clientName: '', clientAddress: '', clientPhone: '', clientPoNumber: '',
     refNumber: '', driverName: '', vehicle: '',
     items: [blankItem(withPrice)],
@@ -439,7 +439,7 @@ export default function Documents() {
 
   async function getNextNumber(type) {
     const prefix = type === 'Invoice' ? 'INV' : type
-    const ym = new Date().toISOString().slice(0, 7).replace('-', '')
+    const ym = currentYM().replace('-', '')
     const { count } = await supabase.from('documents').select('*', { count: 'exact', head: true })
       .eq('type', type).ilike('number', `${prefix}-${ym}-%`)
     return `${prefix}-${ym}-${String((count || 0) + 1).padStart(3, '0')}`
@@ -1109,7 +1109,6 @@ export default function Documents() {
                   </div>
                 </div>
               )}
-
               {/* Action Buttons */}
               {canEdit && (detail.status === 'draft' || detail.status === 'pending' || (detail.type === 'DO' && detail.status === 'dispatched')) && (
                 <button
