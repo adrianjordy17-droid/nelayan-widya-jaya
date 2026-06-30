@@ -1,369 +1,301 @@
+import { useAuth } from '../contexts/AuthContext'
+import { format } from 'date-fns'
+import { id as idLocale } from 'date-fns/locale'
+import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { TrendingUp, Send, Download, ShoppingCart, CheckCircle, DollarSign } from 'lucide-react'
-import * as XLSX from 'xlsx'
+import {
+  TrendingUp, ShoppingCart, UserCheck, AlertTriangle, ArrowRight,
+  Truck, CheckCircle2, ClipboardList, Package, Check,
+} from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { generateDailyReport, sendToWhatsApp } from '../lib/whatsapp'
+
+const DOC_STATUS_CFG = {
+  draft:      { label: 'Draft',        color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+  confirmed:  { label: 'Dikonfirmasi', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  dispatched: { label: 'Dikirim',      color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  delivered:  { label: 'Terkirim',     color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+  received:   { label: 'Diterima',     color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+  sent:       { label: 'Terkirim',     color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  paid:       { label: 'Lunas',        color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+}
 
 function itemsTotal(items) {
   return (items || []).reduce((a, i) => a + (i.qty || 0) * (i.price || 0), 0)
 }
 function docTotal(d) { return d.total || itemsTotal(d.items) }
 
-function fmt(n)      { return `Rp ${(n || 0).toLocaleString('id')}` }
-function fmtShort(n) {
-  const v = n || 0
-  if (v >= 1_000_000) return `Rp ${(v / 1_000_000).toFixed(1).replace('.0', '')}jt`
-  return fmt(v)
+function rpFmt(n) {
+  if (!n) return 'Rp 0'
+  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace('.0', '')} jt`
+  if (n >= 1_000)     return `Rp ${(n / 1_000).toFixed(0)} rb`
+  return `Rp ${n.toLocaleString('id-ID')}`
 }
 
-function BarChart({ data }) {
-  const maxRev = Math.max(...data.map(d => d.revenue), 1)
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 200, padding: '0 8px' }}>
-      {data.map((d, i) => {
-        const h = Math.max((d.revenue / maxRev) * 160, 4)
-        return (
-          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: '100%', position: 'relative' }}>
-              <div
-                style={{ width: '100%', height: h, background: 'linear-gradient(180deg,#3b82f6 0%,#1d4ed8 100%)', borderRadius: '6px 6px 0 0', cursor: 'pointer', transition: 'opacity 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; e.currentTarget.parentElement.querySelector('.tooltip').style.opacity = '1' }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = '1';    e.currentTarget.parentElement.querySelector('.tooltip').style.opacity = '0' }}
-              />
-              <div className="tooltip" style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', color: 'white', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap', opacity: 0, transition: 'opacity 0.15s', marginBottom: 4, pointerEvents: 'none' }}>
-                {fmtShort(d.revenue)}
-              </div>
-            </div>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#64748b', margin: 0 }}>{d.month}</p>
-          </div>
+function StaffDashboard() {
+  const { profile } = useAuth()
+  const navigate    = useNavigate()
+  const todayLabel  = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
+
+  const [pendingDOs, setPendingDOs]    = useState([])
+  const [deliveredCount, setDelivered] = useState(0)
+  const [tasks, setTasks]              = useState([])
+
+  useEffect(() => {
+    if (!profile?.name) return
+    supabase.from('documents')
+      .select('id,number,client_name,items,status,driver_name')
+      .eq('type', 'DO')
+      .ilike('driver_name', profile.name)
+      .then(({ data }) => {
+        if (!data) return
+        setPendingDOs(
+          data.filter(d => d.status === 'dispatched')
+              .map(d => ({ id: d.id, number: d.number, clientName: d.client_name, items: d.items || [] }))
         )
-      })}
+        setDelivered(data.filter(d => d.status === 'delivered').length)
+      })
+
+    supabase.from('tasks')
+      .select('id,title,done')
+      .ilike('assigned_to_name', profile.name)
+      .then(({ data }) => { if (data) setTasks(data) })
+  }, [profile?.name])
+
+  const totalDOs = pendingDOs.length + deliveredCount
+  const allDone  = totalDOs > 0 && deliveredCount === totalDOs
+
+  const SectionHeader = ({ title, icon, iconBg }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '15px 18px 13px', borderBottom: '1px solid #f8fafc' }}>
+      <div style={{ width: 30, height: 30, borderRadius: 8, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {icon}
+      </div>
+      <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>{title}</p>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.015em' }}>Selamat datang, {profile?.name}</h2>
+        <p style={{ color: '#94a3b8', fontSize: 12.5, marginTop: 4, textTransform: 'capitalize' }}>{todayLabel}</p>
+      </div>
+
+      <div style={{ background: 'white', borderRadius: 14, padding: '18px 22px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div style={{ width: 48, height: 48, borderRadius: 12, flexShrink: 0, background: allDone ? '#f0fdf4' : '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <CheckCircle2 size={22} color={allDone ? '#16a34a' : '#2563eb'} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 3px' }}>Pengiriman Selesai</p>
+          <p style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1 }}>
+            {deliveredCount}<span style={{ fontSize: 15, fontWeight: 500, color: '#94a3b8' }}>/{totalDOs}</span>
+          </p>
+          <div style={{ height: 5, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden', maxWidth: 220 }}>
+            <div style={{ width: totalDOs > 0 ? `${Math.round(deliveredCount / totalDOs * 100)}%` : '0%', height: '100%', borderRadius: 99, background: allDone ? '#16a34a' : '#2563eb', transition: 'width 0.5s ease' }} />
+          </div>
+        </div>
+        <p style={{ fontSize: 12, color: '#94a3b8', flexShrink: 0 }}>
+          {totalDOs === 0 ? 'Tidak ada tugas' : allDone ? 'Semua selesai!' : `${totalDOs - deliveredCount} tersisa`}
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
+          <SectionHeader title="Tugas Hari Ini" icon={<ClipboardList size={15} color="#7c3aed" />} iconBg="#f5f3ff" />
+          {tasks.length === 0 ? (
+            <p style={{ padding: '28px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Tidak ada tugas hari ini.</p>
+          ) : tasks.map((task, idx) => (
+            <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 18px', borderBottom: idx < tasks.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+              <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: '2px solid ' + (task.done ? '#16a34a' : '#cbd5e1'), background: task.done ? '#16a34a' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {task.done && <Check size={10} color="white" strokeWidth={3} />}
+              </div>
+              <p style={{ fontSize: 13, color: task.done ? '#94a3b8' : '#1e293b', margin: 0, textDecoration: task.done ? 'line-through' : 'none' }}>{task.title}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
+          <SectionHeader title={`Order Dikirim (${pendingDOs.length})`} icon={<Truck size={15} color="#d97706" />} iconBg="#fffbeb" />
+          {pendingDOs.length === 0 ? (
+            <p style={{ padding: '28px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Tidak ada order yang harus dikirim.</p>
+          ) : pendingDOs.map((d, idx) => (
+            <div key={d.id} onClick={() => navigate('/dashboard/documents')} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 18px', borderBottom: idx < pendingDOs.length - 1 ? '1px solid #f8fafc' : 'none', cursor: 'pointer' }}>
+              <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: '#fff8e1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Package size={15} color="#d97706" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>{d.clientName}</p>
+                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {d.number} · {d.items.map(i => `${i.qty} ${i.unit} ${i.name}`).join(', ')}
+                </p>
+              </div>
+              <span style={{ fontSize: 10.5, fontWeight: 600, padding: '3px 10px', borderRadius: 99, color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a', whiteSpace: 'nowrap', flexShrink: 0 }}>Dikirim</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
 
-export default function Reports() {
-  const [docs, setDocs]         = useState([])
-  const [products, setProducts] = useState([])
-  const [clients, setClients]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [period, setPeriod]     = useState('6bulan')
-  const [waStatus, setWaStatus] = useState({ loading: false, msg: '', ok: null })
+function OwnerAdminDashboard() {
+  const { profile } = useAuth()
+  const today      = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
+  const todayKey   = new Date().toISOString().slice(0, 10)
+  const thisMonth  = new Date().toISOString().slice(0, 7)
+
+  const [products, setProducts]           = useState([])
+  const [hadirCount, setHadirCount]       = useState(0)
+  const [totalExpected, setExpected]      = useState(0)
+  const [recentDocs, setRecentDocs]       = useState([])
+  const [penjualanBulanIni, setPenjualan] = useState(0)
+  const [orderPending, setOrderPending]   = useState(0)
 
   useEffect(() => {
-    Promise.all([
-      supabase.from('documents').select('*').eq('type', 'SO').order('date', { ascending: false }),
-      supabase.from('products').select('*').order('kategori'),
-      supabase.from('clients').select('*').order('name'),
-    ]).then(([{ data: d }, { data: p }, { data: c }]) => {
-      setDocs(d || [])
-      setProducts(p || [])
-      setClients(c || [])
-      setLoading(false)
-    })
+    supabase.from('products').select('id, nama, kategori, qty, min_qty, satuan')
+      .then(({ data }) => setProducts(data || []))
+
+    supabase.from('attendance').select('id, name, type').eq('date', todayKey)
+      .then(({ data }) => {
+        if (!data) return
+        const masukNames = [...new Set(data.filter(a => a.type === 'masuk').map(a => a.name))]
+        setHadirCount(masukNames.length)
+      })
+
+    supabase.from('employees').select('id', { count: 'exact' }).eq('active', true)
+      .then(({ count }) => setExpected(count || 0))
+
+    supabase.from('documents')
+      .select('id, number, type, status, client_name, created_at, total, date, items')
+      .order('created_at', { ascending: false })
+      .limit(200)
+      .then(({ data }) => {
+        if (!data) return
+        setRecentDocs(data.slice(0, 5))
+        setOrderPending(data.filter(d => d.type === 'SO' && d.status === 'draft').length)
+        const soTotal = data
+          .filter(d => d.type === 'SO' && d.status !== 'cancelled' && (d.date || '').startsWith(thisMonth))
+          .reduce((sum, d) => sum + docTotal(d), 0)
+        setPenjualan(soTotal)
+      })
   }, [])
 
-  const now = new Date()
-  const periodDocs = docs.filter(d => {
-    if (!d.date) return true
-    if (period === 'bulan ini') return d.date.startsWith(now.toISOString().slice(0, 7))
-    if (period === '3bulan') {
-      const cut = new Date(now); cut.setMonth(cut.getMonth() - 3)
-      return d.date >= cut.toISOString().slice(0, 10)
-    }
-    if (period === '6bulan') {
-      const cut = new Date(now); cut.setMonth(cut.getMonth() - 6)
-      return d.date >= cut.toISOString().slice(0, 10)
-    }
-    return d.date.startsWith(String(now.getFullYear()))
-  })
+  const stokTipis = products.filter(p => {
+    const effectiveMin = (p.min_qty || 0) > 0 ? p.min_qty : 10
+    return (p.qty || 0) <= effectiveMin
+  }).length
 
-  const activeDocs     = periodDocs.filter(d => d.status !== 'cancelled')
-  const totalRevenue   = activeDocs.reduce((a, d) => a + docTotal(d), 0)
-  const totalOrders    = activeDocs.length
-  const deliveredCount = activeDocs.filter(d => d.status === 'delivered').length
-  const avgOrder       = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0
-
-  const MONTH_ID = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
-  const monthlyMap = {}
-  docs.filter(d => d.status !== 'cancelled').forEach(d => {
-    const m = (d.date || '').slice(0, 7)
-    if (!m || m.length < 7) return
-    if (!monthlyMap[m]) monthlyMap[m] = { revenue: 0, orders: 0 }
-    monthlyMap[m].revenue += docTotal(d)
-    monthlyMap[m].orders  += 1
-  })
-  const chartData = Object.keys(monthlyMap).sort().map(m => ({
-    month: MONTH_ID[parseInt(m.slice(5), 10) - 1] || m.slice(5),
-    revenue: monthlyMap[m].revenue,
-    orders:  monthlyMap[m].orders,
-    key: m,
-  }))
-
-  const productMap = {}
-  activeDocs.forEach(d => {
-    (d.items || []).forEach(item => {
-      const name = item.name || '?'
-      if (!productMap[name]) productMap[name] = { sold: 0, revenue: 0 }
-      productMap[name].sold    += item.qty || 0
-      productMap[name].revenue += (item.qty || 0) * (item.price || 0)
-    })
-  })
-  const topProducts = Object.entries(productMap)
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 10)
-
-  async function kirimWA() {
-    const cfg = JSON.parse(localStorage.getItem('nwj_wa_config') || '{}')
-    if (!cfg.token || !cfg.target) {
-      setWaStatus({ loading: false, msg: 'Isi token & nomor WA di Pengaturan dulu', ok: false })
-      setTimeout(() => setWaStatus({ loading: false, msg: '', ok: null }), 4000)
-      return
-    }
-    setWaStatus({ loading: true, msg: 'Mengirim...', ok: null })
-    try {
-      const ordersWA = docs.map(d => ({
-        id: d.number, client: d.client_name, date: d.date, catatan: d.notes || '',
-        status: d.status === 'delivered' ? 'selesai' : d.status === 'dispatched' ? 'proses' : d.status === 'cancelled' ? 'batal' : 'pending',
-        items: d.items || [],
-      }))
-      const stockWA = products.map(p => ({ name: p.nama, qty: p.qty || 0, minQty: p.min_qty || 0, unit: p.satuan || 'kg' }))
-      const message = generateDailyReport(ordersWA, stockWA, [])
-      await sendToWhatsApp({ token: cfg.token, target: cfg.target, message })
-      setWaStatus({ loading: false, msg: 'Berhasil terkirim!', ok: true })
-    } catch (err) {
-      setWaStatus({ loading: false, msg: err.message, ok: false })
-    }
-    setTimeout(() => setWaStatus({ loading: false, msg: '', ok: null }), 5000)
-  }
-
-  function exportExcel() {
-    const wb   = XLSX.utils.book_new()
-    const date = new Date().toISOString().slice(0, 10)
-
-    const orderRows = docs.map(d => ({
-      'No. SO':     d.number,
-      'Klien':      d.client_name,
-      'Tanggal':    d.date,
-      'Status':     d.status,
-      'Total (Rp)': docTotal(d),
-      'Catatan':    d.notes || '',
-      'Item':       (d.items || []).map(i => `${i.name} ${i.qty}${i.unit || ''}`).join(', '),
-    }))
-    const ws1 = XLSX.utils.json_to_sheet(orderRows)
-    ws1['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 12 }, { wch: 13 }, { wch: 15 }, { wch: 24 }, { wch: 40 }]
-    XLSX.utils.book_append_sheet(wb, ws1, 'Laporan SO')
-
-    if (topProducts.length > 0) {
-      const ws2 = XLSX.utils.json_to_sheet(topProducts.map((p, i) => ({
-        'Rank': i + 1, 'Nama Produk': p.name,
-        'Terjual': p.sold, 'Omzet (Rp)': p.revenue,
-      })))
-      ws2['!cols'] = [{ wch: 6 }, { wch: 24 }, { wch: 12 }, { wch: 18 }]
-      XLSX.utils.book_append_sheet(wb, ws2, 'Produk Terlaris')
-    }
-
-    if (products.length > 0) {
-      const ws3 = XLSX.utils.json_to_sheet(products.map(p => ({
-        'Nama Produk':    p.nama,
-        'Kategori':       p.kategori,
-        'Stok Saat Ini':  p.qty || 0,
-        'Satuan':         p.satuan || 'kg',
-        'Stok Minimum':   p.min_qty || 0,
-        'Harga Jual (Rp)': p.harga_jual || 0,
-        'Nilai Stok (Rp)': (p.qty || 0) * (p.harga_jual || 0),
-        'Lokasi':         p.location || '',
-      })))
-      ws3['!cols'] = [{ wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }]
-      XLSX.utils.book_append_sheet(wb, ws3, 'Stok Produk')
-    }
-
-    if (clients.length > 0) {
-      const ws4 = XLSX.utils.json_to_sheet(clients.map(c => ({
-        'Nama Klien':       c.name, 'Tipe': c.type,
-        'Kontak':           c.contact, 'No. HP': c.phone,
-        'Alamat':           c.address,
-        'Total Order':      c.total_orders || 0,
-        'Total Belanja (Rp)': c.total_spend || 0,
-        'Rating':           c.rating,
-        'Status':           c.active ? 'Aktif' : 'Nonaktif',
-      })))
-      ws4['!cols'] = Array(9).fill({ wch: 20 })
-      XLSX.utils.book_append_sheet(wb, ws4, 'Data Klien')
-    }
-
-    if (chartData.length > 0) {
-      const ws5 = XLSX.utils.json_to_sheet(chartData.map(d => ({
-        'Bulan': d.key, 'Total SO': d.orders, 'Total Omzet (Rp)': d.revenue,
-      })))
-      ws5['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 20 }]
-      XLSX.utils.book_append_sheet(wb, ws5, 'Ringkasan Bulanan')
-    }
-
-    XLSX.writeFile(wb, `Laporan_NWJ_${date}.xlsx`)
-  }
-
-  const STATUS_ROWS = [
-    { status: 'delivered',  label: 'Terkirim',     color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-    { status: 'dispatched', label: 'Dikirim',       color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-    { status: 'confirmed',  label: 'Dikonfirmasi',  color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-    { status: 'cancelled',  label: 'Dibatal',       color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  const STATS = [
+    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO aktif bulan ini', Icon: TrendingUp,   iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
+    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',        Icon: ShoppingCart, iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
+    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',  Icon: UserCheck,    iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
+    {
+      label: 'Stok Tipis',
+      value: String(stokTipis),
+      sub:   stokTipis > 0 ? 'perlu restok segera' : 'semua stok aman',
+      Icon:  AlertTriangle,
+      iconColor: stokTipis > 0 ? '#dc2626' : '#64748b',
+      iconBg:    stokTipis > 0 ? '#fef2f2' : '#f8fafc',
+      bar:       stokTipis > 0 ? '#dc2626' : '#94a3b8',
+    },
   ]
 
+  const udangItems = products.filter(p => (p.kategori || '').toUpperCase().startsWith('UDANG'))
+  const stokDisplay = (udangItems.length > 0 ? udangItems : products)
+    .slice(0, 4)
+    .map(p => ({ name: p.nama, qty: p.qty || 0, max: Math.max(p.qty || 0, (p.min_qty || 0) * 3, 50) }))
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: '0 0 3px', letterSpacing: '-0.015em' }}>Laporan &amp; Analitik</h2>
-          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Ringkasan performa bisnis berdasarkan data aktual</p>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[
-            { key: 'bulan ini', label: 'Bulan Ini' },
-            { key: '3bulan',   label: '3 Bulan' },
-            { key: '6bulan',   label: '6 Bulan' },
-            { key: 'tahun ini', label: 'Tahun Ini' },
-          ].map(p => (
-            <button key={p.key} onClick={() => setPeriod(p.key)} style={{
-              padding: '6px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
-              border: period === p.key ? '1px solid #2563eb' : '1px solid #e2e8f0',
-              background: period === p.key ? '#2563eb' : 'white',
-              color: period === p.key ? 'white' : '#64748b', transition: 'all 0.15s',
-            }}>{p.label}</button>
-          ))}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      <div>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.015em' }}>Selamat datang, {profile?.name}</h2>
+        <p style={{ color: '#94a3b8', fontSize: 12.5, marginTop: 4, textTransform: 'capitalize' }}>{today}</p>
       </div>
 
-      <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', margin: '0 0 2px' }}>Ekspor &amp; Bagikan</p>
-          <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Download laporan Excel atau kirim ringkasan via WhatsApp</p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {waStatus.msg && (
-            <span style={{ fontSize: 13, fontWeight: 500, color: waStatus.ok ? '#16a34a' : '#dc2626' }}>{waStatus.msg}</span>
-          )}
-          <button onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', boxShadow: '0 1px 3px rgba(37,99,235,0.3)' }}>
-            <Download size={15} /> Export Excel
-          </button>
-          <button onClick={kirimWA} disabled={waStatus.loading} style={{ display: 'flex', alignItems: 'center', gap: 7, background: waStatus.loading ? '#86efac' : 'linear-gradient(135deg,#16a34a,#15803d)', color: 'white', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 600, border: 'none', cursor: waStatus.loading ? 'not-allowed' : 'pointer', boxShadow: '0 1px 3px rgba(22,163,74,0.3)', opacity: waStatus.loading ? 0.7 : 1 }}>
-            <Send size={15} /> {waStatus.loading ? 'Mengirim...' : 'Kirim WA'}
-          </button>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {STATS.map(({ label, value, sub, Icon, iconColor, iconBg, bar }) => (
+          <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0, lineHeight: 1.3, maxWidth: 100 }}>{label}</p>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={16} color={iconColor} strokeWidth={2} />
+              </div>
+            </div>
+            <p style={{ fontSize: value.length > 10 ? 18 : 26, fontWeight: 800, color: '#0f172a', margin: '0 0 4px', lineHeight: 1, letterSpacing: '-0.02em' }}>{value}</p>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 14px' }}>{sub}</p>
+            <div style={{ height: 3, borderRadius: 99, background: '#f1f5f9', overflow: 'hidden' }}>
+              <div style={{ width: '45%', height: '100%', borderRadius: 99, background: bar }} />
+            </div>
+          </div>
+        ))}
       </div>
 
-      {loading && (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8', fontSize: 13 }}>Memuat data laporan...</div>
-      )}
-
-      {!loading && (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-            {[
-              { label: 'Total Penjualan', value: fmtShort(totalRevenue), sub: `omzet ${period === 'bulan ini' ? 'bulan ini' : period === 'tahun ini' ? 'tahun ini' : period}`, Icon: DollarSign,   iconColor: '#16a34a', iconBg: '#f0fdf4' },
-              { label: 'Total SO',        value: totalOrders,            sub: 'semua transaksi',  Icon: ShoppingCart, iconColor: '#2563eb', iconBg: '#eff6ff' },
-              { label: 'SO Terkirim',     value: deliveredCount,         sub: 'berhasil dikirim', Icon: CheckCircle,  iconColor: '#7c3aed', iconBg: '#f5f3ff' },
-              { label: 'Rata-rata SO',    value: fmtShort(avgOrder),     sub: 'per transaksi',    Icon: TrendingUp,   iconColor: '#d97706', iconBg: '#fffbeb' },
-            ].map(({ label, value, sub, Icon, iconColor, iconBg }) => (
-              <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0, lineHeight: 1.3 }}>{label}</p>
-                  <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Icon size={16} color={iconColor} strokeWidth={2} />
-                  </div>
-                </div>
-                <p style={{ fontSize: typeof value === 'string' && value.length > 10 ? 17 : 26, fontWeight: 800, color: '#0f172a', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.02em' }}>{value}</p>
-                <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
-              </div>
-            ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 13px', borderBottom: '1px solid #f8fafc' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>Dokumen Terbaru</p>
+            <Link to="/dashboard/documents" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, color: '#2563eb', fontWeight: 500, textDecoration: 'none' }}>
+              Lihat semua <ArrowRight size={11} />
+            </Link>
           </div>
-
-          <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', padding: '20px 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Grafik Omzet Bulanan</p>
-                <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{chartData.length} bulan data tersedia</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 3, background: '#3b82f6' }} />
-                <span style={{ fontSize: 12, color: '#64748b' }}>Omzet</span>
-              </div>
-            </div>
-            {chartData.length > 0 ? <BarChart data={chartData} /> : (
-              <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>
-                Belum ada data order untuk ditampilkan.
-              </div>
-            )}
-          </div>
-
-          <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Produk Terlaris</p>
-                <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Berdasarkan total omzet dari semua SO aktif</p>
-              </div>
-              <span style={{ fontSize: 11.5, color: '#94a3b8', background: '#f8fafc', border: '1px solid #f1f5f9', padding: '4px 10px', borderRadius: 8 }}>Top {topProducts.length}</span>
-            </div>
-            {topProducts.length === 0 ? (
-              <div style={{ padding: '48px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Belum ada data produk terlaris.</div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                      {['#', 'Produk', 'Terjual', 'Omzet', 'Proporsi'].map((h, i) => (
-                        <th key={h} style={{ padding: '12px 16px', textAlign: i >= 2 && i <= 3 ? 'right' : 'left', fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topProducts.map((p, i) => {
-                      const pct = totalRevenue ? Math.round((p.revenue / totalRevenue) * 100) : 0
-                      return (
-                        <tr key={p.name} style={{ borderTop: i > 0 ? '1px solid #f8fafc' : 'none', background: 'white', transition: 'background 0.15s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'white'}>
-                          <td style={{ padding: '12px 16px', color: '#94a3b8', fontWeight: 600, fontSize: 12, width: 36 }}>{i + 1}</td>
-                          <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>{p.name}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', color: '#475569', fontSize: 12 }}>{p.sold.toLocaleString('id')} kg</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{fmtShort(p.revenue)}</td>
-                          <td style={{ padding: '12px 16px', minWidth: 140 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
-                                <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg,#3b82f6,#2563eb)', borderRadius: 99 }} />
-                              </div>
-                              <span style={{ fontSize: 11.5, color: '#64748b', fontWeight: 600, width: 32, textAlign: 'right' }}>{pct}%</span>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-            {STATUS_ROWS.map(s => {
-              const count = docs.filter(d => d.status === s.status).length
-              const rev   = docs.filter(d => d.status === s.status).reduce((a, d) => a + docTotal(d), 0)
+          <div>
+            {recentDocs.length === 0 ? (
+              <p style={{ padding: '28px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Belum ada dokumen.</p>
+            ) : recentDocs.map((doc, idx) => {
+              const s = DOC_STATUS_CFG[doc.status] || DOC_STATUS_CFG.draft
               return (
-                <div key={s.status} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
-                  <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: s.bg, color: s.color, border: `1px solid ${s.border}`, marginBottom: 12 }}>
-                    {s.label}
-                  </span>
-                  <p style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', margin: '0 0 4px', lineHeight: 1, letterSpacing: '-0.02em' }}>{count}</p>
-                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 2px' }}>order</p>
-                  <p style={{ fontSize: 12.5, fontWeight: 600, color: s.color, margin: 0 }}>{fmtShort(rev)}</p>
+                <div key={doc.id} style={{ display: 'flex', alignItems: 'center', padding: '11px 20px', borderBottom: idx < recentDocs.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', padding: '1px 6px', borderRadius: 4, background: doc.type === 'SO' ? '#eff6ff' : doc.type === 'DO' ? '#fff8e1' : doc.type === 'GR' ? '#ecfeff' : '#f5f3ff', color: doc.type === 'SO' ? '#2563eb' : doc.type === 'DO' ? '#d97706' : doc.type === 'GR' ? '#0891b2' : '#7c3aed' }}>{doc.type}</span>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1e293b', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.number}</p>
+                    </div>
+                    <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{doc.client_name}</p>
+                  </div>
+                  <span style={{ fontSize: 10.5, fontWeight: 600, padding: '3px 10px', borderRadius: 99, color: s.color, background: s.bg, border: `1px solid ${s.border}`, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.label}</span>
                 </div>
               )
             })}
           </div>
-        </>
-      )}
+        </div>
+
+        <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 13px', borderBottom: '1px solid #f8fafc' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>Stok Udang</p>
+            <Link to="/dashboard/stock" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, color: '#2563eb', fontWeight: 500, textDecoration: 'none' }}>
+              Lihat stok <ArrowRight size={11} />
+            </Link>
+          </div>
+          <div style={{ padding: '16px 20px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {stokDisplay.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, margin: '12px 0' }}>Belum ada data stok.</p>
+            ) : stokDisplay.map(item => {
+              const pct      = Math.min(Math.round((item.qty / item.max) * 100), 100)
+              const barColor = pct < 30 ? '#ef4444' : pct < 60 ? '#f59e0b' : '#2563eb'
+              return (
+                <div key={item.name}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: barColor, flexShrink: 0 }} />
+                      <p style={{ fontSize: 12, fontWeight: 500, color: '#334155', margin: 0 }}>{item.name}</p>
+                    </div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                      {item.qty} <span style={{ fontWeight: 400, color: '#94a3b8' }}>kg</span>
+                    </p>
+                  </div>
+                  <div style={{ height: 5, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', borderRadius: 99, background: barColor, transition: 'width 0.4s ease' }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   )
+}
+
+export default function DashboardHome() {
+  const { isRole } = useAuth()
+  return isRole('staff') ? <StaffDashboard /> : <OwnerAdminDashboard />
 }
