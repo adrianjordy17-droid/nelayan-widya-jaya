@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import PdfPoImport from '../components/PdfPoImport'
 
 const FF = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }
 
@@ -126,6 +127,7 @@ function printDocument(doc) {
     body = `
       <table style="margin-bottom:20px"><tbody>${meta([
         ['Tanggal', fmtDate(doc.date)],
+        doc.clientPoNumber ? ['No. PO Klien', doc.clientPoNumber] : null,
         doc.paymentTerms ? ['Termin Pembayaran', doc.paymentTerms] : null,
         ['Status', (STATUS_CFG[doc.status]||{}).label || doc.status],
       ])}</tbody></table>
@@ -389,7 +391,6 @@ export default function Documents() {
       })
   }, [])
 
-  // Auto-open creation if navigated from Orders page
   useEffect(() => {
     if (location.state?.createType) {
       openCreate(location.state.createType)
@@ -506,10 +507,38 @@ export default function Documents() {
     }))
   }
 
+  function handlePoImport({ poNumber, clientName, date, notes, items }) {
+    const matched = clientName
+      ? clients.find(c => c.name.toLowerCase().includes(clientName.toLowerCase()))
+      : null
+    setF(prev => ({
+      ...prev,
+      clientPoNumber: poNumber || prev.clientPoNumber,
+      clientName: matched ? matched.name : (clientName || prev.clientName),
+      clientAddress: matched ? (matched.address || prev.clientAddress) : prev.clientAddress,
+      clientPhone: matched ? (matched.phone || prev.clientPhone) : prev.clientPhone,
+      date: date || prev.date,
+      notes: notes ? (prev.notes ? prev.notes + '\n' + notes : notes) : prev.notes,
+      items: items.length > 0
+        ? items.map(it => ({
+            id: newId(),
+            name: it.name,
+            qty: String(it.qty || ''),
+            unit: 'kg',
+            price: it.price ? String(it.price) : '',
+            receivedQty: '',
+            condition: 'Baik',
+            total: Math.round((Number(it.qty) || 0) * (Number(it.price) || 0))
+          }))
+        : prev.items
+    }))
+  }
+
   async function pushDocToDB(doc, isNew) {
     const payload = {
       type: doc.type, date: doc.date, status: doc.status,
       client_name: doc.clientName, client_address: doc.clientAddress || null, client_phone: doc.clientPhone || null,
+      client_po_number: doc.clientPoNumber || null,
       ref_number: doc.refNumber || null, driver_name: doc.driverName || null, vehicle: doc.vehicle || null,
       items: doc.items, subtotal: doc.subtotal, tax_pct: doc.taxPct, discount: doc.discount, total: doc.total,
       due_date: doc.dueDate || null, payment_terms: doc.paymentTerms || null,
@@ -651,7 +680,7 @@ export default function Documents() {
         )}
       </div>
 
-      {/* Tabs — hidden for staff (they only see DO) */}
+      {/* Tabs */}
       {!isStaff && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[['all', 'Semua'], ...Object.entries(DOC_CFG).map(([k, v]) => [k, v.label])].map(([val, label]) => (
@@ -729,6 +758,17 @@ export default function Documents() {
             </div>
 
             <div style={{ padding: '20px 16px' }}>
+
+              {/* ── IMPORT PO — hanya untuk SO baru ── */}
+              {createType === 'SO' && !form.editId && (
+                <>
+                  <SLabel text="Import dari PO Klien (Opsional)" />
+                  <div style={{ marginBottom: 22 }}>
+                    <PdfPoImport onImport={handlePoImport} />
+                  </div>
+                </>
+              )}
+
               {/* Info Dasar */}
               <SLabel text="Informasi Dasar" />
               <Card>
@@ -847,7 +887,6 @@ export default function Documents() {
               {/* Items */}
               <SLabel text={createType === 'GR' ? 'Barang Diterima' : 'Item / Barang'} />
               <div style={{ background: 'white', borderRadius: 13, padding: '12px 14px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)', marginBottom: 10 }}>
-                {/* Column headers */}
                 <div style={{ display: 'flex', gap: 6, padding: '0 0 8px', borderBottom: '0.5px solid #f0f0f0', marginBottom: 4 }}>
                   <span style={{ flex: 2, minWidth: 120, fontSize: 11, color: '#8e8e93', fontWeight: 600 }}>PRODUK</span>
                   <span style={{ width: 62, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>QTY</span>
@@ -1022,6 +1061,7 @@ export default function Documents() {
                   </div>
                 </div>
               )}
+
               {/* Action Buttons */}
               {canEdit && (detail.status === 'draft' || (detail.type === 'DO' && detail.status === 'dispatched')) && (
                 <button
