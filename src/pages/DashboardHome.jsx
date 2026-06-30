@@ -167,10 +167,10 @@ function OwnerAdminDashboard() {
         if (!data) return
         setRecentDocs(data.slice(0, 5))
         setOrderPending(data.filter(d => d.type === 'SO' && d.status === 'draft').length)
-        const soTotal = data
-          .filter(d => d.type === 'SO' && d.status === 'delivered' && (d.date || '').startsWith(thisMonth))
+        const grTotal = data
+          .filter(d => d.type === 'GR' && d.status === 'received' && (d.date || '').startsWith(thisMonth))
           .reduce((sum, d) => sum + (d.total || 0), 0)
-        setPenjualan(soTotal)
+        setPenjualan(grTotal)
       })
   }, [])
 
@@ -180,9 +180,9 @@ function OwnerAdminDashboard() {
   }).length
 
   const STATS = [
-    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO terkirim bulan ini', Icon: TrendingUp,   iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
-    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',          Icon: ShoppingCart, iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
-    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',    Icon: UserCheck,    iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
+    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari GR diterima bulan ini', Icon: TrendingUp,   iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
+    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',           Icon: ShoppingCart, iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
+    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',     Icon: UserCheck,    iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
     {
       label: 'Stok Tipis',
       value: String(stokTipis),
