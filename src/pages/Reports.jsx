@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 
 function itemsTotal(items) {
   if (!Array.isArray(items)) return 0
-  return items.reduce((sum, it) => sum + ((it.qty || 0) * (it.price || 0)), 0)
+  return items.reduce((sum, it) => sum + ((Number(it.qty) || 0) * (Number(it.price) || 0)), 0)
 }
 
 function docTotal(d) {
@@ -121,7 +121,7 @@ export default function Reports() {
   const totalRevenue = useMemo(() => activeDocs.reduce((s, d) => s + docTotal(d), 0), [activeDocs])
   const totalTransaksi = activeDocs.length
   const totalProduk = useMemo(() =>
-    activeDocs.reduce((s, d) => s + (Array.isArray(d.items) ? d.items.reduce((a, it) => a + (it.qty || 0), 0) : 0), 0),
+    activeDocs.reduce((s, d) => s + (Array.isArray(d.items) ? d.items.reduce((a, it) => a + (Number(it.qty) || 0), 0) : 0), 0),
   [activeDocs])
   const refundTotal = useMemo(() => cancelledDocs.reduce((s, d) => s + docTotal(d), 0), [cancelledDocs])
 
@@ -145,7 +145,7 @@ export default function Reports() {
     activeDocs.forEach(d => {
       ;(d.items || []).forEach(it => {
         const name = it.product_name || it.name || it.product_id || 'Unknown'
-        pm[name] = (pm[name] || 0) + (it.qty || 0)
+        pm[name] = (pm[name] || 0) + (Number(it.qty) || 0)
       })
     })
     return Object.entries(pm)
@@ -251,8 +251,7 @@ export default function Reports() {
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif', paddingBottom: 40 }}>
 
-      {/* Sticky Header */}
-      <div style={{ background: '#fff', padding: '20px 20px 14px', borderBottom: '1px solid rgba(0,0,0,0.08)', position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(10px)' }}>
+      <div style={{ background: '#fff', padding: '20px 20px 14px', borderBottom: '1px solid rgba(0,0,0,0.08)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ maxWidth: 700, margin: '0 auto' }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#1c1c1e', letterSpacing: -0.5 }}>Laporan Penjualan</h1>
           <p style={{ margin: '2px 0 0', fontSize: 13, color: '#8e8e93' }}>Analitik & performa transaksi</p>
@@ -261,7 +260,6 @@ export default function Reports() {
 
       <div style={{ maxWidth: 700, margin: '0 auto', padding: '16px 16px 0' }}>
 
-        {/* Date Range Picker */}
         <div style={{ ...card, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 600, letterSpacing: 0.8, marginBottom: 5, textTransform: 'uppercase' }}>Dari</div>
@@ -287,7 +285,6 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Quick Filters */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 2, scrollbarWidth: 'none' }}>
           {quickBtns.map(btn => (
             <button
@@ -304,8 +301,7 @@ export default function Reports() {
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 fontFamily: 'inherit',
-                flexShrink: 0,
-                transition: 'all 0.15s'
+                flexShrink: 0
               }}
             >
               {btn.label}
@@ -313,10 +309,9 @@ export default function Reports() {
           ))}
         </div>
 
-        {/* Chart Card */}
         <div style={{ ...card, marginBottom: 12 }}>
           <div style={{ marginBottom: 4 }}>
-            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 500, letterSpacing: 0.2 }}>Total Penjualan</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 500 }}>Total Penjualan</div>
             <div style={{ fontSize: 32, fontWeight: 700, color: '#1c1c1e', letterSpacing: -1.2, marginTop: 2 }}>
               {loading ? <span style={{ color: '#c7c7cc', fontSize: 20, fontWeight: 400 }}>Memuat…</span> : formatRpFull(totalRevenue)}
             </div>
@@ -335,18 +330,16 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Stats Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           {statCards.map(s => (
             <div key={s.label} style={{ ...card, padding: '14px 16px' }}>
-              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 500, marginBottom: 6, letterSpacing: 0.1 }}>{s.label}</div>
+              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 500, marginBottom: 6 }}>{s.label}</div>
               <div style={{ fontSize: 17, fontWeight: 700, color: s.accent, letterSpacing: -0.5, lineHeight: 1.2 }}>{loading ? '–' : s.value}</div>
               <div style={{ fontSize: 11, color: '#aeaeb2', marginTop: 3 }}>{s.sub}</div>
             </div>
           ))}
         </div>
 
-        {/* Top Products */}
         {!loading && topProducts.length > 0 && (
           <div style={{ ...card, marginBottom: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#1c1c1e', marginBottom: 14 }}>Produk Terlaris</div>
@@ -359,7 +352,7 @@ export default function Reports() {
                     <span style={{ fontSize: 12, color: '#8e8e93', fontWeight: 500 }}>{p.qty} unit</span>
                   </div>
                   <div style={{ height: 5, background: '#f2f2f7', borderRadius: 3 }}>
-                    <div style={{ height: '100%', width: `${(p.qty / maxQty) * 100}%`, background: 'linear-gradient(90deg, #007AFF, #5856D6)', borderRadius: 3, transition: 'width 0.4s ease' }} />
+                    <div style={{ height: '100%', width: `${(p.qty / maxQty) * 100}%`, background: 'linear-gradient(90deg, #007AFF, #5856D6)', borderRadius: 3 }} />
                   </div>
                 </div>
               )
@@ -367,7 +360,6 @@ export default function Reports() {
           </div>
         )}
 
-        {/* Recent Transactions */}
         <div style={{ ...card, marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#1c1c1e' }}>Transaksi Terbaru</div>
@@ -413,41 +405,16 @@ export default function Reports() {
           )}
         </div>
 
-        {/* Action Buttons */}
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={exportExcel}
-            style={{
-              flex: 1,
-              background: '#007AFF',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 14,
-              padding: '15px',
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              letterSpacing: -0.2
-            }}
+            style={{ flex: 1, background: '#007AFF', color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Export Excel
           </button>
           <button
             onClick={kirimWA}
-            style={{
-              flex: 1,
-              background: '#34C759',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 14,
-              padding: '15px',
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              letterSpacing: -0.2
-            }}
+            style={{ flex: 1, background: '#34C759', color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Kirim WA
           </button>
