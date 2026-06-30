@@ -51,7 +51,8 @@ export default function Orders() {
   const canEdit = isRole('admin') || isRole('owner')
 
   const [orders, setOrders]                 = useState([])
-  const [selectedMonth, setSelectedMonth]   = useState(currentYM())
+  const [selectedMonth, setSelectedMonth]   = useState(currentYM)
+  const [liveMonth, setLiveMonth]           = useState(currentYM)
   const [search, setSearch]                 = useState('')
   const [statusFilter, setStatusFilter]     = useState('semua')
   const [view, setView]                     = useState(null)
@@ -62,6 +63,18 @@ export default function Orders() {
     supabase.from('documents').select('*').eq('type', 'SO').order('created_at', { ascending: false })
       .then(({ data }) => data && setOrders(data.map(dbToSo)))
   }, [])
+
+  // Auto-advance to new month at midnight
+  useEffect(() => {
+    const t = setInterval(() => {
+      const now = currentYM()
+      if (now !== liveMonth) {
+        setSelectedMonth(prev => prev === liveMonth ? now : prev)
+        setLiveMonth(now)
+      }
+    }, 60_000)
+    return () => clearInterval(t)
+  }, [liveMonth])
 
   async function updateOrderStatus(newStatus) {
     if (!view) return
@@ -111,7 +124,7 @@ export default function Orders() {
     },
   ]
 
-  const isCurrentMonth = selectedMonth === currentYM()
+  const isCurrentMonth = selectedMonth === liveMonth
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20,
