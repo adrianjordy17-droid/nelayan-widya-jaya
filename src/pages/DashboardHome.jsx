@@ -19,11 +19,6 @@ const DOC_STATUS_CFG = {
   paid:       { label: 'Lunas',        color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
 }
 
-function itemsTotal(items) {
-  return (items || []).reduce((a, i) => a + (i.qty || 0) * (i.price || 0), 0)
-}
-function docTotal(d) { return d.total || itemsTotal(d.items) }
-
 function rpFmt(n) {
   if (!n) return 'Rp 0'
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace('.0', '')} jt`
@@ -31,6 +26,7 @@ function rpFmt(n) {
   return `Rp ${n.toLocaleString('id-ID')}`
 }
 
+// ── Staff Dashboard ──────────────────────────────────────────────────────────
 function StaffDashboard() {
   const { profile } = useAuth()
   const navigate    = useNavigate()
@@ -137,23 +133,40 @@ function StaffDashboard() {
   )
 }
 
+// ── Owner / Admin Dashboard ──────────────────────────────────────────────────
 function OwnerAdminDashboard() {
   const { profile } = useAuth()
-  const today      = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
-  const todayKey   = new Date().toISOString().slice(0, 10)
-  const thisMonth  = new Date().toISOString().slice(0, 7)
 
-  const [products, setProducts]           = useState([])
-  const [hadirCount, setHadirCount]       = useState(0)
-  const [totalExpected, setExpected]      = useState(0)
-  const [recentDocs, setRecentDocs]       = useState([])
+  const [todayKey,  setTodayKey]  = useState(() => new Date().toISOString().slice(0, 10))
+  const [thisMonth, setThisMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const todayLabel = format(new Date(todayKey + 'T12:00:00'), "EEEE, d MMMM yyyy", { locale: idLocale })
+
+  const [products, setProducts]         = useState([])
+  const [hadirCount, setHadirCount]     = useState(0)
+  const [totalExpected, setExpected]    = useState(0)
+  const [recentDocs, setRecentDocs]     = useState([])
   const [penjualanBulanIni, setPenjualan] = useState(0)
-  const [orderPending, setOrderPending]   = useState(0)
+  const [orderPending, setOrderPending] = useState(0)
+
+  // Midnight / month-change auto-refresh
+  useEffect(() => {
+    const t = setInterval(() => {
+      const nowDate  = new Date().toISOString().slice(0, 10)
+      const nowMonth = nowDate.slice(0, 7)
+      if (nowDate !== todayKey) {
+        setTodayKey(nowDate)
+        setThisMonth(nowMonth)
+      }
+    }, 60_000)
+    return () => clearInterval(t)
+  }, [todayKey])
 
   useEffect(() => {
+    // Load products for stock display
     supabase.from('products').select('id, nama, kategori, qty, min_qty, satuan')
       .then(({ data }) => setProducts(data || []))
 
+    // Load attendance for today — count unique names with type === 'masuk'
     supabase.from('attendance').select('id, name, type').eq('date', todayKey)
       .then(({ data }) => {
         if (!data) return
@@ -161,33 +174,33 @@ function OwnerAdminDashboard() {
         setHadirCount(masukNames.length)
       })
 
+    // Fetch active employee count separately
     supabase.from('employees').select('id', { count: 'exact' }).eq('active', true)
       .then(({ count }) => setExpected(count || 0))
 
+    // Load recent documents + SO stats (limit 200 to capture older records)
     supabase.from('documents')
-      .select('id, number, type, status, client_name, created_at, total, date, items')
+      .select('id, number, type, status, client_name, created_at, total, date')
       .order('created_at', { ascending: false })
       .limit(200)
       .then(({ data }) => {
         if (!data) return
         setRecentDocs(data.slice(0, 5))
         setOrderPending(data.filter(d => d.type === 'SO' && d.status === 'draft').length)
+        // Penjualan bulan ini: SO with status 'delivered' in this month
         const soTotal = data
-          .filter(d => d.type === 'SO' && d.status !== 'cancelled' && (d.date || '').startsWith(thisMonth))
-          .reduce((sum, d) => sum + docTotal(d), 0)
+          .filter(d => d.type === 'SO' && d.status === 'delivered' && (d.date || '').startsWith(thisMonth))
+          .reduce((sum, d) => sum + (d.total || 0), 0)
         setPenjualan(soTotal)
       })
-  }, [])
+  }, [todayKey])
 
-  const stokTipis = products.filter(p => {
-    const effectiveMin = (p.min_qty || 0) > 0 ? p.min_qty : 10
-    return (p.qty || 0) <= effectiveMin
-  }).length
+  const stokTipis = products.filter(p => (p.min_qty || 0) > 0 && (p.qty || 0) <= (p.min_qty || 0)).length
 
   const STATS = [
-    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO aktif bulan ini', Icon: TrendingUp,   iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
-    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',        Icon: ShoppingCart, iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
-    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',  Icon: UserCheck,    iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
+    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO terkirim bulan ini', Icon: TrendingUp,    iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
+    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',           Icon: ShoppingCart,  iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
+    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',     Icon: UserCheck,     iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
     {
       label: 'Stok Tipis',
       value: String(stokTipis),
@@ -208,9 +221,10 @@ function OwnerAdminDashboard() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
       <div>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.015em' }}>Selamat datang, {profile?.name}</h2>
-        <p style={{ color: '#94a3b8', fontSize: 12.5, marginTop: 4, textTransform: 'capitalize' }}>{today}</p>
+        <p style={{ color: '#94a3b8', fontSize: 12.5, marginTop: 4, textTransform: 'capitalize' }}>{todayLabel}</p>
       </div>
 
+      {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg, bar }) => (
           <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)' }}>
@@ -229,7 +243,10 @@ function OwnerAdminDashboard() {
         ))}
       </div>
 
+      {/* Bottom Row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+
+        {/* Dokumen Terbaru */}
         <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 13px', borderBottom: '1px solid #f8fafc' }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>Dokumen Terbaru</p>
@@ -258,6 +275,7 @@ function OwnerAdminDashboard() {
           </div>
         </div>
 
+        {/* Stok Produk */}
         <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 13px', borderBottom: '1px solid #f8fafc' }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>Stok Udang</p>
@@ -290,11 +308,13 @@ function OwnerAdminDashboard() {
             })}
           </div>
         </div>
+
       </div>
     </div>
   )
 }
 
+// ── Root export ──────────────────────────────────────────────────────────────
 export default function DashboardHome() {
   const { isRole } = useAuth()
   return isRole('staff') ? <StaffDashboard /> : <OwnerAdminDashboard />
