@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag,
+  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, Briefcase,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { path: '/dashboard/stock',       label: 'Stok',           icon: Package,         feature: 'stock' },
   { path: '/dashboard/reports',     label: 'Laporan',        icon: BarChart2,       feature: 'reports' },
   { path: '/dashboard/attendance',  label: 'Absensi',        icon: CalendarCheck,   feature: 'attendance' },
+  { path: '/dashboard/employees',   label: 'Karyawan',       icon: Briefcase,       feature: 'settings' },
   { path: '/dashboard/jobdesk',     label: 'Jobdesk',        icon: ClipboardList,   feature: 'jobdesk' },
   { path: '/dashboard/products',    label: 'Produk & Harga', icon: Tag,             feature: 'products' },
   { path: '/dashboard/settings',    label: 'Pengaturan',     icon: Settings2,       feature: 'settings' },
@@ -35,6 +36,7 @@ const PAGE_TITLE = {
   '/dashboard/stock':       'Manajemen Stok',
   '/dashboard/reports':     'Laporan & Analitik',
   '/dashboard/attendance':  'Absensi Karyawan',
+  '/dashboard/employees':   'Karyawan',
   '/dashboard/jobdesk':     'Jobdesk — Tugas Staf',
   '/dashboard/products':    'Produk & Daftar Harga',
   '/dashboard/settings':    'Pengaturan',
