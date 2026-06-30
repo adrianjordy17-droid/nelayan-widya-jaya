@@ -19,6 +19,11 @@ const DOC_STATUS_CFG = {
   paid:       { label: 'Lunas',        color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
 }
 
+function itemsTotal(items) {
+  return (items || []).reduce((a, i) => a + (i.qty || 0) * (i.price || 0), 0)
+}
+function docTotal(d) { return d.total || itemsTotal(d.items) }
+
 function rpFmt(n) {
   if (!n) return 'Rp 0'
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace('.0', '')} jt`
@@ -160,17 +165,17 @@ function OwnerAdminDashboard() {
       .then(({ count }) => setExpected(count || 0))
 
     supabase.from('documents')
-      .select('id, number, type, status, client_name, created_at, total, date')
+      .select('id, number, type, status, client_name, created_at, total, date, items')
       .order('created_at', { ascending: false })
       .limit(200)
       .then(({ data }) => {
         if (!data) return
         setRecentDocs(data.slice(0, 5))
         setOrderPending(data.filter(d => d.type === 'SO' && d.status === 'draft').length)
-        const grTotal = data
-          .filter(d => d.type === 'GR' && d.status === 'received' && (d.date || '').startsWith(thisMonth))
-          .reduce((sum, d) => sum + (d.total || 0), 0)
-        setPenjualan(grTotal)
+        const soTotal = data
+          .filter(d => d.type === 'SO' && d.status !== 'cancelled' && (d.date || '').startsWith(thisMonth))
+          .reduce((sum, d) => sum + docTotal(d), 0)
+        setPenjualan(soTotal)
       })
   }, [])
 
@@ -180,9 +185,9 @@ function OwnerAdminDashboard() {
   }).length
 
   const STATS = [
-    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari GR diterima bulan ini', Icon: TrendingUp,   iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
-    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',           Icon: ShoppingCart, iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
-    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',     Icon: UserCheck,    iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
+    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO aktif bulan ini', Icon: TrendingUp,   iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
+    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',        Icon: ShoppingCart, iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
+    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',  Icon: UserCheck,    iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
     {
       label: 'Stok Tipis',
       value: String(stokTipis),
