@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, Briefcase,
+  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
@@ -18,7 +18,6 @@ const NAV_ITEMS = [
   { path: '/dashboard/stock',       label: 'Stok',           icon: Package,         feature: 'stock' },
   { path: '/dashboard/reports',     label: 'Laporan',        icon: BarChart2,       feature: 'reports' },
   { path: '/dashboard/attendance',  label: 'Absensi',        icon: CalendarCheck,   feature: 'attendance' },
-  { path: '/dashboard/employees',   label: 'Karyawan',       icon: Briefcase,       feature: 'settings' },
   { path: '/dashboard/jobdesk',     label: 'Jobdesk',        icon: ClipboardList,   feature: 'jobdesk' },
   { path: '/dashboard/products',    label: 'Produk & Harga', icon: Tag,             feature: 'products' },
   { path: '/dashboard/settings',    label: 'Pengaturan',     icon: Settings2,       feature: 'settings' },
@@ -36,36 +35,40 @@ const PAGE_TITLE = {
   '/dashboard/stock':       'Manajemen Stok',
   '/dashboard/reports':     'Laporan & Analitik',
   '/dashboard/attendance':  'Absensi Karyawan',
-  '/dashboard/employees':   'Karyawan',
   '/dashboard/jobdesk':     'Jobdesk — Tugas Staf',
   '/dashboard/products':    'Produk & Daftar Harga',
   '/dashboard/settings':    'Pengaturan',
 }
 
+/* ── notifications from Supabase ── */
 async function fetchNotifications() {
   try {
     const [{ data: products }, { data: draftSOs }] = await Promise.all([
       supabase.from('products').select('id, nama, qty, min_qty, satuan'),
       supabase.from('documents').select('id, number, client_name').eq('type', 'SO').eq('status', 'draft'),
     ])
+
     const stockNotifs = (products || [])
-      .filter(p => (p.min_qty || 0) > 0 && (p.qty || 0) <= (p.min_qty || 0))
+      .filter(p => (p.qty || 0) <= (p.min_qty > 0 ? p.min_qty : 10))
       .map(p => ({
         id: `s-${p.id}`, type: 'stock',
         title: `Stok ${p.nama} kritis`,
-        desc:  `Sisa ${p.qty || 0} ${p.satuan || 'kg'} — min. ${p.min_qty}`,
+        desc:  `Sisa ${p.qty || 0} ${p.satuan || 'kg'} — min. ${p.min_qty > 0 ? p.min_qty : 10}`,
       }))
+
     const orderNotifs = (draftSOs || []).map(d => ({
       id: `o-${d.id}`, type: 'order',
       title: `SO ${d.number} menunggu`,
       desc:  d.client_name,
     }))
+
     return [...stockNotifs, ...orderNotifs]
   } catch {
     return []
   }
 }
 
+/* ── WA scheduler (reads real Supabase data) ── */
 function useWAScheduler() {
   const sent = useRef('')
   useEffect(() => {
@@ -80,11 +83,13 @@ function useWAScheduler() {
         if (now.getHours() === h && now.getMinutes() === m) {
           sent.current = key
           const today = now.toISOString().slice(0, 10)
+
           const [{ data: docs }, { data: prods }, { data: attend }] = await Promise.all([
             supabase.from('documents').select('*').eq('type', 'SO'),
             supabase.from('products').select('id, nama, qty, min_qty, satuan'),
             supabase.from('attendance').select('*').eq('date', today),
           ])
+
           const orders = (docs || []).map(d => ({
             id: d.number, client: d.client_name, date: d.date, catatan: d.notes || '',
             status: d.status === 'delivered' ? 'selesai' : d.status === 'dispatched' ? 'proses' : d.status === 'cancelled' ? 'batal' : 'pending',
@@ -92,6 +97,7 @@ function useWAScheduler() {
           }))
           const stock = (prods || []).map(p => ({ name: p.nama, qty: p.qty || 0, minQty: p.min_qty || 0, unit: p.satuan || 'kg' }))
           const attendance = (attend || []).map(a => ({ name: a.name, date: a.date, status: a.status }))
+
           sendToWhatsApp({ token: cfg.token, target: cfg.target, message: generateDailyReport(orders, stock, attendance) }).catch(() => {})
         }
       } catch {}
@@ -101,6 +107,7 @@ function useWAScheduler() {
   }, [])
 }
 
+/* ── Sidebar nav item ── */
 function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) {
   const [hover, setHover] = useState(false)
   if (feature && !hasPermission(feature)) return null
@@ -131,6 +138,7 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
   )
 }
 
+/* ── Notification Panel ── */
 function NotifPanel({ notifs, onClose }) {
   const stockN  = notifs.filter(n => n.type === 'stock')
   const orderN  = notifs.filter(n => n.type === 'order')
@@ -140,30 +148,32 @@ function NotifPanel({ notifs, onClose }) {
         <p style={{ fontSize: 15, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>Notifikasi</p>
         {notifs.length > 0 && <span style={{ background: '#ff3b30', color: 'white', fontSize: 10.5, fontWeight: 700, padding: '1px 6px', borderRadius: 99 }}>{notifs.length}</span>}
       </div>
+
       {notifs.length === 0 ? (
         <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-          <p style={{ fontSize: 26, marginBottom: 8 }}>✅</p>
-          <p style={{ fontSize: 13.5, color: '#3c3c43', fontWeight: 500, margin: 0 }}>Semua aman</p>
-          <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>Tidak ada notifikasi baru</p>
+          <p style={{ fontSize: 26, marginBottom: 8, margin: 0 }}>✅</p>
+          <p style={{ fontSize: 13.5, color: '#3c3c43', fontWeight: 500, margin: '8px 0 0' }}>Semua aman</p>
+          <p style={{ fontSize: 12, color: '#8e8e93', margin: '4px 0 0' }}>Tidak ada notifikasi baru</p>
         </div>
       ) : (
         <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-          {stockN.length > 0 && <p style={{ fontSize: 11, fontWeight: 600, color: '#ff3b30', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 16px 4px' }}>Stok Kritis</p>}
+          {stockN.length > 0 && <p style={{ fontSize: 11, fontWeight: 600, color: '#ff3b30', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 16px 4px', margin: 0 }}>Stok Kritis</p>}
           {stockN.map(n => (
             <div key={n.id} style={{ padding: '9px 16px', borderBottom: '0.5px solid #f9f9f9' }}>
               <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
-              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>{n.desc}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>{n.desc}</p>
             </div>
           ))}
-          {orderN.length > 0 && <p style={{ fontSize: 11, fontWeight: 600, color: '#ff9500', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 16px 4px' }}>SO Draft</p>}
+          {orderN.length > 0 && <p style={{ fontSize: 11, fontWeight: 600, color: '#ff9500', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 16px 4px', margin: 0 }}>SO Draft</p>}
           {orderN.map(n => (
             <div key={n.id} style={{ padding: '9px 16px', borderBottom: '0.5px solid #f9f9f9' }}>
               <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
-              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>{n.desc}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>{n.desc}</p>
             </div>
           ))}
         </div>
       )}
+
       <div style={{ padding: '11px 16px', borderTop: '0.5px solid #f0f0f0' }}>
         <NavLink to="/dashboard/settings" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none' }}>
           <span style={{ fontSize: 13, color: '#0a84ff', fontWeight: 500 }}>Atur notifikasi WA</span>
@@ -219,6 +229,7 @@ export default function DashboardLayout() {
         <div onClick={closeSidebar} style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.5)' }} />
       )}
 
+      {/* SIDEBAR */}
       <aside style={{
         width: 220, flexShrink: 0, height: '100vh', overflow: 'hidden',
         background: '#1c1c1e', display: 'flex', flexDirection: 'column',
@@ -266,7 +277,10 @@ export default function DashboardLayout() {
         </div>
       </aside>
 
+      {/* MAIN AREA */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* Topbar */}
         <header style={{ height: 48, flexShrink: 0, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', borderBottom: '0.5px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isMobile && (
