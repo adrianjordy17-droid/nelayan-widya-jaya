@@ -151,7 +151,7 @@ function LineChart({ data, highlightMonth }) {
           <rect x={tt.bx} y={tt.by} width={tt.bw} height={tt.bh} rx="12" ry="12" fill="white" filter="url(#tt-sh)" />
           <text x={tt.bx+tt.bw/2} y={tt.by+18} textAnchor="middle" fontSize="11" fill="#6e6e73" fontFamily={FF}>{tt.lbl}</text>
           <text x={tt.bx+tt.bw/2} y={tt.by+38} textAnchor="middle" fontSize="15" fontWeight="700" fill="#1d1d1f" fontFamily={FF}>{fmtShort(tt.d.revenue)}</text>
-          <text x={tt.bx+tt.bw/2} y={tt.by+53} textAnchor="middle" fontSize="11" fill="#aeaeb2" fontFamily={FF}>{tt.d.orders} SO</text>
+          <text x={tt.bx+tt.bw/2} y={tt.by+53} textAnchor="middle" fontSize="11" fill="#aeaeb2" fontFamily={FF}>{tt.d.orders} dok</text>
         </g>
       )}
     </svg>
@@ -176,7 +176,7 @@ export default function Reports() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('documents').select('*').eq('type', 'SO').order('date', { ascending: false }),
+      supabase.from('documents').select('*').in('type', ['SO', 'DO', 'GR']).order('date', { ascending: false }),
       supabase.from('products').select('*').order('kategori'),
       supabase.from('clients').select('*').order('name'),
     ]).then(([{ data: d }, { data: p }, { data: c }]) => {
@@ -191,7 +191,6 @@ export default function Reports() {
   const thisYM = localYM(now)
   const thisYr = String(now.getFullYear())
 
-  // Calendar-based (bukan rolling): 1 Bulan = bulan ini, 3 Bulan = 3 bulan kalender, dst
   const periodDocs = docs.filter(d => {
     if (!d.date) return false
     if (period === 'hari-ini') return d.date === localDate(now)
@@ -206,7 +205,6 @@ export default function Reports() {
     ? docs.filter(d => d.date && d.date.startsWith(searchMonth) && d.status !== 'cancelled')
     : periodDocs.filter(d => d.status !== 'cancelled')
 
-  // Omzet = confirmed + delivered (sinkron dengan dashboard)
   const revDocs        = filteredDocs.filter(d => d.status === 'confirmed' || d.status === 'delivered')
   const totalRevenue   = revDocs.reduce((a, d) => a + docTotal(d), 0)
   const totalOrders    = filteredDocs.length
@@ -253,7 +251,7 @@ export default function Reports() {
     }
     setWaStatus({ loading: true, msg: 'Mengirim...', ok: null })
     try {
-      const ordersWA = docs.map(d => ({
+      const ordersWA = docs.filter(d => d.type === 'SO').map(d => ({
         id: d.number, client: d.client_name, date: d.date, catatan: d.notes || '',
         status: d.status === 'delivered' ? 'selesai' : d.status === 'dispatched' ? 'proses' : d.status === 'cancelled' ? 'batal' : 'pending',
         items: d.items || [],
@@ -269,9 +267,10 @@ export default function Reports() {
   }
 
   function exportExcel() {
-    const wb   = XLSX.utils.book_new()
-    const date = localDate(new Date())
-    const ws1  = XLSX.utils.json_to_sheet(docs.map(d => ({
+    const wb     = XLSX.utils.book_new()
+    const date   = localDate(new Date())
+    const soDocs = docs.filter(d => d.type === 'SO')
+    const ws1    = XLSX.utils.json_to_sheet(soDocs.map(d => ({
       'No. SO': d.number, 'Klien': d.client_name, 'Tanggal': d.date,
       'Status': d.status, 'Total (Rp)': docTotal(d), 'Catatan': d.notes || '',
       'Item': (d.items || []).map(i => `${i.name} ${i.qty}${i.unit||''}`).join(', '),
@@ -302,7 +301,7 @@ export default function Reports() {
       XLSX.utils.book_append_sheet(wb, ws4, 'Data Klien')
     }
     if (chartData.length > 0) {
-      const ws5 = XLSX.utils.json_to_sheet(chartData.map(d => ({ 'Bulan':d.key,'Total SO':d.orders,'Total Omzet (Rp)':d.revenue })))
+      const ws5 = XLSX.utils.json_to_sheet(chartData.map(d => ({ 'Bulan':d.key,'Total Dok':d.orders,'Total Omzet (Rp)':d.revenue })))
       ws5['!cols'] = [{ wch:12 },{ wch:14 },{ wch:20 }]
       XLSX.utils.book_append_sheet(wb, ws5, 'Ringkasan Bulanan')
     }
@@ -316,24 +315,24 @@ export default function Reports() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontFamily: FF }}>
 
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1d1d1f', margin: '0 0 2px', letterSpacing: '-0.3px', fontFamily: FF }}>
             Laporan &amp; Analitik
           </h2>
-          <p style={{ fontSize: 13, color: '#6e6e73', margin: 0, fontFamily: FF }}>Performa penjualan berdasarkan data aktual</p>
+          <p style={{ fontSize: 13, color: '#6e6e73', margin: 0, fontFamily: FF }}>
+            Performa penjualan berdasarkan data aktual
+          </p>
         </div>
 
-        {/* iOS Segmented Control */}
-        <div style={{ background: 'rgba(116,116,128,0.12)', borderRadius: 10, padding: 2, display: 'inline-flex' }}>
+        <div style={{ background: 'rgba(116,116,128,0.12)', borderRadius: 10, padding: 2, display: 'inline-flex', gap: 0 }}>
           {PERIODS.map(p => {
             const active = !searchMonth && period === p.key
             return (
               <button key={p.key} onClick={() => { setPeriod(p.key); setSearchMonth(null) }} style={{
                 padding: '7px 15px', borderRadius: 8, cursor: 'pointer', border: 'none',
                 background: active ? 'white' : 'transparent',
-                boxShadow: active ? '0 1px 4px rgba(0,0,0,0.15),0 0 0 0.5px rgba(0,0,0,0.05)' : 'none',
+                boxShadow: active ? '0 1px 4px rgba(0,0,0,0.15), 0 0 0 0.5px rgba(0,0,0,0.05)' : 'none',
                 color: active ? '#1d1d1f' : '#6e6e73',
                 fontWeight: active ? 600 : 400,
                 fontSize: 13, fontFamily: FF, whiteSpace: 'nowrap',
@@ -343,7 +342,6 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Action bar */}
       <div style={{ background: 'white', borderRadius: 16, padding: '14px 20px', boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <div>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1d1f', margin: '0 0 1px', fontFamily: FF }}>Ekspor &amp; Bagikan</p>
@@ -368,13 +366,12 @@ export default function Reports() {
 
       {!loading && (
         <>
-          {/* Stat Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
             {[
               { label: 'Total Penjualan', value: fmtShort(totalRevenue), sub: `omzet ${activeLabel}`, Icon: DollarSign,   ic: '#1a7a2e', ib: 'rgba(52,199,89,0.1)'  },
-              { label: 'Total SO',        value: totalOrders,            sub: 'semua transaksi',       Icon: ShoppingCart, ic: '#0055d4', ib: 'rgba(0,113,227,0.08)' },
-              { label: 'SO Terkirim',     value: deliveredCount,         sub: 'berhasil dikirim',      Icon: CheckCircle,  ic: '#7635c4', ib: 'rgba(175,82,222,0.1)' },
-              { label: 'Rata-rata SO',    value: fmtShort(avgOrder),     sub: 'per transaksi',         Icon: TrendingUp,   ic: '#975400', ib: 'rgba(255,159,10,0.1)' },
+              { label: 'Total Dokumen',   value: totalOrders,            sub: 'SO + DO + GR',         Icon: ShoppingCart, ic: '#0055d4', ib: 'rgba(0,113,227,0.08)' },
+              { label: 'Terkirim',        value: deliveredCount,         sub: 'berhasil dikirim',     Icon: CheckCircle,  ic: '#7635c4', ib: 'rgba(175,82,222,0.1)' },
+              { label: 'Rata-rata',       value: fmtShort(avgOrder),     sub: 'per transaksi',        Icon: TrendingUp,   ic: '#975400', ib: 'rgba(255,159,10,0.1)' },
             ].map(({ label, value, sub, Icon, ic, ib }) => (
               <div key={label} style={{ background: 'white', borderRadius: 18, padding: '20px 22px', boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -389,7 +386,6 @@ export default function Reports() {
             ))}
           </div>
 
-          {/* Chart */}
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
             <div style={{ padding: '20px 24px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
@@ -398,7 +394,9 @@ export default function Reports() {
                   {fmtShort(chartData.reduce((a, d) => a + d.revenue, 0))}
                 </p>
                 {searchMonth && (
-                  <p style={{ fontSize: 12, color: '#0071e3', margin: '4px 0 0', fontWeight: 500, fontFamily: FF }}>Sorot: {monthLabel(searchMonth)}</p>
+                  <p style={{ fontSize: 12, color: '#0071e3', margin: '4px 0 0', fontWeight: 500, fontFamily: FF }}>
+                    Sorot: {monthLabel(searchMonth)}
+                  </p>
                 )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
@@ -411,7 +409,6 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Month Search */}
           <div style={{ background: 'white', borderRadius: 18, padding: '18px 20px', boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div>
@@ -432,7 +429,7 @@ export default function Reports() {
                   <p style={{ fontSize: 26, fontWeight: 700, color: '#1d1d1f', margin: 0, letterSpacing: '-0.4px', fontFamily: FF }}>{fmtShort(totalRevenue)}</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontSize: 12, color: '#6e6e73', margin: '0 0 2px', fontFamily: FF }}>{totalOrders} SO</p>
+                  <p style={{ fontSize: 12, color: '#6e6e73', margin: '0 0 2px', fontFamily: FF }}>{totalOrders} dok</p>
                   <p style={{ fontSize: 12, color: '#6e6e73', margin: 0, fontFamily: FF }}>{deliveredCount} terkirim</p>
                 </div>
               </div>
@@ -458,7 +455,6 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Top Products */}
           <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
               <div>
@@ -507,7 +503,6 @@ export default function Reports() {
             )}
           </div>
 
-          {/* Status Breakdown */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
             {STATUS_ROWS.map(s => {
               const count = docs.filter(d => d.status === s.status).length
@@ -518,7 +513,7 @@ export default function Reports() {
                     {s.label}
                   </span>
                   <p style={{ fontSize: 30, fontWeight: 700, color: '#1d1d1f', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.5px', fontFamily: FF }}>{count}</p>
-                  <p style={{ fontSize: 11, color: '#aeaeb2', margin: '0 0 4px', fontFamily: FF }}>order</p>
+                  <p style={{ fontSize: 11, color: '#aeaeb2', margin: '0 0 4px', fontFamily: FF }}>dokumen</p>
                   <p style={{ fontSize: 13, fontWeight: 600, color: s.color, margin: 0, fontFamily: FF }}>{fmtShort(rev)}</p>
                 </div>
               )
