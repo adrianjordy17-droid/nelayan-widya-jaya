@@ -134,7 +134,7 @@ export default function Orders() {
   const draftCount = monthSoList.filter(o => o.status === 'draft').length
   const confCount  = monthSoList.filter(o => o.status === 'confirmed').length
   const omzetBulan = monthSoList
-    .filter(o => o.status === 'delivered')
+    .filter(o => o.status === 'confirmed' || o.status === 'delivered')
     .reduce((a, o) => a + (+o.total || 0), 0)
 
   const monthsWithData = [...new Set(
@@ -150,7 +150,7 @@ export default function Orders() {
       value: omzetBulan >= 1_000_000
         ? `Rp ${(omzetBulan / 1_000_000).toFixed(1).replace('.0', '')} jt`
         : `Rp ${omzetBulan.toLocaleString('id-ID')}`,
-      sub: 'terkirim bulan ini', Icon: TrendingUp, iconColor: '#7c3aed', iconBg: '#f5f3ff',
+      sub: 'dikonfirmasi bulan ini', Icon: TrendingUp, iconColor: '#7c3aed', iconBg: '#f5f3ff',
     },
   ]
 
@@ -485,4 +485,3 @@ export default function Orders() {
     </div>
   )
 }
-
