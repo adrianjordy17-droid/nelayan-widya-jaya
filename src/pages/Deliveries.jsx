@@ -19,6 +19,10 @@ function fmtDay(d) {
   if (!d) return ''
   return new Date(d + 'T12:00:00').toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 }
+function localDateStr() {
+  const n = new Date()
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`
+}
 
 function InfoRow({ label, value, last }) {
   return (
@@ -35,7 +39,6 @@ function InfoRow({ label, value, last }) {
 function StepBar({ step }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20, padding: '0 4px' }}>
-      {/* Step 1 */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
         <div style={{
           width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -48,11 +51,7 @@ function StepBar({ step }) {
           Di Gudang
         </p>
       </div>
-
-      {/* connector */}
       <div style={{ flex: 1, height: 2, background: step === 1 ? '#e5e5ea' : '#34c759', marginBottom: 18, maxWidth: 60 }} />
-
-      {/* Step 2 */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
         <div style={{
           width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -71,7 +70,7 @@ function StepBar({ step }) {
 
 function emptyForm() {
   return {
-    clientName: '', deliveryDate: new Date().toISOString().slice(0, 10),
+    clientName: '', deliveryDate: localDateStr(),
     weightSent: '',
     photoSentFile: null, photoSentPreview: null,
     notes: '',
@@ -97,16 +96,19 @@ function mapReport(r) {
 }
 
 export default function Deliveries() {
-  const { user, profile } = useAuth()
+  const { user, profile, isRole } = useAuth()
+  const canEdit = isRole('admin') || isRole('owner')
   const location = useLocation()
   const [reports, setReports] = useState([])
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [modal, setModal] = useState(null)        // null | 'new' | report-object (detail)
-  const [completing, setCompleting] = useState(null) // in-transit report being completed (Step 2)
+  const [selectedDate, setSelectedDate] = useState(localDateStr)
+  const [modal, setModal] = useState(null)
+  const [completing, setCompleting] = useState(null)
   const [form, setForm] = useState(emptyForm())
   const [step2, setStep2] = useState({ weightReceived: '', photoFile: null, photoPreview: null })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [grCreating, setGrCreating] = useState(false)
+  const [grDone, setGrDone] = useState(false)
   const sentRef = useRef(null)
   const recvRef = useRef(null)
 
@@ -120,10 +122,9 @@ export default function Deliveries() {
       })
   }, [])
 
-  // Midnight auto-advance selectedDate
   useEffect(() => {
     const t = setInterval(() => {
-      const now = new Date().toISOString().slice(0, 10)
+      const now = localDateStr()
       if (now !== selectedDate) setSelectedDate(now)
     }, 60_000)
     return () => clearInterval(t)
@@ -161,7 +162,6 @@ export default function Deliveries() {
     } catch { return null }
   }
 
-  // ── Step 1: Simpan keberangkatan di gudang ──
   async function saveStep1(andContinue = false) {
     if (!form.clientName.trim()) return
     setSaving(true)
@@ -216,7 +216,6 @@ export default function Deliveries() {
     }
   }
 
-  // ── Step 2: Simpan penerimaan di lokasi ──
   async function saveStep2() {
     if (!completing) return
     setSaving(true)
@@ -252,11 +251,57 @@ export default function Deliveries() {
     }
   }
 
+  async function createGR(report) {
+    setGrCreating(true)
+    try {
+      const now = new Date()
+      const ym = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`
+
+      const { data: existing } = await supabase
+        .from('documents').select('number').eq('type', 'GR').like('number', `GR-${ym}-%`)
+      const seq = (existing?.length || 0) + 1
+      const number = `GR-${ym}-${String(seq).padStart(3, '0')}`
+
+      let items = []
+      let refNum = report.doRef || ''
+      if (report.doId) {
+        const { data: doDoc } = await supabase
+          .from('documents').select('items, number').eq('id', report.doId).single()
+        if (doDoc) {
+          items = doDoc.items || []
+          refNum = doDoc.number || refNum
+        }
+      }
+
+      await supabase.from('documents').insert({
+        id: crypto.randomUUID(),
+        type: 'GR',
+        number,
+        status: 'confirmed',
+        client_name: report.clientName,
+        date: report.deliveryDate || localDateStr(),
+        items,
+        notes: `Dari ${refNum || 'Laporan Kirim'} — Berat diterima: ${report.weightReceived ?? '–'} kg`,
+        ref_number: refNum || null,
+        created_by: user?.id,
+        created_by_name: profile?.name || '',
+        total: null,
+        subtotal: null,
+      })
+
+      setGrDone(true)
+      setTimeout(() => setGrDone(false), 4000)
+    } catch (err) {
+      alert('Gagal buat GR: ' + err.message)
+    } finally {
+      setGrCreating(false)
+    }
+  }
+
   const isDetail = modal && modal !== 'new'
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr = localDateStr()
   const isToday  = selectedDate === todayStr
 
-  // Always show in-transit reports; show completed ones only for selectedDate
   const displayedReports = reports.filter(r => {
     const inTransit = r.weightReceived == null && r.photoReceivedUrl == null
     return inTransit || r.deliveryDate === selectedDate
@@ -332,6 +377,7 @@ export default function Deliveries() {
                     setSaved(false)
                     setCompleting(r)
                   } else {
+                    setGrDone(false)
                     setModal(r)
                   }
                 }}
@@ -400,7 +446,7 @@ export default function Deliveries() {
                             <img src={r.photoSentUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </div>
                         )}
-                                                {r.photoReceivedUrl && (
+                        {r.photoReceivedUrl && (
                           <div style={{ width: 20, height: 20, borderRadius: 4, overflow: 'hidden', background: '#f0f0f0' }}>
                             <img src={r.photoReceivedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </div>
@@ -415,7 +461,7 @@ export default function Deliveries() {
         </div>
       )}
 
-      {/* MODAL: Step 1 — Laporan Keberangkatan */}
+      {/* MODAL: Step 1 */}
       {modal === 'new' && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
@@ -451,6 +497,7 @@ export default function Deliveries() {
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
               <StepBar step={1} />
+
               {form.doRef && (
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>Delivery Order</p>
@@ -590,7 +637,7 @@ export default function Deliveries() {
         </div>
       )}
 
-      {/* MODAL: Step 2 — Selesaikan di Lokasi */}
+      {/* MODAL: Step 2 */}
       {completing && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
@@ -629,6 +676,7 @@ export default function Deliveries() {
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
               <StepBar step={2} />
+
               <div style={{
                 background: 'white', borderRadius: 13, padding: '14px 16px',
                 boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)',
@@ -744,7 +792,7 @@ export default function Deliveries() {
         </div>
       )}
 
-      {/* MODAL: Detail View (laporan selesai) */}
+      {/* MODAL: Detail View */}
       {isDetail && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
@@ -761,12 +809,14 @@ export default function Deliveries() {
               position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1,
             }}>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>{modal.clientName}</p>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
+              <button onClick={() => { setModal(null); setGrDone(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
                 <X size={22} />
               </button>
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Photos */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Foto Kirim</p>
@@ -796,6 +846,7 @@ export default function Deliveries() {
                 </div>
               </div>
 
+              {/* Selisih */}
               {modal.weightSent != null && modal.weightReceived != null && (() => {
                 const diff = modal.weightReceived - modal.weightSent
                 return (
@@ -812,12 +863,41 @@ export default function Deliveries() {
                 )
               })()}
 
+              {/* Info rows */}
               <div style={{ background: 'white', borderRadius: 13, overflow: 'hidden', boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)' }}>
                 <InfoRow label="Tanggal" value={formatDate(modal.deliveryDate)} />
                 {modal.doRef && <InfoRow label="DO" value={modal.doRef} />}
                 <InfoRow label="Dibuat oleh" value={modal.createdByName} last={!modal.notes} />
                 {modal.notes && <InfoRow label="Catatan" value={modal.notes} last />}
               </div>
+
+              {/* Tombol Buat GR — hanya admin/owner */}
+              {canEdit && (
+                <button
+                  onClick={() => createGR(modal)}
+                  disabled={grCreating || grDone}
+                  style={{
+                    width: '100%', padding: '15px',
+                    background: grDone
+                      ? '#34c759'
+                      : grCreating
+                        ? '#c7c7cc'
+                        : 'linear-gradient(135deg,#2563eb,#1d4ed8)',
+                    border: 'none', borderRadius: 13,
+                    color: 'white', fontSize: 15, fontWeight: 600,
+                    cursor: grCreating || grDone ? 'default' : 'pointer',
+                    ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  {grDone
+                    ? <><Check size={16} /> GR Berhasil Dibuat!</>
+                    : grCreating
+                      ? 'Membuat GR...'
+                      : <><FileText size={16} /> Buat GR dari Laporan Ini</>
+                  }
+                </button>
+              )}
             </div>
             <div style={{ height: 40 }} />
           </div>
@@ -826,4 +906,3 @@ export default function Deliveries() {
     </div>
   )
 }
-                        
