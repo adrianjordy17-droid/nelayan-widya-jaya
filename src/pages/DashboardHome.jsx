@@ -156,12 +156,12 @@ function OwnerAdminDashboard() {
   const [todayKey,  setTodayKey]  = useState(localToday)
   const [thisMonth, setThisMonth] = useState(() => localToday().slice(0, 7))
 
-  const [products, setProducts]         = useState([])
-  const [hadirCount, setHadirCount]     = useState(0)
-  const [totalExpected, setExpected]    = useState(0)
-  const [recentDocs, setRecentDocs]     = useState([])
+  const [products, setProducts]           = useState([])
+  const [hadirCount, setHadirCount]       = useState(0)
+  const [totalExpected, setExpected]      = useState(0)
+  const [recentDocs, setRecentDocs]       = useState([])
   const [penjualanBulanIni, setPenjualan] = useState(0)
-  const [orderPending, setOrderPending] = useState(0)
+  const [orderPending, setOrderPending]   = useState(0)
 
   // Real-time date label + midnight auto-refresh
   useEffect(() => {
@@ -194,7 +194,7 @@ function OwnerAdminDashboard() {
   }, [])
 
   useEffect(() => {
-    // Load attendance for today — count unique names with type === 'masuk'
+    // Absensi hari ini
     supabase.from('attendance').select('id, name, type').eq('date', todayKey)
       .then(({ data }) => {
         if (!data) return
@@ -202,32 +202,37 @@ function OwnerAdminDashboard() {
         setHadirCount(masukNames.length)
       })
 
-    // Fetch active employee count separately
+    // Jumlah karyawan aktif
     supabase.from('employees').select('id', { count: 'exact' }).eq('active', true)
       .then(({ count }) => setExpected(count || 0))
 
-    // Load recent documents + SO stats (limit 200 to capture older records)
+    // 5 dokumen terbaru untuk ditampilkan
     supabase.from('documents')
-      .select('id, number, type, status, client_name, created_at, total, date')
+      .select('id, number, type, status, client_name, created_at')
       .order('created_at', { ascending: false })
-      .limit(200)
+      .limit(5)
+      .then(({ data }) => { if (data) setRecentDocs(data) })
+
+    // SO stats: draft count + penjualan bulan ini (confirmed + delivered)
+    supabase.from('documents')
+      .select('id, type, status, total, date')
+      .eq('type', 'SO')
       .then(({ data }) => {
         if (!data) return
-        setRecentDocs(data.slice(0, 5))
-        setOrderPending(data.filter(d => d.type === 'SO' && d.status === 'draft').length)
+        setOrderPending(data.filter(d => d.status === 'draft').length)
         const soTotal = data
-          .filter(d => d.type === 'SO' && d.status === 'delivered' && (d.date || '').startsWith(thisMonth))
+          .filter(d => (d.status === 'confirmed' || d.status === 'delivered') && (d.date || '').startsWith(thisMonth))
           .reduce((sum, d) => sum + (d.total || 0), 0)
         setPenjualan(soTotal)
       })
   }, [todayKey, thisMonth])
 
-  const stokTipis = products.filter(p => (p.min_qty || 0) > 0 && (p.qty || 0) <= (p.min_qty || 0)).length
+  const stokTipis = products.filter(p => (p.qty || 0) <= (p.min_qty > 0 ? p.min_qty : 10)).length
 
   const STATS = [
-    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO terkirim bulan ini', Icon: TrendingUp,    iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
-    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',           Icon: ShoppingCart,  iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
-    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',     Icon: UserCheck,     iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
+    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO dikonfirmasi bulan ini', Icon: TrendingUp,   iconColor: '#2563eb', iconBg: '#eff6ff', bar: '#2563eb' },
+    { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',              Icon: ShoppingCart, iconColor: '#d97706', iconBg: '#fffbeb', bar: '#d97706' },
+    { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',        Icon: UserCheck,    iconColor: '#16a34a', iconBg: '#f0fdf4', bar: '#16a34a' },
     {
       label: 'Stok Tipis',
       value: String(stokTipis),
