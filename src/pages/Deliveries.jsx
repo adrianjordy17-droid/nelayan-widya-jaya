@@ -19,10 +19,6 @@ function fmtDay(d) {
   if (!d) return ''
   return new Date(d + 'T12:00:00').toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 }
-function localDateStr() {
-  const n = new Date()
-  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`
-}
 
 function InfoRow({ label, value, last }) {
   return (
@@ -39,6 +35,7 @@ function InfoRow({ label, value, last }) {
 function StepBar({ step }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20, padding: '0 4px' }}>
+      {/* Step 1 */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
         <div style={{
           width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -51,7 +48,11 @@ function StepBar({ step }) {
           Di Gudang
         </p>
       </div>
+
+      {/* connector */}
       <div style={{ flex: 1, height: 2, background: step === 1 ? '#e5e5ea' : '#34c759', marginBottom: 18, maxWidth: 60 }} />
+
+      {/* Step 2 */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
         <div style={{
           width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -70,11 +71,12 @@ function StepBar({ step }) {
 
 function emptyForm() {
   return {
-    clientName: '', deliveryDate: localDateStr(),
+    clientName: '', deliveryDate: new Date().toISOString().slice(0, 10),
     weightSent: '',
     photoSentFile: null, photoSentPreview: null,
     notes: '',
     doRef: '', doId: null, doItems: [],
+    isPartial: false, partialNotes: '',
   }
 }
 
@@ -92,23 +94,22 @@ function mapReport(r) {
     createdAt: r.created_at,
     doId: r.do_id || null,
     doRef: r.do_ref || '',
+    isPartial: r.is_partial || false,
+    partialNotes: r.partial_notes || '',
   }
 }
 
 export default function Deliveries() {
-  const { user, profile, isRole } = useAuth()
-  const canEdit = isRole('admin') || isRole('owner')
+  const { user, profile } = useAuth()
   const location = useLocation()
   const [reports, setReports] = useState([])
-  const [selectedDate, setSelectedDate] = useState(localDateStr)
-  const [modal, setModal] = useState(null)
-  const [completing, setCompleting] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [modal, setModal] = useState(null)        // null | 'new' | report-object (detail)
+  const [completing, setCompleting] = useState(null) // in-transit report being completed (Step 2)
   const [form, setForm] = useState(emptyForm())
   const [step2, setStep2] = useState({ weightReceived: '', photoFile: null, photoPreview: null })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [grCreating, setGrCreating] = useState(false)
-  const [grDone, setGrDone] = useState(false)
   const sentRef = useRef(null)
   const recvRef = useRef(null)
 
@@ -122,9 +123,10 @@ export default function Deliveries() {
       })
   }, [])
 
+  // Midnight auto-advance selectedDate
   useEffect(() => {
     const t = setInterval(() => {
-      const now = localDateStr()
+      const now = new Date().toISOString().slice(0, 10)
       if (now !== selectedDate) setSelectedDate(now)
     }, 60_000)
     return () => clearInterval(t)
@@ -162,6 +164,7 @@ export default function Deliveries() {
     } catch { return null }
   }
 
+  // ── Step 1: Simpan keberangkatan di gudang ──
   async function saveStep1(andContinue = false) {
     if (!form.clientName.trim()) return
     setSaving(true)
@@ -183,6 +186,8 @@ export default function Deliveries() {
         created_at: new Date().toISOString(),
         do_id: form.doId || null,
         do_ref: form.doRef || '',
+        is_partial: form.isPartial,
+        partial_notes: form.partialNotes.trim(),
       })
 
       setReports(prev => [report, ...prev])
@@ -200,6 +205,8 @@ export default function Deliveries() {
         created_by_name: report.createdByName,
         do_id: form.doId || null,
         do_ref: form.doRef || null,
+        is_partial: form.isPartial,
+        partial_notes: form.partialNotes.trim() || null,
       })
 
       setSaved(true)
@@ -216,6 +223,7 @@ export default function Deliveries() {
     }
   }
 
+  // ── Step 2: Simpan penerimaan di lokasi ──
   async function saveStep2() {
     if (!completing) return
     setSaving(true)
@@ -251,57 +259,11 @@ export default function Deliveries() {
     }
   }
 
-  async function createGR(report) {
-    setGrCreating(true)
-    try {
-      const now = new Date()
-      const ym = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`
-
-      const { data: existing } = await supabase
-        .from('documents').select('number').eq('type', 'GR').like('number', `GR-${ym}-%`)
-      const seq = (existing?.length || 0) + 1
-      const number = `GR-${ym}-${String(seq).padStart(3, '0')}`
-
-      let items = []
-      let refNum = report.doRef || ''
-      if (report.doId) {
-        const { data: doDoc } = await supabase
-          .from('documents').select('items, number').eq('id', report.doId).single()
-        if (doDoc) {
-          items = doDoc.items || []
-          refNum = doDoc.number || refNum
-        }
-      }
-
-      await supabase.from('documents').insert({
-        id: crypto.randomUUID(),
-        type: 'GR',
-        number,
-        status: 'confirmed',
-        client_name: report.clientName,
-        date: report.deliveryDate || localDateStr(),
-        items,
-        notes: `Dari ${refNum || 'Laporan Kirim'} — Berat diterima: ${report.weightReceived ?? '–'} kg`,
-        ref_number: refNum || null,
-        created_by: user?.id,
-        created_by_name: profile?.name || '',
-        total: null,
-        subtotal: null,
-      })
-
-      setGrDone(true)
-      setTimeout(() => setGrDone(false), 4000)
-    } catch (err) {
-      alert('Gagal buat GR: ' + err.message)
-    } finally {
-      setGrCreating(false)
-    }
-  }
-
   const isDetail = modal && modal !== 'new'
-  const todayStr = localDateStr()
+  const todayStr = new Date().toISOString().slice(0, 10)
   const isToday  = selectedDate === todayStr
 
+  // Always show in-transit reports; show completed ones only for selectedDate
   const displayedReports = reports.filter(r => {
     const inTransit = r.weightReceived == null && r.photoReceivedUrl == null
     return inTransit || r.deliveryDate === selectedDate
@@ -377,7 +339,6 @@ export default function Deliveries() {
                     setSaved(false)
                     setCompleting(r)
                   } else {
-                    setGrDone(false)
                     setModal(r)
                   }
                 }}
@@ -410,13 +371,21 @@ export default function Deliveries() {
                   </div>
 
                   {inTransit ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{
                         fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
                         background: '#fff3e0', color: '#e65100',
                       }}>
                         Dalam Perjalanan · Tap untuk selesaikan
                       </span>
+                      {r.isPartial && (
+                        <span style={{
+                          fontSize: 11.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                          background: '#fff0f0', color: '#ff3b30',
+                        }}>
+                          ⚠ Partial
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -432,6 +401,14 @@ export default function Deliveries() {
                           color: diff < 0 ? '#ff3b30' : '#34c759',
                         }}>
                           {diff > 0 ? '+' : ''}{diff.toFixed(1)} kg
+                        </span>
+                      )}
+                      {r.isPartial && (
+                        <span style={{
+                          fontSize: 11.5, fontWeight: 700, padding: '1px 6px', borderRadius: 6,
+                          background: '#fff0f0', color: '#ff3b30',
+                        }}>
+                          ⚠ Partial
                         </span>
                       )}
                     </div>
@@ -461,7 +438,9 @@ export default function Deliveries() {
         </div>
       )}
 
-      {/* MODAL: Step 1 */}
+      {/* ──────────────────────────────────────────
+          MODAL: Step 1 — Laporan Keberangkatan
+      ────────────────────────────────────────── */}
       {modal === 'new' && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
@@ -472,6 +451,7 @@ export default function Deliveries() {
             background: '#f2f2f7', borderRadius: '20px 20px 0 0',
             width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto', ...FF,
           }}>
+            {/* Header */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6',
@@ -496,8 +476,11 @@ export default function Deliveries() {
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* Step bar */}
               <StepBar step={1} />
 
+              {/* DO Reference Badge */}
               {form.doRef && (
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>Delivery Order</p>
@@ -525,6 +508,7 @@ export default function Deliveries() {
                 </div>
               )}
 
+              {/* Foto & Berat Kirim (Gudang) */}
               <div>
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
                   Timbang di Gudang
@@ -568,6 +552,7 @@ export default function Deliveries() {
                 </div>
               </div>
 
+              {/* Info Pengiriman */}
               <div>
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
                   Info Pengiriman
@@ -597,7 +582,7 @@ export default function Deliveries() {
                       style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
                     />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 13, padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 13, padding: '12px 16px', borderBottom: '0.5px solid #f0f0f0' }}>
                     <div style={{ width: 30, height: 30, borderRadius: 8, background: '#34c759', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
                       <FileText size={15} color="white" strokeWidth={1.9} />
                     </div>
@@ -610,10 +595,53 @@ export default function Deliveries() {
                       style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit', resize: 'none', lineHeight: 1.5 }}
                     />
                   </div>
+
+                  {/* Partial toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 16px', borderBottom: form.isPartial ? '0.5px solid #f0f0f0' : 'none' }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: '#ff3b30', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Truck size={15} color="white" strokeWidth={1.9} />
+                    </div>
+                    <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flex: 1, fontWeight: 400 }}>Pengiriman Partial</p>
+                    <div
+                      onClick={() => setForm(f => ({ ...f, isPartial: !f.isPartial }))}
+                      style={{
+                        width: 51, height: 31, borderRadius: 16, cursor: 'pointer', flexShrink: 0,
+                        background: form.isPartial ? '#ff3b30' : '#e5e5ea',
+                        position: 'relative', transition: 'background 0.2s',
+                      }}
+                    >
+                      <div style={{
+                        position: 'absolute', top: 2,
+                        left: form.isPartial ? 22 : 2,
+                        width: 27, height: 27, borderRadius: '50%',
+                        background: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.22)',
+                        transition: 'left 0.2s',
+                      }} />
+                    </div>
+                  </div>
+
+                  {/* Partial notes (conditional) */}
+                  {form.isPartial && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 13, padding: '12px 16px' }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 8, background: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                        <Package size={15} color="white" strokeWidth={1.9} />
+                      </div>
+                      <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, minWidth: 80, fontWeight: 400, paddingTop: 2 }}>Sisa/Susulan</p>
+                      <textarea
+                        value={form.partialNotes}
+                        onChange={e => setForm(f => ({ ...f, partialNotes: e.target.value }))}
+                        placeholder="Item / qty yang belum dikirim..."
+                        rows={2}
+                        style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit', resize: 'none', lineHeight: 1.5 }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
+
             </div>
 
+            {/* Simpan & Lanjut button */}
             <div style={{ padding: '0 16px 16px' }}>
               <button
                 onClick={() => saveStep1(true)}
@@ -632,12 +660,15 @@ export default function Deliveries() {
                 {saved ? <><Check size={16} /> Tersimpan — isi resto berikutnya</> : <><Truck size={16} /> Simpan & Resto Berikutnya</>}
               </button>
             </div>
+
             <div style={{ height: 24 }} />
           </div>
         </div>
       )}
 
-      {/* MODAL: Step 2 */}
+      {/* ──────────────────────────────────────────
+          MODAL: Step 2 — Selesaikan di Lokasi
+      ────────────────────────────────────────── */}
       {completing && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
@@ -648,6 +679,7 @@ export default function Deliveries() {
             background: '#f2f2f7', borderRadius: '20px 20px 0 0',
             width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto', ...FF,
           }}>
+            {/* Header */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6',
@@ -675,8 +707,11 @@ export default function Deliveries() {
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* Step bar */}
               <StepBar step={2} />
 
+              {/* Info laporan keberangkatan */}
               <div style={{
                 background: 'white', borderRadius: 13, padding: '14px 16px',
                 boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)',
@@ -690,13 +725,38 @@ export default function Deliveries() {
                   <Check size={18} color="white" strokeWidth={2.5} />
                 </div>
                 <div>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>{completing.clientName}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>{completing.clientName}</p>
+                    {completing.isPartial && (
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: '#fff0f0', color: '#ff3b30' }}>⚠ Partial</span>
+                    )}
+                  </div>
                   <p style={{ fontSize: 13, color: '#8e8e93', margin: '2px 0 0' }}>
                     Kirim {completing.weightSent != null ? `${completing.weightSent} kg` : '–'} · {formatDate(completing.deliveryDate)}
                   </p>
                 </div>
               </div>
 
+              {/* Partial info in Step 2 */}
+              {completing.isPartial && (
+                <div style={{
+                  background: '#fff0f0', borderRadius: 13, padding: '14px 16px',
+                  boxShadow: '0 0 0 0.5px rgba(255,59,48,0.2)',
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                }}>
+                  <span style={{ fontSize: 15 }}>⚠️</span>
+                  <div>
+                    <p style={{ fontSize: 13.5, fontWeight: 700, color: '#ff3b30', margin: 0 }}>Pengiriman Partial — ada susulan</p>
+                    {completing.partialNotes && (
+                      <p style={{ fontSize: 13, color: '#3c3c43', margin: '4px 0 0', lineHeight: 1.5 }}>
+                        {completing.partialNotes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Foto timbang di gudang (readonly preview) */}
               {completing.photoSentUrl && (
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
@@ -708,6 +768,7 @@ export default function Deliveries() {
                 </div>
               )}
 
+              {/* Foto & Berat Terima (Lokasi) */}
               <div>
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
                   Timbang di Lokasi
@@ -752,6 +813,7 @@ export default function Deliveries() {
                 </div>
               </div>
 
+              {/* Live selisih preview */}
               {step2.weightReceived !== '' && completing.weightSent != null && (() => {
                 const diff = parseFloat(step2.weightReceived) - completing.weightSent
                 if (isNaN(diff)) return null
@@ -768,8 +830,10 @@ export default function Deliveries() {
                   </div>
                 )
               })()}
+
             </div>
 
+            {/* Tombol Selesai */}
             <div style={{ padding: '0 16px 16px' }}>
               <button
                 onClick={saveStep2}
@@ -787,12 +851,15 @@ export default function Deliveries() {
                 {saved ? <><Check size={16} /> Pengiriman Selesai!</> : <><Check size={16} /> Selesaikan Pengiriman</>}
               </button>
             </div>
+
             <div style={{ height: 24 }} />
           </div>
         </div>
       )}
 
-      {/* MODAL: Detail View */}
+      {/* ──────────────────────────────────────────
+          MODAL: Detail View (laporan selesai)
+      ────────────────────────────────────────── */}
       {isDetail && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
@@ -809,14 +876,14 @@ export default function Deliveries() {
               position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1,
             }}>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>{modal.clientName}</p>
-              <button onClick={() => { setModal(null); setGrDone(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
                 <X size={22} />
               </button>
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-              {/* Photos */}
+              {/* Photos side by side */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Foto Kirim</p>
@@ -846,7 +913,7 @@ export default function Deliveries() {
                 </div>
               </div>
 
-              {/* Selisih */}
+              {/* Selisih berat */}
               {modal.weightSent != null && modal.weightReceived != null && (() => {
                 const diff = modal.weightReceived - modal.weightSent
                 return (
@@ -863,6 +930,25 @@ export default function Deliveries() {
                 )
               })()}
 
+              {/* Partial banner */}
+              {modal.isPartial && (
+                <div style={{
+                  background: '#fff0f0', borderRadius: 13, padding: '14px 16px',
+                  boxShadow: '0 0 0 0.5px rgba(255,59,48,0.25)',
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                }}>
+                  <span style={{ fontSize: 16 }}>⚠️</span>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#ff3b30', margin: 0 }}>Pengiriman Partial</p>
+                    {modal.partialNotes && (
+                      <p style={{ fontSize: 13.5, color: '#3c3c43', margin: '4px 0 0', lineHeight: 1.5 }}>
+                        {modal.partialNotes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Info rows */}
               <div style={{ background: 'white', borderRadius: 13, overflow: 'hidden', boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)' }}>
                 <InfoRow label="Tanggal" value={formatDate(modal.deliveryDate)} />
@@ -870,34 +956,6 @@ export default function Deliveries() {
                 <InfoRow label="Dibuat oleh" value={modal.createdByName} last={!modal.notes} />
                 {modal.notes && <InfoRow label="Catatan" value={modal.notes} last />}
               </div>
-
-              {/* Tombol Buat GR — hanya admin/owner */}
-              {canEdit && (
-                <button
-                  onClick={() => createGR(modal)}
-                  disabled={grCreating || grDone}
-                  style={{
-                    width: '100%', padding: '15px',
-                    background: grDone
-                      ? '#34c759'
-                      : grCreating
-                        ? '#c7c7cc'
-                        : 'linear-gradient(135deg,#2563eb,#1d4ed8)',
-                    border: 'none', borderRadius: 13,
-                    color: 'white', fontSize: 15, fontWeight: 600,
-                    cursor: grCreating || grDone ? 'default' : 'pointer',
-                    ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    transition: 'background 0.2s',
-                  }}
-                >
-                  {grDone
-                    ? <><Check size={16} /> GR Berhasil Dibuat!</>
-                    : grCreating
-                      ? 'Membuat GR...'
-                      : <><FileText size={16} /> Buat GR dari Laporan Ini</>
-                  }
-                </button>
-              )}
             </div>
             <div style={{ height: 40 }} />
           </div>
