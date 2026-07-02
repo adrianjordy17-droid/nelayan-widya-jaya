@@ -31,8 +31,8 @@ const inputStyle = {
 function StatCard({ label, value, sub, Icon, iconColor, iconBg }) {
   return (
     <div style={{
-      background: 'white', borderRadius: 14, padding: '18px 20px',
-      border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+      background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '18px 20px',
+      border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
         <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0 }}>{label}</p>
@@ -371,7 +371,7 @@ export default function Attendance() {
       )}
 
       {/* ── Log Absensi ── */}
-      <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
+      <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden' }}>
 
         <div style={{
           display: 'flex', flexWrap: 'wrap', alignItems: 'center',
@@ -409,7 +409,7 @@ export default function Attendance() {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+              <tr style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                 {(isStaff
                   ? ['Tipe', 'Jam', 'Status', 'Catatan', 'Foto']
                   : ['Nama', 'Jabatan', 'Tipe', 'Jam', 'Status', 'Catatan', 'Foto', 'Aksi']
@@ -514,7 +514,7 @@ export default function Attendance() {
       {/* ── Modal: Atur Jam Kerja (owner only) ── */}
       {schedForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 380 }}>
+          <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', width: '100%', maxWidth: 380 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #f1f5f9' }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>Atur Jam Kerja</h3>
               <button onClick={() => setSchedForm(null)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
@@ -557,7 +557,7 @@ export default function Attendance() {
       {/* ── Modal: Tambah / Edit (manager only) ── */}
       {modal && form && canManage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 460 }}>
+          <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', width: '100%', maxWidth: 460 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #f1f5f9' }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>
                 {modal === 'edit' ? 'Edit Absensi' : 'Tambah Absensi Manual'}
@@ -627,7 +627,7 @@ export default function Attendance() {
       {/* ── Modal: Konfirmasi Hapus (manager only) ── */}
       {deleteConfirm && canManage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center' }}>
+          <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center' }}>
             <div style={{ width: 48, height: 48, background: '#fef2f2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <Trash2 size={22} color="#dc2626" />
             </div>
