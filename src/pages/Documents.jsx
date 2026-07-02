@@ -392,6 +392,7 @@ export default function Documents() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [detail, setDetail] = useState(null)
+  const [confirmCancel, setConfirmCancel] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(currentYM)
   const [liveMonth, setLiveMonth]         = useState(currentYM)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
@@ -472,6 +473,13 @@ export default function Documents() {
     setForm(withPrice ? recalcForm(f) : f)
     setMenu(false)
     setSaved(false)
+  }
+
+  async function cancelDoc(doc) {
+    const updated = { ...doc, status: 'cancelled' }
+    setDocs(prev => prev.map(d => d.id === doc.id ? updated : d))
+    setDetail(updated)
+    await supabase.from('documents').update({ status: 'cancelled' }).eq('id', doc.id)
   }
 
   function openEdit(doc) {
@@ -766,7 +774,7 @@ export default function Documents() {
             const cfg = DOC_CFG[doc.type]
             const st  = STATUS_CFG[doc.status] || STATUS_CFG.draft
             return (
-              <div key={doc.id} onClick={() => setDetail(doc)} style={{
+              <div key={doc.id} onClick={() => { setDetail(doc); setConfirmCancel(false) }} style={{
                 display: 'flex', alignItems: 'center', gap: 13, padding: '13px 16px', cursor: 'pointer',
                 borderBottom: idx === filtered.length - 1 ? 'none' : '0.5px solid #f0f0f0',
               }}>
@@ -1109,14 +1117,49 @@ export default function Documents() {
                   </div>
                 </div>
               )}
-              {/* Action Buttons */}
-              {canEdit && (detail.status === 'draft' || detail.status === 'pending' || (detail.type === 'DO' && detail.status === 'dispatched')) && (
-                <button
-                  onClick={() => openEdit(detail)}
-                  style={{ width: '100%', padding: '15px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
-                  {detail.type === 'DO' && detail.status === 'dispatched' ? 'Ganti Driver' : detail.status === 'pending' ? 'Tugaskan Driver & Kirim' : 'Edit / Konfirmasi'}
-                </button>
+
+              {/* Edit + Cancel buttons — SO/DO/GR only */}
+              {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && !confirmCancel && (
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={() => openEdit(detail)}
+                    style={{ flex: 1, padding: '14px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
+                    {detail.type === 'DO' && detail.status === 'pending' ? 'Tugaskan Driver & Kirim'
+                      : detail.type === 'DO' && detail.status === 'dispatched' ? 'Ganti Driver'
+                      : detail.status === 'draft' ? 'Edit / Konfirmasi'
+                      : 'Edit'}
+                  </button>
+                  {detail.status !== 'cancelled' && (
+                    <button
+                      onClick={() => setConfirmCancel(true)}
+                      style={{ padding: '14px 18px', background: '#fff0f0', border: '0.5px solid rgba(255,59,48,0.2)', borderRadius: 13, color: '#ff3b30', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF, whiteSpace: 'nowrap' }}
+                    >
+                      Batalkan
+                    </button>
+                  )}
+                </div>
+              )}
+              {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && confirmCancel && (
+                <div style={{ background: '#fff0f0', borderRadius: 13, padding: '16px', border: '0.5px solid rgba(255,59,48,0.2)' }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#ff3b30', margin: '0 0 12px' }}>
+                    Yakin batalkan {detail.number}?
+                  </p>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={async () => { await cancelDoc(detail); setConfirmCancel(false) }}
+                      style={{ flex: 1, padding: '12px', background: '#ff3b30', border: 'none', borderRadius: 10, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer', ...FF }}
+                    >
+                      Ya, Batalkan
+                    </button>
+                    <button
+                      onClick={() => setConfirmCancel(false)}
+                      style={{ flex: 1, padding: '12px', background: '#e5e5ea', border: 'none', borderRadius: 10, color: '#3c3c43', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF }}
+                    >
+                      Tidak
+                    </button>
+                  </div>
+                </div>
               )}
               {isStaff && detail.type === 'DO' && detail.status === 'dispatched' && (
                 <button
