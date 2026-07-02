@@ -87,3 +87,6 @@ body {
 .anim-fade-in    { animation: fadeIn 0.8s ease both; }
 .anim-slide-right{ animation: slideRight 0.6s ease both; }
 .anim-badge-pop  { animation: badgePop 0.5s cubic-bezier(.34,1.56,.64,1) both; }
+
+/* ── Liquid glass input placeholder ── */
+.glass-input::placeholder { color: rgba(255,255,255,0.32); }
