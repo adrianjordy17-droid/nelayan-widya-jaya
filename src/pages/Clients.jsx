@@ -1,3 +1,5 @@
+$ cat /home/user/ud-nelayan-widya-jaya/src/pages/Clients.jsx
+
 import { useState, useEffect } from 'react'
 import { Plus, Search, Phone, MapPin, Star, Edit2, Trash2, X, Check, Users, UserCheck, ShoppingCart, TrendingUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -146,9 +148,10 @@ export default function Clients() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+      {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
-          <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+          <div key={label} style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
               <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0, lineHeight: 1.3 }}>{label}</p>
               <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -161,6 +164,7 @@ export default function Clients() {
         ))}
       </div>
 
+      {/* Filter Tabs + Toolbar */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {allTypes.map(t => (
@@ -189,6 +193,7 @@ export default function Clients() {
         </div>
       </div>
 
+      {/* Client Cards Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
         {filtered.length === 0 && (
           <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#94a3b8', padding: '48px 0', fontSize: 13 }}>
@@ -199,7 +204,7 @@ export default function Clients() {
           const [bg, tc] = (TYPE_COLOR[client.type] || '#f8fafc:#64748b').split(':')
           return (
             <div key={client.id}
-              style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', padding: 18, display: 'flex', flexDirection: 'column', opacity: client.active ? 1 : 0.65, transition: 'box-shadow 0.15s' }}
+              style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', padding: 18, display: 'flex', flexDirection: 'column', opacity: client.active ? 1 : 0.65, transition: 'box-shadow 0.15s' }}
               onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(15,23,42,0.10)'}
               onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.06)'}
             >
@@ -236,13 +241,13 @@ export default function Clients() {
                 </div>
                 {canEdit && (
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => openEdit(client)}
+                    <button onClick={() => openEdit(client)} title="Edit"
                       style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', borderRadius: 8, display: 'flex', alignItems: 'center' }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#d97706'; e.currentTarget.style.background = '#fffbeb' }}
                       onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}>
                       <Edit2 size={14} />
                     </button>
-                    <button onClick={() => setDeleteConfirm(client.id)}
+                    <button onClick={() => setDeleteConfirm(client.id)} title="Hapus"
                       style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', borderRadius: 8, display: 'flex', alignItems: 'center' }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fef2f2' }}
                       onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}>
@@ -256,15 +261,17 @@ export default function Clients() {
         })}
       </div>
 
+      {/* Add/Edit Modal */}
       {modal && form && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
-          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 520, margin: 'auto' }}>
+          <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', width: '100%', maxWidth: 520, margin: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid #f1f5f9' }}>
               <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: 15, margin: 0 }}>{modal === 'edit' ? 'Edit Klien' : 'Tambah Klien Baru'}</h3>
               <button onClick={() => { setModal(null); setForm(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}>
                 <X size={20} />
               </button>
             </div>
+
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '70vh', overflowY: 'auto' }}>
               <Field label="Nama Perusahaan / Klien">
                 <input value={form.name} onChange={e => setF('name', e.target.value)} placeholder="Nama klien..." style={inputStyle} />
@@ -298,6 +305,7 @@ export default function Clients() {
                 <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>{form.active ? 'Klien Aktif' : 'Nonaktif'}</span>
               </div>
             </div>
+
             <div style={{ display: 'flex', gap: 8, padding: '14px 24px', borderTop: '1px solid #f1f5f9', background: '#fafafa', borderRadius: '0 0 18px 18px' }}>
               <button onClick={save} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 6, background: saving ? '#93c5fd' : 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: 'white', borderRadius: 10, padding: '9px 16px', fontSize: 13, fontWeight: 600, border: 'none', cursor: saving ? 'not-allowed' : 'pointer' }}>
                 <Check size={14} /> {saving ? 'Menyimpan...' : 'Simpan'}
@@ -310,9 +318,10 @@ export default function Clients() {
         </div>
       )}
 
+      {/* Delete confirm */}
       {deleteConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', padding: 32, maxWidth: 360, width: '100%', textAlign: 'center' }}>
+          <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', padding: 32, maxWidth: 360, width: '100%', textAlign: 'center' }}>
             <div style={{ width: 48, height: 48, background: '#fef2f2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <Trash2 size={22} color="#dc2626" />
             </div>
