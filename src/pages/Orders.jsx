@@ -1,3 +1,5 @@
+$ cat /home/user/ud-nelayan-widya-jaya/src/pages/Orders.jsx
+
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Eye, X, ShoppingBag, Clock, CheckCircle2, TrendingUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, Truck } from 'lucide-react'
@@ -161,7 +163,7 @@ export default function Orders() {
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
 
       {/* Month Navigator */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', borderRadius: 14, padding: '14px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '14px 20px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
         <button
           onClick={() => { setSelectedMonth(m => shiftMonth(m, -1)); setSearch(''); setStatusFilter('semua') }}
           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', border: '1.5px solid #e2e8f0', borderRadius: 9, background: 'white', cursor: 'pointer', color: '#64748b', fontSize: 13, fontWeight: 600 }}
@@ -217,7 +219,7 @@ export default function Orders() {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
-          <div key={label} style={{ background: 'white', borderRadius: 14, padding: '18px 20px', border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+          <div key={label} style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
               <p style={{ fontSize: 11.5, fontWeight: 500, color: '#64748b', margin: 0, lineHeight: 1.3 }}>{label}</p>
               <div style={{ width: 34, height: 34, borderRadius: 9, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -267,11 +269,11 @@ export default function Orders() {
       </div>
 
       {/* Table */}
-      <div style={{ background: 'white', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
+      <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 520 }}>
             <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+              <tr style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                 {[
                   isDoTab ? 'No. DO' : 'No. SO',
                   'Klien',
@@ -343,7 +345,7 @@ export default function Orders() {
       {/* Detail Modal */}
       {view && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
-          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 20px 60px rgba(15,23,42,0.15)', width: '100%', maxWidth: 640, margin: 'auto' }}>
+          <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', width: '100%', maxWidth: 640, margin: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid #f1f5f9' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -440,7 +442,7 @@ export default function Orders() {
                     </thead>
                     <tbody>
                       {(view.items || []).map((item, i) => (
-                        <tr key={i} style={{ borderTop: '1px solid #f8fafc' }}>
+                        <tr key={i} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                           <td style={{ padding: '10px 12px', color: '#0f172a' }}>{item.name}</td>
                           <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{item.qty} {item.unit}</td>
                           {canEdit && view.type === 'SO' && <>
