@@ -109,7 +109,8 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
     >
       {({ isActive }) => (
         <>
-          <Icon size={15} strokeWidth={isActive ? 2.2 : 1.7} color={isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.38)'} />
+          <Icon size={15} strokeWidth={isActive ? 2.2 : 1.7}
+            color={isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.38)'} />
           <span style={{ fontSize: 13.5, fontWeight: isActive ? 600 : 400, color: isActive ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.52)', letterSpacing: '-0.01em' }}>
             {label}
           </span>
@@ -125,14 +126,14 @@ function NotifPanel({ notifs, onClose }) {
   return (
     <div style={{
       position: 'absolute', right: 0, top: 'calc(100% + 10px)', width: 310, zIndex: 50, overflow: 'hidden',
-      background: 'rgba(22,28,44,0.82)', backdropFilter: 'blur(48px) saturate(200%)',
+      background: 'rgba(22,28,44,0.88)', backdropFilter: 'blur(48px) saturate(200%)',
       borderRadius: 18, border: '0.5px solid rgba(255,255,255,0.14)',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.18)',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.18)',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 17px 12px', borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
         <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.92)', margin: 0 }}>Notifikasi</p>
-        {notifs.length > 0 && <span style={{ background: '#ff453a', color: 'white', fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, boxShadow: '0 2px 8px rgba(255,69,58,0.4)' }}>{notifs.length}</span>}
+        {notifs.length > 0 && <span style={{ background: '#ff453a', color: 'white', fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>{notifs.length}</span>}
       </div>
       {notifs.length === 0 ? (
         <div style={{ padding: '28px 17px', textAlign: 'center' }}>
@@ -196,40 +197,31 @@ export default function DashboardLayout() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const totalCount  = notifications.length
+  const totalCount   = notifications.length
   const closeSidebar = () => setSidebarOpen(false)
 
   return (
     <div style={{
       display: 'flex', height: '100vh', overflow: 'hidden',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif",
-      background: 'linear-gradient(145deg, #060e20 0%, #0b1c36 30%, #091828 60%, #04101e 100%)',
-      position: 'relative',
+      background: '#f2f2f7',
     }}>
-      {/* Ambient glow blobs */}
-      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: '-15%', left: '-5%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle, rgba(10,132,255,0.18) 0%, transparent 70%)' }} />
-        <div style={{ position: 'absolute', bottom: '10%', right: '-10%', width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, rgba(48,209,88,0.10) 0%, transparent 70%)' }} />
-        <div style={{ position: 'absolute', top: '50%', left: '30%', width: 360, height: 360, borderRadius: '50%', background: 'radial-gradient(circle, rgba(10,132,255,0.08) 0%, transparent 70%)' }} />
-      </div>
-
       {isMobile && sidebarOpen && (
-        <div onClick={closeSidebar} style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} />
+        <div onClick={closeSidebar} style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }} />
       )}
 
-      {/* SIDEBAR — Liquid Glass */}
+      {/* SIDEBAR — dark liquid glass panel */}
       <aside style={{
         width: 224, flexShrink: 0, height: '100vh', overflow: 'hidden',
-        display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 10,
-        background: 'rgba(255,255,255,0.055)',
-        backdropFilter: 'blur(56px) saturate(180%)',
-        borderRight: '0.5px solid rgba(255,255,255,0.10)',
-        boxShadow: '1px 0 0 rgba(0,0,0,0.25), inset -0.5px 0 0 rgba(255,255,255,0.06)',
+        display: 'flex', flexDirection: 'column', zIndex: 10,
+        background: 'linear-gradient(180deg, #0f1724 0%, #111a2e 100%)',
+        borderRight: '1px solid rgba(255,255,255,0.07)',
+        boxShadow: '2px 0 24px rgba(0,0,0,0.18), inset -0.5px 0 0 rgba(255,255,255,0.05)',
         ...(isMobile ? {
           position: 'fixed', top: 0, left: 0, zIndex: 100,
           transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
-          boxShadow: sidebarOpen ? '8px 0 40px rgba(0,0,0,0.5)' : 'none',
+          boxShadow: sidebarOpen ? '8px 0 40px rgba(0,0,0,0.4)' : 'none',
         } : {}),
       }}>
         <div style={{ padding: '22px 15px 15px' }}>
@@ -259,11 +251,7 @@ export default function DashboardLayout() {
         </nav>
 
         <div style={{ padding: '10px 10px 16px', borderTop: '0.5px solid rgba(255,255,255,0.07)' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 13,
-            background: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.10)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)',
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 13, background: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.10)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)' }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg,${roleColor},${roleColor}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'white', boxShadow: `0 2px 10px ${roleColor}55` }}>{initials}</div>
               <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: '#30d158', border: '1.5px solid rgba(10,20,40,0.8)', boxShadow: '0 0 6px rgba(48,209,88,0.6)' }} />
@@ -280,44 +268,38 @@ export default function DashboardLayout() {
       </aside>
 
       {/* MAIN AREA */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Topbar — Liquid Glass */}
-        <header style={{
-          height: 50, flexShrink: 0,
-          background: 'rgba(8,16,32,0.65)', backdropFilter: 'blur(40px) saturate(180%)',
-          borderBottom: '0.5px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Topbar — light */}
+        <header style={{ height: 48, flexShrink: 0, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', borderBottom: '0.5px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isMobile && (
-              <button onClick={() => setSidebarOpen(v => !v)} style={{ background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 9, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, color: 'rgba(255,255,255,0.7)', padding: 0 }}>
-                <Menu size={18} strokeWidth={2} />
+              <button onClick={() => setSidebarOpen(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, color: '#1c1c1e', padding: 0 }}>
+                <Menu size={20} strokeWidth={2} />
               </button>
             )}
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)', margin: 0, letterSpacing: '-0.01em' }}>{pageTitle}</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{pageTitle}</p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ position: 'relative' }} ref={notifRef}>
-              <button onClick={() => setNotifOpen(v => !v)} style={{ width: 34, height: 34, borderRadius: 10, background: notifOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', boxShadow: notifOpen ? 'inset 0 1px 0 rgba(255,255,255,0.15)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                <Bell size={15} color={totalCount > 0 ? '#ff453a' : 'rgba(255,255,255,0.55)'} strokeWidth={1.8} />
-                {totalCount > 0 && <span style={{ position: 'absolute', top: 6, right: 6, width: 7, height: 7, borderRadius: '50%', background: '#ff453a', border: '1.5px solid rgba(8,16,32,0.9)', boxShadow: '0 0 6px rgba(255,69,58,0.7)' }} />}
+              <button onClick={() => setNotifOpen(v => !v)} style={{ width: 32, height: 32, borderRadius: 8, background: notifOpen ? '#f2f2f7' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <Bell size={16} color={totalCount > 0 ? '#ff3b30' : '#3c3c43'} strokeWidth={1.8} />
+                {totalCount > 0 && <span style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, borderRadius: '50%', background: '#ff3b30', border: '1.5px solid white' }} />}
               </button>
               {notifOpen && <NotifPanel notifs={notifications} onClose={() => setNotifOpen(false)} />}
             </div>
 
-            <div style={{ width: 0.5, height: 18, background: 'rgba(255,255,255,0.1)' }} />
+            <div style={{ width: 0.5, height: 20, background: 'rgba(0,0,0,0.12)' }} />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 4px', borderRadius: 99, background: 'rgba(255,255,255,0.08)', border: '0.5px solid rgba(255,255,255,0.1)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}>
-              <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg,${roleColor},${roleColor}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'white', boxShadow: `0 2px 8px ${roleColor}44` }}>{initials}</div>
-              <p style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.8)', margin: 0 }}>{profile?.name}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px 4px 4px', borderRadius: 99, background: '#f2f2f7' }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg,${roleColor},${roleColor}bb)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'white' }}>{initials}</div>
+              <p style={{ fontSize: 13, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{profile?.name}</p>
             </div>
           </div>
         </header>
 
-        <main style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: 'transparent' }}>
+        <main style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: '#f2f2f7' }}>
           <Outlet />
         </main>
       </div>
