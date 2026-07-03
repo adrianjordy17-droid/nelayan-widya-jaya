@@ -35,6 +35,7 @@ function InfoRow({ label, value, last }) {
 function StepBar({ step }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20, padding: '0 4px' }}>
+      {/* Step 1 */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
         <div style={{
           width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -47,7 +48,11 @@ function StepBar({ step }) {
           Di Gudang
         </p>
       </div>
+
+      {/* connector */}
       <div style={{ flex: 1, height: 2, background: step === 1 ? '#e5e5ea' : '#34c759', marginBottom: 18, maxWidth: 60 }} />
+
+      {/* Step 2 */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
         <div style={{
           width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -101,8 +106,8 @@ export default function Deliveries() {
   const canEdit = isRole('admin') || isRole('owner')
   const [reports, setReports] = useState([])
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [modal, setModal] = useState(null)
-  const [completing, setCompleting] = useState(null)
+  const [modal, setModal] = useState(null)        // null | 'new' | report-object (detail)
+  const [completing, setCompleting] = useState(null) // in-transit report being completed (Step 2)
   const [form, setForm] = useState(emptyForm())
   const [step2, setStep2] = useState({ weightReceived: '', photoFile: null, photoPreview: null })
   const [saving, setSaving] = useState(false)
@@ -121,6 +126,7 @@ export default function Deliveries() {
       })
   }, [])
 
+  // Midnight auto-advance selectedDate
   useEffect(() => {
     const t = setInterval(() => {
       const now = new Date().toISOString().slice(0, 10)
@@ -161,6 +167,7 @@ export default function Deliveries() {
     } catch { return null }
   }
 
+  // ── Step 1: Simpan keberangkatan di gudang ──
   async function saveStep1(andContinue = false) {
     if (!form.clientName.trim()) return
     setSaving(true)
@@ -219,6 +226,7 @@ export default function Deliveries() {
     }
   }
 
+  // ── Step 2: Simpan penerimaan di lokasi ──
   async function saveStep2() {
     if (!completing) return
     setSaving(true)
@@ -265,6 +273,7 @@ export default function Deliveries() {
   const todayStr = new Date().toISOString().slice(0, 10)
   const isToday  = selectedDate === todayStr
 
+  // Always show in-transit reports; show completed ones only for selectedDate
   const displayedReports = reports.filter(r => {
     const inTransit = r.weightReceived == null && r.photoReceivedUrl == null
     return inTransit || r.deliveryDate === selectedDate
@@ -371,13 +380,20 @@ export default function Deliveries() {
                       {formatDate(r.deliveryDate)}
                     </p>
                   </div>
+
                   {inTransit ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: '#fff3e0', color: '#e65100' }}>
+                      <span style={{
+                        fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
+                        background: '#fff3e0', color: '#e65100',
+                      }}>
                         Dalam Perjalanan · Tap untuk selesaikan
                       </span>
                       {r.isPartial && (
-                        <span style={{ fontSize: 11.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: '#fff0f0', color: '#ff3b30' }}>
+                        <span style={{
+                          fontSize: 11.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                          background: '#fff0f0', color: '#ff3b30',
+                        }}>
                           ⚠ Partial
                         </span>
                       )}
@@ -399,12 +415,16 @@ export default function Deliveries() {
                         </span>
                       )}
                       {r.isPartial && (
-                        <span style={{ fontSize: 11.5, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: '#fff0f0', color: '#ff3b30' }}>
+                        <span style={{
+                          fontSize: 11.5, fontWeight: 700, padding: '1px 6px', borderRadius: 6,
+                          background: '#fff0f0', color: '#ff3b30',
+                        }}>
                           ⚠ Partial
                         </span>
                       )}
                     </div>
                   )}
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
                     <p style={{ fontSize: 12, color: '#8e8e93', margin: 0 }}>oleh {r.createdByName}</p>
                     {!inTransit && (r.photoSentUrl || r.photoReceivedUrl) && (
@@ -429,11 +449,25 @@ export default function Deliveries() {
         </div>
       )}
 
-      {/* MODAL: Step 1 */}
+      {/* ──────────────────────────────────────────
+          MODAL: Step 1 — Laporan Keberangkatan
+      ────────────────────────────────────────── */}
       {modal === 'new' && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto', ...FF }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#f2f2f7', borderRadius: '20px 20px 0 0',
+            width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto', ...FF,
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6',
+              position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1,
+            }}>
               <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
                 <X size={22} />
               </button>
@@ -453,8 +487,11 @@ export default function Deliveries() {
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* Step bar */}
               <StepBar step={1} />
 
+              {/* DO Reference Badge */}
               {form.doRef && (
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>Delivery Order</p>
@@ -482,8 +519,11 @@ export default function Deliveries() {
                 </div>
               )}
 
+              {/* Foto & Berat Kirim (Gudang) */}
               <div>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>Timbang di Gudang</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
+                  Timbang di Gudang
+                </p>
                 <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 14, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
                   <div
                     onClick={() => sentRef.current?.click()}
@@ -523,8 +563,11 @@ export default function Deliveries() {
                 </div>
               </div>
 
+              {/* Info Pengiriman */}
               <div>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>Info Pengiriman</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
+                  Info Pengiriman
+                </p>
                 <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 16px', borderBottom: '0.5px solid #f0f0f0' }}>
                     <div style={{ width: 30, height: 30, borderRadius: 8, background: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -563,6 +606,8 @@ export default function Deliveries() {
                       style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit', resize: 'none', lineHeight: 1.5 }}
                     />
                   </div>
+
+                  {/* Partial toggle */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 16px', borderBottom: form.isPartial ? '0.5px solid #f0f0f0' : 'none' }}>
                     <div style={{ width: 30, height: 30, borderRadius: 8, background: '#ff3b30', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Truck size={15} color="white" strokeWidth={1.9} />
@@ -570,11 +615,23 @@ export default function Deliveries() {
                     <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flex: 1, fontWeight: 400 }}>Pengiriman Partial</p>
                     <div
                       onClick={() => setForm(f => ({ ...f, isPartial: !f.isPartial }))}
-                      style={{ width: 51, height: 31, borderRadius: 16, cursor: 'pointer', flexShrink: 0, background: form.isPartial ? '#ff3b30' : '#e5e5ea', position: 'relative', transition: 'background 0.2s' }}
+                      style={{
+                        width: 51, height: 31, borderRadius: 16, cursor: 'pointer', flexShrink: 0,
+                        background: form.isPartial ? '#ff3b30' : '#e5e5ea',
+                        position: 'relative', transition: 'background 0.2s',
+                      }}
                     >
-                      <div style={{ position: 'absolute', top: 2, left: form.isPartial ? 22 : 2, width: 27, height: 27, borderRadius: '50%', background: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.22)', transition: 'left 0.2s' }} />
+                      <div style={{
+                        position: 'absolute', top: 2,
+                        left: form.isPartial ? 22 : 2,
+                        width: 27, height: 27, borderRadius: '50%',
+                        background: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.22)',
+                        transition: 'left 0.2s',
+                      }} />
                     </div>
                   </div>
+
+                  {/* Partial notes (conditional) */}
                   {form.isPartial && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 13, padding: '12px 16px' }}>
                       <div style={{ width: 30, height: 30, borderRadius: 8, background: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
@@ -592,8 +649,10 @@ export default function Deliveries() {
                   )}
                 </div>
               </div>
+
             </div>
 
+            {/* Simpan & Lanjut button */}
             <div style={{ padding: '0 16px 16px' }}>
               <button
                 onClick={() => saveStep1(true)}
@@ -612,16 +671,31 @@ export default function Deliveries() {
                 {saved ? <><Check size={16} /> Tersimpan — isi resto berikutnya</> : <><Truck size={16} /> Simpan & Resto Berikutnya</>}
               </button>
             </div>
+
             <div style={{ height: 24 }} />
           </div>
         </div>
       )}
 
-      {/* MODAL: Step 2 */}
+      {/* ──────────────────────────────────────────
+          MODAL: Step 2 — Selesaikan di Lokasi
+      ────────────────────────────────────────── */}
       {completing && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto', ...FF }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#f2f2f7', borderRadius: '20px 20px 0 0',
+            width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto', ...FF,
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6',
+              position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1,
+            }}>
               <button
                 onClick={() => { setCompleting(null); setStep2({ weightReceived: '', photoFile: null, photoPreview: null }) }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}
@@ -644,14 +718,21 @@ export default function Deliveries() {
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* Step bar */}
               <StepBar step={2} />
 
+              {/* Info laporan keberangkatan */}
               <div style={{
                 background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: '14px 16px',
                 border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)',
                 display: 'flex', alignItems: 'center', gap: 12,
               }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: 'linear-gradient(135deg, #34c759, #30d158)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                  background: 'linear-gradient(135deg, #34c759, #30d158)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
                   <Check size={18} color="white" strokeWidth={2.5} />
                 </div>
                 <div>
@@ -667,29 +748,42 @@ export default function Deliveries() {
                 </div>
               </div>
 
+              {/* Partial info in Step 2 */}
               {completing.isPartial && (
-                <div style={{ background: '#fff0f0', borderRadius: 13, padding: '14px 16px', boxShadow: '0 0 0 0.5px rgba(255,59,48,0.2)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{
+                  background: '#fff0f0', borderRadius: 13, padding: '14px 16px',
+                  boxShadow: '0 0 0 0.5px rgba(255,59,48,0.2)',
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                }}>
                   <span style={{ fontSize: 15 }}>⚠️</span>
                   <div>
                     <p style={{ fontSize: 13.5, fontWeight: 700, color: '#ff3b30', margin: 0 }}>Pengiriman Partial — ada susulan</p>
                     {completing.partialNotes && (
-                      <p style={{ fontSize: 13, color: '#3c3c43', margin: '4px 0 0', lineHeight: 1.5 }}>{completing.partialNotes}</p>
+                      <p style={{ fontSize: 13, color: '#3c3c43', margin: '4px 0 0', lineHeight: 1.5 }}>
+                        {completing.partialNotes}
+                      </p>
                     )}
                   </div>
                 </div>
               )}
 
+              {/* Foto timbang di gudang (readonly preview) */}
               {completing.photoSentUrl && (
                 <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>Foto Gudang (Step 1)</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
+                    Foto Gudang (Step 1)
+                  </p>
                   <div style={{ height: 130, borderRadius: 13, overflow: 'hidden' }}>
                     <img src={completing.photoSentUrl} alt="gudang" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                 </div>
               )}
 
+              {/* Foto & Berat Terima (Lokasi) */}
               <div>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>Timbang di Lokasi</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
+                  Timbang di Lokasi
+                </p>
                 <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 14, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
                   <div
                     onClick={() => recvRef.current?.click()}
@@ -730,13 +824,13 @@ export default function Deliveries() {
                 </div>
               </div>
 
+              {/* Live selisih preview */}
               {step2.weightReceived !== '' && completing.weightSent != null && (() => {
                 const diff = parseFloat(step2.weightReceived) - completing.weightSent
                 if (isNaN(diff)) return null
                 return (
                   <div style={{
-                    background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: '14px 18px',
-                    border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)',
+                    background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: '14px 18px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
                     <p style={{ fontSize: 15, color: '#8e8e93', margin: 0 }}>Selisih Berat</p>
@@ -746,8 +840,10 @@ export default function Deliveries() {
                   </div>
                 )
               })()}
+
             </div>
 
+            {/* Tombol Selesai */}
             <div style={{ padding: '0 16px 16px' }}>
               <button
                 onClick={saveStep2}
@@ -765,16 +861,30 @@ export default function Deliveries() {
                 {saved ? <><Check size={16} /> Pengiriman Selesai!</> : <><Check size={16} /> Selesaikan Pengiriman</>}
               </button>
             </div>
+
             <div style={{ height: 24 }} />
           </div>
         </div>
       )}
 
-      {/* MODAL: Detail */}
+      {/* ──────────────────────────────────────────
+          MODAL: Detail View (laporan selesai)
+      ────────────────────────────────────────── */}
       {isDetail && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 560, maxHeight: '88vh', overflowY: 'auto', ...FF }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#f2f2f7', borderRadius: '20px 20px 0 0',
+            width: '100%', maxWidth: 560, maxHeight: '88vh', overflowY: 'auto', ...FF,
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6',
+              position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1,
+            }}>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>{modal.clientName}</p>
               <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
                 <X size={22} />
@@ -782,6 +892,8 @@ export default function Deliveries() {
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Photos side by side */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Foto Kirim</p>
@@ -811,12 +923,12 @@ export default function Deliveries() {
                 </div>
               </div>
 
+              {/* Selisih berat */}
               {modal.weightSent != null && modal.weightReceived != null && (() => {
                 const diff = modal.weightReceived - modal.weightSent
                 return (
                   <div style={{
-                    background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: '14px 18px',
-                    border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)',
+                    background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: '14px 18px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
                     <p style={{ fontSize: 15, color: '#8e8e93', margin: 0 }}>Selisih Berat</p>
@@ -827,18 +939,26 @@ export default function Deliveries() {
                 )
               })()}
 
+              {/* Partial banner */}
               {modal.isPartial && (
-                <div style={{ background: '#fff0f0', borderRadius: 13, padding: '14px 16px', boxShadow: '0 0 0 0.5px rgba(255,59,48,0.25)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{
+                  background: '#fff0f0', borderRadius: 13, padding: '14px 16px',
+                  boxShadow: '0 0 0 0.5px rgba(255,59,48,0.25)',
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                }}>
                   <span style={{ fontSize: 16 }}>⚠️</span>
                   <div>
                     <p style={{ fontSize: 14, fontWeight: 700, color: '#ff3b30', margin: 0 }}>Pengiriman Partial</p>
                     {modal.partialNotes && (
-                      <p style={{ fontSize: 13.5, color: '#3c3c43', margin: '4px 0 0', lineHeight: 1.5 }}>{modal.partialNotes}</p>
+                      <p style={{ fontSize: 13.5, color: '#3c3c43', margin: '4px 0 0', lineHeight: 1.5 }}>
+                        {modal.partialNotes}
+                      </p>
                     )}
                   </div>
                 </div>
               )}
 
+              {/* Info rows */}
               <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
                 <InfoRow label="Tanggal" value={formatDate(modal.deliveryDate)} />
                 {modal.doRef && <InfoRow label="DO" value={modal.doRef} />}
@@ -846,6 +966,7 @@ export default function Deliveries() {
                 {modal.notes && <InfoRow label="Catatan" value={modal.notes} last />}
               </div>
 
+              {/* Admin/Owner actions */}
               {canEdit && !confirmDelete && (
                 <div style={{ display: 'flex', gap: 10 }}>
                   {modal.doRef && (
@@ -870,7 +991,9 @@ export default function Deliveries() {
 
               {canEdit && confirmDelete && (
                 <div style={{ background: '#fff0f0', borderRadius: 13, padding: '16px', border: '0.5px solid rgba(255,59,48,0.2)' }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#ff3b30', margin: '0 0 12px' }}>Yakin hapus laporan ini?</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#ff3b30', margin: '0 0 12px' }}>
+                    Yakin hapus laporan ini?
+                  </p>
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button
                       onClick={() => deleteReport(modal)}
