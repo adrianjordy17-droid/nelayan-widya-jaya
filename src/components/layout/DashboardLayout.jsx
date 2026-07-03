@@ -40,20 +40,35 @@ const PAGE_TITLE = {
   '/dashboard/settings':    'Pengaturan',
 }
 
+/* ── notifications from Supabase ── */
 async function fetchNotifications() {
   try {
     const [{ data: products }, { data: draftSOs }] = await Promise.all([
       supabase.from('products').select('id, nama, qty, min_qty, satuan'),
       supabase.from('documents').select('id, number, client_name').eq('type', 'SO').eq('status', 'draft'),
     ])
+
     const stockNotifs = (products || [])
       .filter(p => (p.min_qty || 0) > 0 && (p.qty || 0) <= (p.min_qty || 0))
-      .map(p => ({ id: `s-${p.id}`, type: 'stock', title: `Stok ${p.nama} kritis`, desc: `Sisa ${p.qty || 0} ${p.satuan || 'kg'} — min. ${p.min_qty}` }))
-    const orderNotifs = (draftSOs || []).map(d => ({ id: `o-${d.id}`, type: 'order', title: `SO ${d.number} menunggu`, desc: d.client_name }))
+      .map(p => ({
+        id: `s-${p.id}`, type: 'stock',
+        title: `Stok ${p.nama} kritis`,
+        desc:  `Sisa ${p.qty || 0} ${p.satuan || 'kg'} — min. ${p.min_qty}`,
+      }))
+
+    const orderNotifs = (draftSOs || []).map(d => ({
+      id: `o-${d.id}`, type: 'order',
+      title: `SO ${d.number} menunggu`,
+      desc:  d.client_name,
+    }))
+
     return [...stockNotifs, ...orderNotifs]
-  } catch { return [] }
+  } catch {
+    return []
+  }
 }
 
+/* ── WA scheduler (reads real Supabase data) ── */
 function useWAScheduler() {
   const sent = useRef('')
   useEffect(() => {
@@ -68,14 +83,21 @@ function useWAScheduler() {
         if (now.getHours() === h && now.getMinutes() === m) {
           sent.current = key
           const today = now.toISOString().slice(0, 10)
+
           const [{ data: docs }, { data: prods }, { data: attend }] = await Promise.all([
             supabase.from('documents').select('*').eq('type', 'SO'),
             supabase.from('products').select('id, nama, qty, min_qty, satuan'),
             supabase.from('attendance').select('*').eq('date', today),
           ])
-          const orders = (docs || []).map(d => ({ id: d.number, client: d.client_name, date: d.date, catatan: d.notes || '', status: d.status === 'delivered' ? 'selesai' : d.status === 'dispatched' ? 'proses' : d.status === 'cancelled' ? 'batal' : 'pending', items: d.items || [] }))
+
+          const orders = (docs || []).map(d => ({
+            id: d.number, client: d.client_name, date: d.date, catatan: d.notes || '',
+            status: d.status === 'delivered' ? 'selesai' : d.status === 'dispatched' ? 'proses' : d.status === 'cancelled' ? 'batal' : 'pending',
+            items: d.items || [],
+          }))
           const stock = (prods || []).map(p => ({ name: p.nama, qty: p.qty || 0, minQty: p.min_qty || 0, unit: p.satuan || 'kg' }))
           const attendance = (attend || []).map(a => ({ name: a.name, date: a.date, status: a.status }))
+
           sendToWhatsApp({ token: cfg.token, target: cfg.target, message: generateDailyReport(orders, stock, attendance) }).catch(() => {})
         }
       } catch {}
@@ -85,6 +107,7 @@ function useWAScheduler() {
   }, [])
 }
 
+/* ── Sidebar nav item — Liquid Glass ── */
 function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) {
   const [hover, setHover] = useState(false)
   if (feature && !hasPermission(feature)) return null
@@ -97,10 +120,16 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '8px 11px', borderRadius: 11, marginBottom: 2,
         textDecoration: 'none',
-        background: isActive ? 'rgba(10,132,255,0.28)' : hover ? 'rgba(255,255,255,0.08)' : 'transparent',
+        background: isActive
+          ? 'rgba(10,132,255,0.28)'
+          : hover
+            ? 'rgba(255,255,255,0.08)'
+            : 'transparent',
         boxShadow: isActive
           ? '0 0 0 0.5px rgba(10,132,255,0.55), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.12), 0 3px 14px rgba(10,132,255,0.22)'
-          : hover ? 'inset 0 1px 0 rgba(255,255,255,0.1)' : 'none',
+          : hover
+            ? 'inset 0 1px 0 rgba(255,255,255,0.1)'
+            : 'none',
         backdropFilter: isActive ? 'blur(12px) saturate(180%)' : 'none',
         transition: 'all 0.18s cubic-bezier(0.4,0,0.2,1)',
       })}
@@ -111,7 +140,11 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
         <>
           <Icon size={15} strokeWidth={isActive ? 2.2 : 1.7}
             color={isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.38)'} />
-          <span style={{ fontSize: 13.5, fontWeight: isActive ? 600 : 400, color: isActive ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.52)', letterSpacing: '-0.01em' }}>
+          <span style={{
+            fontSize: 13.5, fontWeight: isActive ? 600 : 400,
+            color: isActive ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.52)',
+            letterSpacing: '-0.01em',
+          }}>
             {label}
           </span>
         </>
@@ -120,21 +153,28 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
   )
 }
 
+/* ── Notification Panel — Liquid Glass dark ── */
 function NotifPanel({ notifs, onClose }) {
-  const stockN = notifs.filter(n => n.type === 'stock')
-  const orderN = notifs.filter(n => n.type === 'order')
+  const stockN  = notifs.filter(n => n.type === 'stock')
+  const orderN  = notifs.filter(n => n.type === 'order')
   return (
-    <div style={{
-      position: 'absolute', right: 0, top: 'calc(100% + 10px)', width: 310, zIndex: 50, overflow: 'hidden',
-      background: 'rgba(22,28,44,0.88)', backdropFilter: 'blur(48px) saturate(200%)',
-      borderRadius: 18, border: '0.5px solid rgba(255,255,255,0.14)',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.18)',
+    <>
+      {/* backdrop to close on outside click */}
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+      <div style={{
+        position: 'fixed', right: 22, top: 58, width: 310, zIndex: 999, overflow: 'hidden',
+      background: 'rgba(22,28,44,0.82)',
+      backdropFilter: 'blur(48px) saturate(200%)',
+      borderRadius: 18,
+      border: '0.5px solid rgba(255,255,255,0.14)',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.18)',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 17px 12px', borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
         <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.92)', margin: 0 }}>Notifikasi</p>
-        {notifs.length > 0 && <span style={{ background: '#ff453a', color: 'white', fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>{notifs.length}</span>}
+        {notifs.length > 0 && <span style={{ background: '#ff453a', color: 'white', fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, boxShadow: '0 2px 8px rgba(255,69,58,0.4)' }}>{notifs.length}</span>}
       </div>
+
       {notifs.length === 0 ? (
         <div style={{ padding: '28px 17px', textAlign: 'center' }}>
           <p style={{ fontSize: 28, marginBottom: 8 }}>✅</p>
@@ -159,6 +199,7 @@ function NotifPanel({ notifs, onClose }) {
           ))}
         </div>
       )}
+
       <div style={{ padding: '12px 17px', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}>
         <NavLink to="/dashboard/settings" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none' }}>
           <span style={{ fontSize: 13, color: '#0a84ff', fontWeight: 500 }}>Atur notifikasi WA</span>
@@ -166,15 +207,16 @@ function NotifPanel({ notifs, onClose }) {
         </NavLink>
       </div>
     </div>
+    </>
   )
 }
 
 export default function DashboardLayout() {
   const { profile, signOut, hasPermission } = useAuth()
-  const location  = useLocation()
-  const initials  = (profile?.name || 'U').slice(0, 2).toUpperCase()
-  const roleColor = ROLE_COLOR[profile?.role] || '#0a84ff'
-  const pageTitle = PAGE_TITLE[location.pathname] || 'Dashboard'
+  const location   = useLocation()
+  const initials   = (profile?.name || 'U').slice(0, 2).toUpperCase()
+  const roleColor  = ROLE_COLOR[profile?.role] || '#0a84ff'
+  const pageTitle  = PAGE_TITLE[location.pathname] || 'Dashboard'
 
   const [notifOpen, setNotifOpen]         = useState(false)
   const [notifications, setNotifications] = useState([])
@@ -184,20 +226,27 @@ export default function DashboardLayout() {
 
   useWAScheduler()
 
-  useEffect(() => { fetchNotifications().then(setNotifications) }, [])
-  useEffect(() => { if (notifOpen) fetchNotifications().then(setNotifications) }, [notifOpen])
+  useEffect(() => {
+    fetchNotifications().then(setNotifications)
+  }, [])
+
+  useEffect(() => {
+    if (notifOpen) fetchNotifications().then(setNotifications)
+  }, [notifOpen])
+
   useEffect(() => {
     const h = e => { if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const totalCount   = notifications.length
+  const totalCount  = notifications.length
   const closeSidebar = () => setSidebarOpen(false)
 
   return (
@@ -210,7 +259,7 @@ export default function DashboardLayout() {
         <div onClick={closeSidebar} style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }} />
       )}
 
-      {/* SIDEBAR — dark liquid glass panel */}
+      {/* SIDEBAR — Liquid Glass dark panel */}
       <aside style={{
         width: 224, flexShrink: 0, height: '100vh', overflow: 'hidden',
         display: 'flex', flexDirection: 'column', zIndex: 10,
@@ -224,11 +273,13 @@ export default function DashboardLayout() {
           boxShadow: sidebarOpen ? '8px 0 40px rgba(0,0,0,0.4)' : 'none',
         } : {}),
       }}>
+        {/* Logo */}
         <div style={{ padding: '22px 15px 15px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 11, flexShrink: 0,
-              background: 'rgba(10,132,255,0.35)', backdropFilter: 'blur(12px)',
+              background: 'rgba(10,132,255,0.35)',
+              backdropFilter: 'blur(12px)',
               border: '0.5px solid rgba(10,132,255,0.6)',
               boxShadow: '0 0 0 0.5px rgba(10,132,255,0.3), inset 0 1px 0 rgba(255,255,255,0.28), 0 4px 16px rgba(10,132,255,0.35)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -250,17 +301,30 @@ export default function DashboardLayout() {
           ))}
         </nav>
 
+        {/* User footer — glass card */}
         <div style={{ padding: '10px 10px 16px', borderTop: '0.5px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 13, background: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.10)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 13,
+            background: 'rgba(255,255,255,0.07)',
+            border: '0.5px solid rgba(255,255,255,0.10)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(12px)',
+          }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg,${roleColor},${roleColor}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'white', boxShadow: `0 2px 10px ${roleColor}55` }}>{initials}</div>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: `linear-gradient(135deg,${roleColor},${roleColor}99)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, fontWeight: 700, color: 'white',
+                boxShadow: `0 2px 10px ${roleColor}55`,
+              }}>{initials}</div>
               <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: '#30d158', border: '1.5px solid rgba(10,20,40,0.8)', boxShadow: '0 0 6px rgba(48,209,88,0.6)' }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.9)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.name}</p>
               <p style={{ fontSize: 10.5, color: roleColor, margin: 0, fontWeight: 500 }}>{ROLE_LABEL[profile?.role] || profile?.role}</p>
             </div>
-            <button onClick={signOut} title="Keluar" style={{ background: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 7, cursor: 'pointer', color: 'rgba(255,255,255,0.32)', padding: '5px 6px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            <button onClick={signOut} title="Keluar" style={{ background: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 7, cursor: 'pointer', color: 'rgba(255,255,255,0.32)', padding: '5px 6px', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
               <LogOut size={13} />
             </button>
           </div>
@@ -270,8 +334,13 @@ export default function DashboardLayout() {
       {/* MAIN AREA */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Topbar — light */}
-        <header style={{ height: 48, flexShrink: 0, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', borderBottom: '0.5px solid rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px' }}>
+        {/* Topbar — light Apple */}
+        <header style={{
+          height: 48, flexShrink: 0,
+          background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)',
+          borderBottom: '0.5px solid rgba(0,0,0,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px',
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isMobile && (
               <button onClick={() => setSidebarOpen(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, color: '#1c1c1e', padding: 0 }}>
