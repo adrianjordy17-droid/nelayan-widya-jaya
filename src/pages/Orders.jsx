@@ -1,5 +1,3 @@
-$ cat /home/user/ud-nelayan-widya-jaya/src/pages/Orders.jsx
-
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Eye, X, ShoppingBag, Clock, CheckCircle2, TrendingUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, Truck } from 'lucide-react'
@@ -14,9 +12,7 @@ const STATUS_CFG = {
   delivered:  { label: 'Terkirim',      bg: '#f0fdf4', text: '#16a34a', border: '#bbf7d0' },
   cancelled:  { label: 'Batal',         bg: '#fff1f2', text: '#dc2626', border: '#fecaca' },
 }
-// SO tabs
 const SO_OPTS = ['semua', 'draft', 'confirmed', 'cancelled']
-// DO tabs
 const DO_OPTS = ['dispatched', 'delivered']
 const ALL_OPTS = ['semua', 'draft', 'confirmed', 'dispatched', 'delivered', 'cancelled']
 
@@ -89,7 +85,6 @@ export default function Orders() {
       })
   }, [])
 
-  // Auto-advance to new month at midnight
   useEffect(() => {
     const t = setInterval(() => {
       const now = currentYM()
@@ -115,11 +110,9 @@ export default function Orders() {
 
   const isDoTab = DO_OPTS.includes(statusFilter)
 
-  // Month-scoped lists
   const monthSoList = soList.filter(o => (o.date || '').startsWith(selectedMonth))
   const monthDoList = doList.filter(o => (o.date || '').startsWith(selectedMonth))
 
-  // Active list based on tab
   const activeList = statusFilter === 'semua'
     ? [...monthSoList, ...monthDoList]
     : isDoTab ? monthDoList : monthSoList
@@ -132,7 +125,6 @@ export default function Orders() {
     )
   })
 
-  // Stats (SO-based)
   const draftCount = monthSoList.filter(o => o.status === 'draft').length
   const confCount  = monthSoList.filter(o => o.status === 'confirmed').length
   const omzetBulan = monthSoList
@@ -244,7 +236,6 @@ export default function Orders() {
               boxShadow: statusFilter === s ? 'none' : '0 0 0 1px #e2e8f0',
             }}>
               {s === 'semua' ? 'Semua' : (STATUS_CFG[s]?.label || s)}
-              {/* badge for DO tabs */}
               {s === 'dispatched' && <span style={{ marginLeft: 5, fontSize: 10, background: statusFilter === s ? 'rgba(255,255,255,0.25)' : '#fff8e1', color: statusFilter === s ? 'white' : '#d97706', borderRadius: 99, padding: '1px 5px', fontWeight: 700 }}>DO</span>}
               {s === 'delivered' && <span style={{ marginLeft: 5, fontSize: 10, background: statusFilter === s ? 'rgba(255,255,255,0.25)' : '#f0fdf4', color: statusFilter === s ? 'white' : '#16a34a', borderRadius: 99, padding: '1px 5px', fontWeight: 700 }}>DO</span>}
             </button>
@@ -315,7 +306,7 @@ export default function Orders() {
                     <td style={{ padding: '13px 16px', fontFamily: 'monospace', color: order.type === 'DO' ? '#d97706' : '#2563eb', fontWeight: 700, fontSize: 12 }}>{order.number}</td>
                     <td style={{ padding: '13px 16px', color: '#0f172a', fontWeight: 500 }}>{order.clientName}</td>
                     <td style={{ padding: '13px 16px', color: '#94a3b8', fontSize: 12 }}>{fmtDate(order.date)}</td>
-                    <td style={{ padding: '13px 16px', textAlign: 'right', fontWeight: 600, color: order.type === 'DO' ? '#0f172a' : '#0f172a' }}>
+                    <td style={{ padding: '13px 16px', textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
                       {order.type === 'DO'
                         ? (order.driverName || <span style={{ color: '#cbd5e1', fontWeight: 400 }}>Belum ditugaskan</span>)
                         : fmt(order.total)}
@@ -327,7 +318,6 @@ export default function Orders() {
                     </td>
                     <td style={{ padding: '13px 16px', textAlign: 'center' }}>
                       <button onClick={() => setView(order)}
-                        title="Detail"
                         style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', borderRadius: 8, display: 'inline-flex', alignItems: 'center' }}
                         onMouseEnter={e => { e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.background = '#eff6ff' }}
                         onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}>
