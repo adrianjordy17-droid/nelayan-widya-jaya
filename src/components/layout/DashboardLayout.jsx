@@ -234,11 +234,7 @@ export default function DashboardLayout() {
     if (notifOpen) fetchNotifications().then(setNotifications)
   }, [notifOpen])
 
-  useEffect(() => {
-    const h = e => { if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
+  // click-outside handled by backdrop inside NotifPanel
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768)
@@ -356,7 +352,7 @@ export default function DashboardLayout() {
                 <Bell size={16} color={totalCount > 0 ? '#ff3b30' : '#3c3c43'} strokeWidth={1.8} />
                 {totalCount > 0 && <span style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, borderRadius: '50%', background: '#ff3b30', border: '1.5px solid white' }} />}
               </button>
-              {notifOpen && <NotifPanel notifs={notifications} onClose={() => setNotifOpen(false)} />}
+              {/* NotifPanel rendered at root level to avoid backdrop-filter stacking context */}
             </div>
 
             <div style={{ width: 0.5, height: 20, background: 'rgba(0,0,0,0.12)' }} />
@@ -372,6 +368,9 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* NotifPanel rendered here — outside all backdrop-filter elements so position:fixed works in Chrome */}
+      {notifOpen && <NotifPanel notifs={notifications} onClose={() => setNotifOpen(false)} />}
     </div>
   )
 }
