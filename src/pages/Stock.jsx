@@ -1,5 +1,3 @@
-$ cat /home/user/ud-nelayan-widya-jaya/src/pages/Stock.jsx
-
 import { useState, useEffect } from 'react'
 import { Search, AlertTriangle, Package, DollarSign, Tag, BarChart2, Plus, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
