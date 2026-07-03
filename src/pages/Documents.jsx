@@ -408,10 +408,14 @@ export default function Documents() {
       })
   }, [])
 
-  // Auto-open creation if navigated from Orders page
+    // Auto-open creation if navigated from another page
   useEffect(() => {
     if (location.state?.createType) {
-      openCreate(location.state.createType)
+      const { createType: type, refNumber } = location.state
+      openCreate(type)
+      if (refNumber) {
+        setTimeout(() => fillFromRef(refNumber), 600)
+      }
       window.history.replaceState({}, document.title)
     }
   }, [])
