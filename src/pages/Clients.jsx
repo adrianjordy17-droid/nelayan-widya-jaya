@@ -1,5 +1,3 @@
-$ cat /home/user/ud-nelayan-widya-jaya/src/pages/Clients.jsx
-
 import { useState, useEffect } from 'react'
 import { Plus, Search, Phone, MapPin, Star, Edit2, Trash2, X, Check, Users, UserCheck, ShoppingCart, TrendingUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
