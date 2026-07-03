@@ -46,6 +46,7 @@ function fmtMonth(ym) {
   return `${MONTH_NAMES[m - 1]} ${y}`
 }
 
+// ── Helpers ──
 function fmtRp(n) { return n != null ? 'Rp ' + Math.round(n).toLocaleString('id-ID') : '–' }
 function fmtDate(s) {
   if (!s) return '–'
@@ -83,6 +84,7 @@ function getCompany() {
   try { return JSON.parse(localStorage.getItem('nwj_company') || 'null') || defaults } catch { return defaults }
 }
 
+// ── Print ──
 function printDocument(doc) {
   const co = getCompany()
   const cfg = DOC_CFG[doc.type]
@@ -300,6 +302,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;color:#1a1a2e;backg
   setTimeout(() => win.print(), 500)
 }
 
+// ── DB mapper ──
 function dbToDoc(r) {
   return {
     id: r.id, type: r.type, number: r.number, date: r.date, status: r.status,
@@ -315,6 +318,7 @@ function dbToDoc(r) {
   }
 }
 
+// ── ItemRow ──
 function ItemRow({ item, type, onChange, onDelete, isLast }) {
   const withPrice    = type === 'SO' || type === 'Invoice'
   const withReceived = type === 'GR'
@@ -352,6 +356,7 @@ function ItemRow({ item, type, onChange, onDelete, isLast }) {
   )
 }
 
+// ── FieldRow ──
 function FieldRow({ label, children, last }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '11px 16px', borderBottom: last ? 'none' : '0.5px solid #f0f0f0', background: 'white' }}>
@@ -363,6 +368,7 @@ function FieldRow({ label, children, last }) {
 const inputR = { border: 'none', outline: 'none', textAlign: 'right', fontSize: 14, color: '#3c3c43', background: 'transparent', ...FF, width: '100%' }
 const selectR = { border: 'none', outline: 'none', textAlign: 'right', fontSize: 14, color: '#3c3c43', background: 'transparent', ...FF }
 
+// ── Section label ──
 function SLabel({ text }) {
   return <p style={{ fontSize: 11, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 7 }}>{text}</p>
 }
@@ -370,6 +376,7 @@ function Card({ children }) {
   return <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', marginBottom: 22 }}>{children}</div>
 }
 
+// ── Main ──
 export default function Documents() {
   const location = useLocation()
   const { user, profile, isRole } = useAuth()
@@ -401,11 +408,13 @@ export default function Documents() {
       })
   }, [])
 
+  // Auto-open creation if navigated from another page
   useEffect(() => {
     if (location.state?.createType) {
       const { createType: type, refNumber } = location.state
       openCreate(type)
       if (refNumber) {
+        // Delay so docs list loads first (fillFromRef needs docs in state)
         setTimeout(() => fillFromRef(refNumber), 600)
       }
       window.history.replaceState({}, document.title)
@@ -422,6 +431,7 @@ export default function Documents() {
       .then(({ data }) => data && setStaffList(data))
   }, [])
 
+  // Auto-advance to new month at midnight
   useEffect(() => {
     const t = setInterval(() => {
       const now = currentYM()
@@ -646,6 +656,7 @@ export default function Documents() {
   const soList = docs.filter(d => d.type === 'SO')
   const doList = docs.filter(d => d.type === 'DO')
 
+  // ── Render ──
   return (
     <div style={{ maxWidth: 720, ...FF, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -690,7 +701,7 @@ export default function Documents() {
         )}
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — hidden for staff (they only see DO) */}
       {!isStaff && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[['all', 'Semua'], ...Object.entries(DOC_CFG).map(([k, v]) => [k, v.label])].map(([val, label]) => (
@@ -705,14 +716,21 @@ export default function Documents() {
         </div>
       )}
 
-      {/* Month Navigator */}
+      {/* Month Navigator — hidden for staff */}
       {!isStaff && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', borderRadius: 13, padding: '11px 16px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)' }}>
-          <button onClick={() => setSelectedMonth(m => shiftMonth(m, -1))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 4, display: 'flex', alignItems: 'center' }}>
+          <button
+            onClick={() => setSelectedMonth(m => shiftMonth(m, -1))}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 4, display: 'flex', alignItems: 'center' }}
+          >
             <ChevronLeft size={18} />
           </button>
+
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => setShowMonthPicker(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+            <button
+              onClick={() => setShowMonthPicker(p => !p)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+            >
               <Calendar size={14} color="#007aff" />
               <span style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e' }}>{fmtMonth(selectedMonth)}</span>
               {isCurrentMonth && <span style={{ fontSize: 10, background: '#007aff', color: 'white', borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>Sekarang</span>}
@@ -737,8 +755,12 @@ export default function Documents() {
               </>
             )}
           </div>
-          <button onClick={() => setSelectedMonth(m => shiftMonth(m, 1))} disabled={isCurrentMonth}
-            style={{ background: 'none', border: 'none', cursor: isCurrentMonth ? 'default' : 'pointer', color: isCurrentMonth ? '#c7c7cc' : '#8e8e93', padding: 4, display: 'flex', alignItems: 'center' }}>
+
+          <button
+            onClick={() => setSelectedMonth(m => shiftMonth(m, 1))}
+            disabled={isCurrentMonth}
+            style={{ background: 'none', border: 'none', cursor: isCurrentMonth ? 'default' : 'pointer', color: isCurrentMonth ? '#c7c7cc' : '#8e8e93', padding: 4, display: 'flex', alignItems: 'center' }}
+          >
             <ChevronRight size={18} />
           </button>
         </div>
@@ -773,7 +795,9 @@ export default function Documents() {
                   {doc.refNumber && <p style={{ fontSize: 11.5, color: '#8e8e93', margin: '2px 0 0' }}>Ref: {doc.refNumber}</p>}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{doc.total ? fmtRp(doc.total) : ''}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>
+                    {doc.total ? fmtRp(doc.total) : ''}
+                  </p>
                   <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>{fmtDate(doc.date)}</p>
                 </div>
               </div>
@@ -782,10 +806,11 @@ export default function Documents() {
         </div>
       )}
 
-      {/* CREATE MODAL */}
+      {/* ── CREATE MODAL ── */}
       {form && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && setForm(null)}>
           <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 620, maxHeight: '94vh', overflowY: 'auto', ...FF }}>
+            {/* Modal header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
               <button onClick={() => setForm(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}><X size={22} /></button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -804,6 +829,7 @@ export default function Documents() {
             </div>
 
             <div style={{ padding: '20px 16px' }}>
+              {/* Info Dasar */}
               <SLabel text="Informasi Dasar" />
               <Card>
                 <FieldRow label="Tanggal">
@@ -819,6 +845,7 @@ export default function Documents() {
                 </FieldRow>
               </Card>
 
+              {/* Referensi dokumen */}
               {(createType === 'DO' || createType === 'GR' || createType === 'Invoice') && (
                 <>
                   <SLabel text={createType === 'GR' ? 'Referensi DO' : 'Referensi SO'} />
@@ -835,6 +862,7 @@ export default function Documents() {
                 </>
               )}
 
+              {/* Klien */}
               <SLabel text="Data Klien / Tujuan" />
               <Card>
                 <FieldRow label="Nama Klien">
@@ -867,6 +895,7 @@ export default function Documents() {
                 </FieldRow>
               </Card>
 
+              {/* DO: Info pengiriman */}
               {createType === 'DO' && (
                 <>
                   <SLabel text="Info Pengiriman" />
@@ -891,6 +920,7 @@ export default function Documents() {
                 </>
               )}
 
+              {/* Invoice: Due date & bank */}
               {createType === 'Invoice' && (
                 <>
                   <SLabel text="Info Pembayaran" />
@@ -914,8 +944,10 @@ export default function Documents() {
                 </>
               )}
 
+              {/* Items */}
               <SLabel text={createType === 'GR' ? 'Barang Diterima' : 'Item / Barang'} />
               <div style={{ background: 'white', borderRadius: 13, padding: '12px 14px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)', marginBottom: 10 }}>
+                {/* Column headers */}
                 <div style={{ display: 'flex', gap: 6, padding: '0 0 8px', borderBottom: '0.5px solid #f0f0f0', marginBottom: 4 }}>
                   <span style={{ flex: 2, minWidth: 120, fontSize: 11, color: '#8e8e93', fontWeight: 600 }}>PRODUK</span>
                   <span style={{ width: 62, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>QTY</span>
@@ -938,6 +970,7 @@ export default function Documents() {
                 }}>+ Tambah Item</button>
               </div>
 
+              {/* Totals (SO & Invoice) */}
               {(createType === 'SO' || createType === 'Invoice') && (
                 <>
                   <SLabel text="Total" />
@@ -958,6 +991,7 @@ export default function Documents() {
                 </>
               )}
 
+              {/* Catatan */}
               <SLabel text="Catatan (opsional)" />
               <div style={{ background: 'white', borderRadius: 13, padding: '12px 16px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)', marginBottom: 8 }}>
                 <textarea value={form.notes} onChange={e => setF({ notes: e.target.value })}
@@ -970,10 +1004,11 @@ export default function Documents() {
         </div>
       )}
 
-      {/* DETAIL MODAL */}
+      {/* ── DETAIL MODAL ── */}
       {detail && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => e.target === e.currentTarget && setDetail(null)}>
           <div style={{ background: '#f2f2f7', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 620, maxHeight: '88vh', overflowY: 'auto', ...FF }}>
+            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6', position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {(() => { const cfg = DOC_CFG[detail.type]; const I = cfg.Icon; return (
@@ -1002,6 +1037,7 @@ export default function Documents() {
             </div>
 
             <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* Status & meta */}
               <Card>
                 {[
                   ['Nomor', detail.number],
@@ -1019,6 +1055,7 @@ export default function Documents() {
                 ))}
               </Card>
 
+              {/* Client */}
               <div>
                 <SLabel text="Klien" />
                 <Card>
@@ -1031,6 +1068,7 @@ export default function Documents() {
                 </Card>
               </div>
 
+              {/* Items */}
               <div>
                 <SLabel text="Item" />
                 <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
@@ -1050,6 +1088,7 @@ export default function Documents() {
                 </div>
               </div>
 
+              {/* Totals — hidden from staff */}
               {!isStaff && detail.total != null && (
                 <div>
                   <SLabel text="Total" />
@@ -1062,6 +1101,7 @@ export default function Documents() {
                 </div>
               )}
 
+              {/* Bank (Invoice) — hidden from staff */}
               {!isStaff && detail.bankName && (
                 <div>
                   <SLabel text="Info Pembayaran" />
@@ -1073,6 +1113,7 @@ export default function Documents() {
                 </div>
               )}
 
+              {/* Notes */}
               {detail.notes && (
                 <div>
                   <SLabel text="Catatan" />
@@ -1081,19 +1122,23 @@ export default function Documents() {
                   </div>
                 </div>
               )}
-
+              {/* Edit + Cancel buttons — SO/DO/GR only */}
               {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && !confirmCancel && (
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => openEdit(detail)}
-                    style={{ flex: 1, padding: '14px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <button
+                    onClick={() => openEdit(detail)}
+                    style={{ flex: 1, padding: '14px', background: '#1c1c1e', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
                     {detail.type === 'DO' && detail.status === 'pending' ? 'Tugaskan Driver & Kirim'
                       : detail.type === 'DO' && detail.status === 'dispatched' ? 'Ganti Driver'
                       : detail.status === 'draft' ? 'Edit / Konfirmasi'
                       : 'Edit'}
                   </button>
                   {detail.status !== 'cancelled' && (
-                    <button onClick={() => setConfirmCancel(true)}
-                      style={{ padding: '14px 18px', background: '#fff0f0', border: '0.5px solid rgba(255,59,48,0.2)', borderRadius: 13, color: '#ff3b30', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF, whiteSpace: 'nowrap' }}>
+                    <button
+                      onClick={() => setConfirmCancel(true)}
+                      style={{ padding: '14px 18px', background: '#fff0f0', border: '0.5px solid rgba(255,59,48,0.2)', borderRadius: 13, color: '#ff3b30', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF, whiteSpace: 'nowrap' }}
+                    >
                       Batalkan
                     </button>
                   )}
@@ -1101,40 +1146,54 @@ export default function Documents() {
               )}
               {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && confirmCancel && (
                 <div style={{ background: '#fff0f0', borderRadius: 13, padding: '16px', border: '0.5px solid rgba(255,59,48,0.2)' }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#ff3b30', margin: '0 0 12px' }}>Yakin batalkan {detail.number}?</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#ff3b30', margin: '0 0 12px' }}>
+                    Yakin batalkan {detail.number}?
+                  </p>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button onClick={async () => { await cancelDoc(detail); setConfirmCancel(false) }}
-                      style={{ flex: 1, padding: '12px', background: '#ff3b30', border: 'none', borderRadius: 10, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer', ...FF }}>
+                    <button
+                      onClick={async () => { await cancelDoc(detail); setConfirmCancel(false) }}
+                      style={{ flex: 1, padding: '12px', background: '#ff3b30', border: 'none', borderRadius: 10, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer', ...FF }}
+                    >
                       Ya, Batalkan
                     </button>
-                    <button onClick={() => setConfirmCancel(false)}
-                      style={{ flex: 1, padding: '12px', background: '#e5e5ea', border: 'none', borderRadius: 10, color: '#3c3c43', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF }}>
+                    <button
+                      onClick={() => setConfirmCancel(false)}
+                      style={{ flex: 1, padding: '12px', background: '#e5e5ea', border: 'none', borderRadius: 10, color: '#3c3c43', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF }}
+                    >
                       Tidak
                     </button>
                   </div>
                 </div>
               )}
               {isStaff && detail.type === 'DO' && detail.status === 'dispatched' && (
-                <button onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
-                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
+                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <Truck size={16} /> Kirim Laporan
                 </button>
               )}
               {canEdit && detail.type === 'SO' && detail.status === 'confirmed' && (
-                <button onClick={() => openCreateFrom('DO', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => openCreateFrom('DO', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <Truck size={16} /> Buat Delivery Order
                 </button>
               )}
               {canEdit && detail.type === 'DO' && detail.status === 'delivered' && (
-                <button onClick={() => openCreateFrom('GR', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => openCreateFrom('GR', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <PackageCheck size={16} /> Buat Goods Receipt
                 </button>
               )}
               {canEdit && detail.type === 'GR' && detail.status === 'received' && (
-                <button onClick={() => openCreateFrom('Invoice', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#af52de', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <button
+                  onClick={() => openCreateFrom('Invoice', detail)}
+                  style={{ width: '100%', padding: '15px', background: '#af52de', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
                   <Receipt size={16} /> Buat Invoice
                 </button>
               )}
@@ -1144,6 +1203,7 @@ export default function Documents() {
         </div>
       )}
 
+      {/* Close menu on outside click */}
       {menu && <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setMenu(false)} />}
     </div>
   )
