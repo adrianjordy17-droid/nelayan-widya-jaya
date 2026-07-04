@@ -335,12 +335,16 @@ export default function DashboardLayout() {
           }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{
-                width: 32, height: 32, borderRadius: '50%',
+                width: 32, height: 32, borderRadius: '50%', overflow: 'hidden',
                 background: `linear-gradient(135deg,${roleColor},${roleColor}99)`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 12, fontWeight: 700, color: 'white',
                 boxShadow: `0 2px 10px ${roleColor}55`,
-              }}>{initials}</div>
+              }}>
+                {profile?.avatar_url
+                  ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : initials}
+              </div>
               <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: '#30d158', border: '1.5px solid rgba(10,20,40,0.8)', boxShadow: '0 0 6px rgba(48,209,88,0.6)' }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -385,7 +389,11 @@ export default function DashboardLayout() {
             <div style={{ width: 0.5, height: 20, background: 'rgba(0,0,0,0.12)' }} />
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px 4px 4px', borderRadius: 99, background: '#f2f2f7' }}>
-              <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg,${roleColor},${roleColor}bb)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'white' }}>{initials}</div>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', background: `linear-gradient(135deg,${roleColor},${roleColor}bb)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'white' }}>
+                {profile?.avatar_url
+                  ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : initials}
+              </div>
               <p style={{ fontSize: 13, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{profile?.name}</p>
             </div>
           </div>
