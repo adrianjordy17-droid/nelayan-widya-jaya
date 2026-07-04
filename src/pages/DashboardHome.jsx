@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import {
   TrendingUp, ShoppingCart, UserCheck, AlertTriangle, ArrowRight,
   Truck, CheckCircle2, ClipboardList, Package, Check,
+  ClipboardEdit, Clock, GitBranch,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -174,6 +175,8 @@ function OwnerAdminDashboard() {
   const [recentDocs, setRecentDocs]     = useState([])
   const [penjualanBulanIni, setPenjualan] = useState(0)
   const [orderPending, setOrderPending] = useState(0)
+  const [delayedCount, setDelayedCount] = useState(0)
+  const [partialCount, setPartialCount] = useState(0)
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -230,6 +233,19 @@ function OwnerAdminDashboard() {
           .filter(d => (d.status === 'confirmed' || d.status === 'delivered') && (d.date || '').startsWith(thisMonth))
           .reduce((sum, d) => sum + (d.total || 0), 0)
         setPenjualan(soTotal)
+      })
+
+    supabase.from('documents').select('id').eq('type', 'DO').eq('status', 'delayed')
+      .then(({ data }) => setDelayedCount(data?.length || 0))
+
+    supabase.from('delivery_reports').select('do_id, is_partial, weight_received, photo_received_url')
+      .eq('is_partial', true)
+      .then(({ data }) => {
+        if (!data) return
+        const partialDoIds = new Set(
+          data.filter(r => r.weight_received == null || r.photo_received_url == null).map(r => r.do_id)
+        )
+        setPartialCount(partialDoIds.size)
       })
   }, [todayKey, thisMonth])
 
@@ -316,39 +332,63 @@ function OwnerAdminDashboard() {
           </div>
         </div>
 
-        {/* Stok Produk */}
-        <div style={{ ...GLASS, borderRadius: 16, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 13px', borderBottom: '1px solid rgba(0,0,0,0.055)' }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>Stok Udang</p>
-            <Link to="/dashboard/stock" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, color: '#2563eb', fontWeight: 500, textDecoration: 'none' }}>
-              Lihat stok <ArrowRight size={11} />
-            </Link>
-          </div>
-          <div style={{ padding: '16px 20px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {stokDisplay.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, margin: '12px 0' }}>Belum ada data stok.</p>
-            ) : stokDisplay.map(item => {
-              const pct      = Math.min(Math.round((item.qty / item.max) * 100), 100)
-              const barColor = pct < 30 ? '#ef4444' : pct < 60 ? '#f59e0b' : '#2563eb'
-              return (
-                <div key={item.name}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: barColor, flexShrink: 0 }} />
-                      <p style={{ fontSize: 12, fontWeight: 500, color: '#334155', margin: 0 }}>{item.name}</p>
+        {/* Status Operasional */}
+        {(() => {
+          const items = [
+            {
+              label: 'SO Draft',
+              desc: 'Sales order belum dikonfirmasi',
+              count: orderPending,
+              Icon: ClipboardEdit,
+              color: '#5856d6', bg: 'rgba(88,86,214,0.10)',
+              tab: 'so-draft',
+            },
+            {
+              label: 'Pengiriman Partial',
+              desc: 'DO belum selesai diterima',
+              count: partialCount,
+              Icon: GitBranch,
+              color: '#d97706', bg: 'rgba(217,119,6,0.10)',
+              tab: 'partial',
+            },
+            {
+              label: 'Pengiriman Terlambat',
+              desc: 'DO menunggu konfirmasi tiba',
+              count: delayedCount,
+              Icon: Clock,
+              color: '#dc2626', bg: 'rgba(220,38,38,0.10)',
+              tab: 'delayed',
+            },
+          ]
+          return (
+            <div style={{ ...GLASS, borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 13px', borderBottom: '1px solid rgba(0,0,0,0.055)' }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>Status Operasional</p>
+                <Link to="/dashboard/documents" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11.5, color: '#2563eb', fontWeight: 500, textDecoration: 'none' }}>
+                  Lihat dokumen <ArrowRight size={11} />
+                </Link>
+              </div>
+              <div>
+                {items.map(({ label, desc, count, Icon, color, bg, tab }, idx) => (
+                  <Link key={tab} to="/dashboard/documents" state={{ tab }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: idx < items.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', textDecoration: 'none', cursor: 'pointer' }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon size={16} color={color} />
                     </div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                      {item.qty} <span style={{ fontWeight: 400, color: '#94a3b8' }}>kg</span>
-                    </p>
-                  </div>
-                  <div style={{ height: 5, background: 'rgba(0,0,0,0.07)', borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{ width: `${pct}%`, height: '100%', borderRadius: 99, background: barColor, transition: 'width 0.4s ease' }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>{label}</p>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{desc}</p>
+                    </div>
+                    <span style={{
+                      fontSize: 18, fontWeight: 800, color: count > 0 ? color : '#cbd5e1',
+                      minWidth: 28, textAlign: 'right', flexShrink: 0,
+                    }}>{count}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
       </div>
     </div>
