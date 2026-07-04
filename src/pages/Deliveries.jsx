@@ -293,6 +293,19 @@ export default function Deliveries() {
     setConfirmDelete(false)
   }
 
+  async function handleSusulan(report) {
+    let doItems = []
+    if (report.doId) {
+      const { data } = await supabase.from('documents').select('items').eq('id', report.doId).single()
+      doItems = data?.items || []
+    }
+    setModal(null)
+    setConfirmDelete(false)
+    setForm({ ...emptyForm(), doRef: report.doRef || '', doId: report.doId || null, doItems, clientName: report.clientName })
+    setSaved(false)
+    setModal('new')
+  }
+
   const isDetail = modal && modal !== 'new'
   const todayStr = new Date().toISOString().slice(0, 10)
   const isToday  = selectedDate === todayStr
@@ -448,8 +461,13 @@ export default function Deliveries() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
                     <p style={{ fontSize: 12, color: '#8e8e93', margin: 0 }}>oleh {r.createdByName}</p>
+                    {r.doRef && (
+                      <span style={{ fontSize: 11.5, color: '#007aff', fontWeight: 500, background: '#e8f4ff', padding: '1px 7px', borderRadius: 5 }}>
+                        {r.doRef}
+                      </span>
+                    )}
                     {!inTransit && (r.photoSentUrl || r.photoReceivedUrl) && (
                       <div style={{ display: 'flex', gap: 3 }}>
                         {r.photoSentUrl && (
@@ -1066,28 +1084,66 @@ export default function Deliveries() {
                 {modal.notes && <InfoRow label="Catatan" value={modal.notes} last />}
               </div>
 
-              {/* Admin/Owner actions */}
-              {canEdit && !confirmDelete && (
-                <div style={{ display: 'flex', gap: 10 }}>
-                  {modal.doRef && (
-                    <button
-                      onClick={() => {
-                        setModal(null)
-                        navigate('/dashboard/documents', { state: { createType: 'GR', refNumber: modal.doRef } })
-                      }}
-                      style={{ flex: 1, padding: '14px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                    >
-                      <PackageCheck size={16} /> Buat GR
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setConfirmDelete(true)}
-                    style={{ padding: '14px 18px', background: '#fff0f0', border: '0.5px solid rgba(255,59,48,0.2)', borderRadius: 13, color: '#ff3b30', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <Trash2 size={15} /> Hapus
-                  </button>
-                </div>
+              {/* Kirim Susulan — semua role bisa, tampil hanya jika partial */}
+              {!confirmDelete && modal.isPartial && (
+                <button
+                  onClick={() => handleSusulan(modal)}
+                  style={{
+                    width: '100%', padding: '14px',
+                    background: '#ff9500', border: 'none', borderRadius: 13,
+                    color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                    ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  <Truck size={16} /> Kirim Susulan
+                </button>
               )}
+
+              {/* Admin/Owner actions */}
+              {canEdit && !confirmDelete && (() => {
+                const doDeliveries = modal.doId ? reports.filter(r => r.doId === modal.doId) : []
+                const allDOComplete = doDeliveries.length === 0
+                  ? true
+                  : doDeliveries.every(r => r.weightReceived != null && r.photoReceivedUrl != null)
+                const pendingCount = doDeliveries.filter(r => r.weightReceived == null || r.photoReceivedUrl == null).length
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {modal.doRef && (
+                      <>
+                        <button
+                          onClick={allDOComplete ? () => {
+                            setModal(null)
+                            navigate('/dashboard/documents', { state: { createType: 'GR', refNumber: modal.doRef } })
+                          } : undefined}
+                          disabled={!allDOComplete}
+                          style={{
+                            width: '100%', padding: '14px',
+                            background: allDOComplete ? '#34c759' : '#e5e5ea',
+                            border: 'none', borderRadius: 13,
+                            color: allDOComplete ? 'white' : '#c7c7cc',
+                            fontSize: 15, fontWeight: 600,
+                            cursor: allDOComplete ? 'pointer' : 'not-allowed',
+                            ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          }}
+                        >
+                          <PackageCheck size={16} /> Buat GR
+                        </button>
+                        {!allDOComplete && (
+                          <p style={{ fontSize: 12.5, color: '#ff9500', textAlign: 'center', margin: 0, fontWeight: 500 }}>
+                            ⚠ Masih ada {pendingCount} pengiriman belum selesai untuk {modal.doRef}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      style={{ padding: '14px 18px', background: '#fff0f0', border: '0.5px solid rgba(255,59,48,0.2)', borderRadius: 13, color: '#ff3b30', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                      <Trash2 size={15} /> Hapus
+                    </button>
+                  </div>
+                )
+              })()}
 
               {canEdit && confirmDelete && (
                 <div style={{ background: '#fff0f0', borderRadius: 13, padding: '16px', border: '0.5px solid rgba(255,59,48,0.2)' }}>
