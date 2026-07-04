@@ -68,6 +68,7 @@ export default function Orders() {
   const { isRole } = useAuth()
   const canEdit = isRole('admin') || isRole('owner')
 
+  const [isMobile, setIsMobile]           = useState(() => window.innerWidth < 768)
   const [soList, setSoList]               = useState([])
   const [doList, setDoList]               = useState([])
   const [selectedMonth, setSelectedMonth]   = useState(currentYM)
@@ -77,6 +78,12 @@ export default function Orders() {
   const [view, setView]                     = useState(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
 
   useEffect(() => {
     supabase.from('documents').select('*').in('type', ['SO', 'DO']).order('created_at', { ascending: false })
@@ -164,9 +171,9 @@ export default function Orders() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '14px 20px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
         <button
           onClick={() => { setSelectedMonth(m => shiftMonth(m, -1)); setSearch(''); setStatusFilter('semua') }}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', border: '1.5px solid #e2e8f0', borderRadius: 9, background: 'white', cursor: 'pointer', color: '#64748b', fontSize: 13, fontWeight: 600 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '7px 10px' : '7px 12px', border: '1.5px solid #e2e8f0', borderRadius: 9, background: 'white', cursor: 'pointer', color: '#64748b', fontSize: 13, fontWeight: 600 }}
         >
-          <ChevronLeft size={15} /> Sebelumnya
+          <ChevronLeft size={15} />{!isMobile && ' Sebelumnya'}
         </button>
 
         <div style={{ position: 'relative', textAlign: 'center' }}>
@@ -208,9 +215,9 @@ export default function Orders() {
         <button
           onClick={() => { setSelectedMonth(m => shiftMonth(m, 1)); setSearch(''); setStatusFilter('semua') }}
           disabled={isCurrentMonth}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px', border: '1.5px solid #e2e8f0', borderRadius: 9, background: isCurrentMonth ? '#f8fafc' : 'white', cursor: isCurrentMonth ? 'default' : 'pointer', color: isCurrentMonth ? '#cbd5e1' : '#64748b', fontSize: 13, fontWeight: 600 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '7px 10px' : '7px 12px', border: '1.5px solid #e2e8f0', borderRadius: 9, background: isCurrentMonth ? '#f8fafc' : 'white', cursor: isCurrentMonth ? 'default' : 'pointer', color: isCurrentMonth ? '#cbd5e1' : '#64748b', fontSize: 13, fontWeight: 600 }}
         >
-          Berikutnya <ChevronRight size={15} />
+          {!isMobile && 'Berikutnya '}<ChevronRight size={15} />
         </button>
       </div>
 
