@@ -128,7 +128,7 @@ export default function Products() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div className="rw" style={{ maxWidth: 900, margin: '0 auto' }}>
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 12 }}>
@@ -181,7 +181,7 @@ export default function Products() {
       ) : products.length === 0 ? (
         <div style={{
           textAlign: 'center', padding: '60px 20px',
-          background: 'white', borderRadius: 16,
+          background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)',
         }}>
           <Tag size={40} color="#c7c7cc" style={{ marginBottom: 12 }} />
           <p style={{ fontSize: 15, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>Belum ada produk</p>
@@ -212,7 +212,7 @@ export default function Products() {
 
             {/* Table */}
             <div style={{
-              background: 'white', borderRadius: 14, overflowX: 'auto',
+              background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflowX: 'auto',
               boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
             }}>
               <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse' }}>
@@ -342,7 +342,7 @@ export default function Products() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="rg-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={labelStyle}>Harga Jual (Rp)</label>
                   <input
@@ -447,7 +447,7 @@ const overlay = {
   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
 }
 const card = {
-  background: 'white', borderRadius: 20, padding: 24,
+  background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.9)', boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', padding: 24,
   width: '100%', maxWidth: 440,
   boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
 }
