@@ -147,7 +147,7 @@ export default function Clients() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+      <div className="rg-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg }) => (
           <div key={label} style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -192,7 +192,7 @@ export default function Clients() {
       </div>
 
       {/* Client Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+      <div className="rg-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
         {filtered.length === 0 && (
           <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#94a3b8', padding: '48px 0', fontSize: 13 }}>
             {clients.length === 0 ? 'Belum ada klien terdaftar. Tambah klien pertama Anda.' : 'Tidak ada klien yang cocok dengan pencarian.'}
@@ -274,7 +274,7 @@ export default function Clients() {
               <Field label="Nama Perusahaan / Klien">
                 <input value={form.name} onChange={e => setF('name', e.target.value)} placeholder="Nama klien..." style={inputStyle} />
               </Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="rg-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <Field label="Tipe">
                   <select value={form.type} onChange={e => setF('type', e.target.value)} style={inputStyle}>
                     {TYPES.map(t => <option key={t}>{t}</option>)}
