@@ -42,6 +42,12 @@ export function AuthProvider({ children }) {
     setLoading(false)
   }
 
+  async function refreshProfile() {
+    if (!user) return
+    const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+    if (data) setProfile(data)
+  }
+
   async function signIn(email, password) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error }
@@ -62,7 +68,7 @@ export function AuthProvider({ children }) {
     return profile?.role === role
   }
 
-  const value = { user, profile, loading, signIn, signOut, hasPermission, isRole, ROLES }
+  const value = { user, profile, loading, signIn, signOut, hasPermission, isRole, ROLES, refreshProfile }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
