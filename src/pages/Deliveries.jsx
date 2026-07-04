@@ -73,6 +73,7 @@ function emptyForm() {
   return {
     clientName: '', deliveryDate: new Date().toISOString().slice(0, 10),
     weightSent: '',
+    itemWeights: {},
     photoSentFile: null, photoSentPreview: null,
     notes: '',
     doRef: '', doId: null, doItems: [],
@@ -176,11 +177,20 @@ export default function Deliveries() {
       let photoSentUrl = null
       if (form.photoSentFile) photoSentUrl = await uploadPhoto(form.photoSentFile, `${id}/sent.jpg`)
 
+      let effectiveWeightSent = form.weightSent !== '' ? parseFloat(form.weightSent) : null
+      if (form.doItems.length > 0) {
+        const vals = Object.values(form.itemWeights)
+        if (vals.length > 0) {
+          const sum = vals.reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+          if (sum > 0) effectiveWeightSent = sum
+        }
+      }
+
       const report = mapReport({
         id,
         client_name: form.clientName.trim(),
         delivery_date: form.deliveryDate,
-        weight_sent: form.weightSent !== '' ? parseFloat(form.weightSent) : null,
+        weight_sent: effectiveWeightSent,
         weight_received: null,
         photo_sent_url: photoSentUrl,
         photo_received_url: null,
@@ -199,7 +209,7 @@ export default function Deliveries() {
         id,
         client_name: report.clientName,
         delivery_date: report.deliveryDate,
-        weight_sent: report.weightSent,
+        weight_sent: effectiveWeightSent,
         weight_received: null,
         photo_sent_url: photoSentUrl,
         photo_received_url: null,
@@ -349,7 +359,6 @@ export default function Deliveries() {
                     setSaved(false)
                     setCompleting(r)
                   } else {
-                    setConfirmDelete(false)
                     setModal(r)
                   }
                 }}
@@ -549,17 +558,52 @@ export default function Deliveries() {
                     )}
                   </div>
                   <input ref={sentRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSent} style={{ display: 'none' }} />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid #f0f0f0', paddingTop: 14 }}>
-                    <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, fontWeight: 400 }}>Berat Kirim</p>
-                    <input
-                      type="number" step="0.1" min="0"
-                      value={form.weightSent}
-                      onChange={e => setForm(f => ({ ...f, weightSent: e.target.value }))}
-                      placeholder="0.0"
-                      style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
-                    />
-                    <span style={{ fontSize: 15, color: '#8e8e93' }}>kg</span>
-                  </div>
+
+                  {form.doItems.length > 0 ? (
+                    <div style={{ borderTop: '0.5px solid #f0f0f0', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {form.doItems.map((it, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          paddingBottom: 11, marginBottom: 11,
+                          borderBottom: i < form.doItems.length - 1 ? '0.5px solid #f0f0f0' : 'none',
+                        }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 14, fontWeight: 500, color: '#1c1c1e', margin: 0, lineHeight: 1.3 }}>{it.name}</p>
+                            <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>DO: {it.qty} {it.unit}</p>
+                          </div>
+                          <input
+                            type="number" step="0.1" min="0"
+                            value={form.itemWeights[i] ?? ''}
+                            onChange={e => setForm(f => ({ ...f, itemWeights: { ...f.itemWeights, [i]: e.target.value } }))}
+                            placeholder="0.0"
+                            style={{ width: 72, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, fontWeight: 600, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                          />
+                          <span style={{ fontSize: 14, color: '#8e8e93', flexShrink: 0 }}>kg</span>
+                        </div>
+                      ))}
+                      {Object.values(form.itemWeights).some(v => v !== '' && v !== undefined) && (() => {
+                        const total = Object.values(form.itemWeights).reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: '0.5px solid #e5e5ea' }}>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>Total Berat Kirim</p>
+                            <p style={{ fontSize: 17, fontWeight: 700, color: '#007aff', margin: 0 }}>{total.toFixed(1)} kg</p>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid #f0f0f0', paddingTop: 14 }}>
+                      <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, fontWeight: 400 }}>Berat Kirim</p>
+                      <input
+                        type="number" step="0.1" min="0"
+                        value={form.weightSent}
+                        onChange={e => setForm(f => ({ ...f, weightSent: e.target.value }))}
+                        placeholder="0.0"
+                        style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                      />
+                      <span style={{ fontSize: 15, color: '#8e8e93' }}>kg</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
