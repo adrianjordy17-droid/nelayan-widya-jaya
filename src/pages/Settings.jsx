@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, Building2, Bell, Users, Trash2, Plus, Check, X, Edit2,
@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { generateDailyReport, sendToWhatsApp } from '../lib/whatsapp'
 import { supabase } from '../lib/supabase'
+import { notifSupported, checkSubscribed, enablePush, disablePush } from '../lib/notifications'
 
 const INIT_WA_CONFIG = { token: '', target: '', sendTime: '18:00', enabled: false }
 const INIT_COMPANY = {
@@ -25,6 +26,7 @@ const ROLE_CFG = {
   staff: { bg: '#f0fdf4', text: '#15803d', label: 'Staff'   },
 }
 
+/* ── iOS-style Toggle ── */
 function Toggle({ on, onChange, color = '#34c759' }) {
   return (
     <div onClick={onChange} style={{
@@ -44,6 +46,7 @@ function Toggle({ on, onChange, color = '#34c759' }) {
   )
 }
 
+/* ── Section group ── */
 function Group({ label, footer, children }) {
   return (
     <div>
@@ -55,8 +58,7 @@ function Group({ label, footer, children }) {
         }}>{label}</p>
       )}
       <div style={{
-        background: 'white', borderRadius: 13, overflow: 'hidden',
-        boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)',
+        background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden',
       }}>
         {children}
       </div>
@@ -69,13 +71,14 @@ function Group({ label, footer, children }) {
   )
 }
 
+/* ── Row with right-aligned input ── */
 function InputRow({ icon: Icon, iconBg = '#007aff', label, value, onChange, type = 'text', placeholder, disabled, last, suffix }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 13,
       padding: '11px 16px',
-      borderBottom: last ? 'none' : '0.5px solid #f0f0f0',
-      background: 'white',
+      borderBottom: last ? 'none' : '0.5px solid rgba(0,0,0,0.07)',
+      background: 'transparent',
     }}>
       {Icon && (
         <div style={{
@@ -107,13 +110,14 @@ function InputRow({ icon: Icon, iconBg = '#007aff', label, value, onChange, type
   )
 }
 
+/* ── Row with toggle ── */
 function ToggleRow({ icon: Icon, iconBg = '#007aff', label, desc, on, onChange, last, toggleColor }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 13,
       padding: '12px 16px',
-      borderBottom: last ? 'none' : '0.5px solid #f0f0f0',
-      background: 'white',
+      borderBottom: last ? 'none' : '0.5px solid rgba(0,0,0,0.07)',
+      background: 'transparent',
     }}>
       {Icon && (
         <div style={{
@@ -133,6 +137,7 @@ function ToggleRow({ icon: Icon, iconBg = '#007aff', label, desc, on, onChange, 
   )
 }
 
+/* ── Action row (blue tap-able row) ── */
 function ActionRow({ icon: Icon, iconBg, label, onClick, disabled, color = '#007aff', last, destructive }) {
   const [hover, setHover] = useState(false)
   return (
@@ -165,25 +170,27 @@ function ActionRow({ icon: Icon, iconBg, label, onClick, disabled, color = '#007
   )
 }
 
+/* ── Info banner row ── */
 function InfoRow({ children, last }) {
   return (
     <div style={{
       padding: '13px 16px',
-      borderBottom: last ? 'none' : '0.5px solid #f0f0f0',
-      background: 'white',
+      borderBottom: last ? 'none' : '0.5px solid rgba(0,0,0,0.07)',
+      background: 'transparent',
     }}>
       {children}
     </div>
   )
 }
 
+/* ── Save confirm row ── */
 function SaveRow({ onSave, saved, last }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
       padding: '11px 16px',
-      borderTop: '0.5px solid #f0f0f0',
-      background: 'white',
+      borderTop: '0.5px solid rgba(0,0,0,0.07)',
+      background: 'transparent',
     }}>
       <button onClick={onSave} style={{
         background: 'none', border: 'none', cursor: 'pointer',
@@ -198,6 +205,7 @@ function SaveRow({ onSave, saved, last }) {
   )
 }
 
+/* ── Modal (Apple sheet-style) ── */
 function Modal({ title, onClose, children, onSave }) {
   return (
     <div style={{
@@ -212,6 +220,7 @@ function Modal({ title, onClose, children, onSave }) {
         boxShadow: '0 24px 60px rgba(0,0,0,0.2)',
         overflow: 'hidden',
       }}>
+        {/* Modal header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 16px',
@@ -237,7 +246,7 @@ function Modal({ title, onClose, children, onSave }) {
 }
 
 export default function Settings() {
-  const { user, profile, isRole, signOut } = useAuth()
+  const { user, profile, isRole, signOut, refreshProfile } = useAuth()
   const navigate = useNavigate()
   const [company, setCompany]   = useLocalStorage('nwj_company', INIT_COMPANY)
   const [users, setUsers]       = useState([])
@@ -266,6 +275,50 @@ export default function Settings() {
   const [userForm, setUserForm]       = useState({ name: '', email: '', role: 'staff' })
   const [editUserId, setEditUserId]   = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const avatarInputRef = useRef(null)
+
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [pushError, setPushError]     = useState('')
+
+  useEffect(() => {
+    checkSubscribed().then(setPushEnabled)
+  }, [])
+
+  async function handleTogglePush() {
+    setPushLoading(true)
+    setPushError('')
+    try {
+      if (pushEnabled) {
+        await disablePush()
+        setPushEnabled(false)
+      } else {
+        await enablePush()
+        setPushEnabled(true)
+      }
+    } catch (err) {
+      setPushError(err.message)
+    } finally {
+      setPushLoading(false)
+    }
+  }
+
+  async function uploadAvatar(file) {
+    if (!file || !user) return
+    setAvatarUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${user.id}.${ext}`
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id)
+      await refreshProfile()
+    } catch (err) { alert('Gagal upload: ' + err.message) }
+    finally { setAvatarUploading(false) }
+  }
 
   function saveCompany() { setCompanySaved(true); setTimeout(() => setCompanySaved(false), 2500) }
 
@@ -330,20 +383,36 @@ export default function Settings() {
       display: 'flex', flexDirection: 'column', gap: 32,
     }}>
 
-      {/* Profile card */}
+      {/* ── Profile card (top) ── */}
       <div style={{
-        background: 'white', borderRadius: 13, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden',
         boxShadow: '0 1px 1px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.07)',
         display: 'flex', alignItems: 'center', gap: 16, padding: '18px 20px',
       }}>
-        <div style={{
-          width: 60, height: 60, borderRadius: '50%',
-          background: `linear-gradient(135deg, ${roleColor?.text || '#007aff'}, ${roleColor?.text || '#007aff'}99)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, fontWeight: 700, color: 'white', flexShrink: 0,
-          boxShadow: `0 4px 14px ${roleColor?.text || '#007aff'}44`,
-        }}>
-          {(profile?.name || 'U').slice(0, 2).toUpperCase()}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div onClick={() => avatarInputRef.current?.click()} style={{
+            width: 60, height: 60, borderRadius: '50%', cursor: 'pointer', overflow: 'hidden',
+            background: `linear-gradient(135deg, ${roleColor?.text || '#007aff'}, ${roleColor?.text || '#007aff'}99)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 22, fontWeight: 700, color: 'white',
+            boxShadow: `0 4px 14px ${roleColor?.text || '#007aff'}44`,
+          }}>
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : (profile?.name || 'U').slice(0, 2).toUpperCase()
+            }
+          </div>
+          <div onClick={() => avatarInputRef.current?.click()} style={{
+            position: 'absolute', bottom: 0, right: 0,
+            width: 20, height: 20, borderRadius: '50%',
+            background: '#007aff', border: '2px solid white',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', fontSize: 10,
+          }}>
+            {avatarUploading ? '…' : '📷'}
+          </div>
+          <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={e => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
         </div>
         <div>
           <p style={{ fontSize: 17, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{profile?.name}</p>
@@ -359,7 +428,7 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Profil Akun */}
+      {/* ── Profil Akun ── */}
       <Group label="Profil Akun">
         <InputRow icon={User} iconBg="#007aff" label="Nama" value={account.name}
           onChange={e => setAccount(a => ({ ...a, name: e.target.value }))}
@@ -373,7 +442,7 @@ export default function Settings() {
         <SaveRow onSave={saveAccount} saved={accountSaved} />
       </Group>
 
-      {/* Profil Perusahaan */}
+      {/* ── Profil Perusahaan ── */}
       {isRole('owner') && (
         <Group label="Profil Perusahaan">
           <InputRow icon={Building2} iconBg="#5856d6" label="Nama" value={company.name}
@@ -398,7 +467,7 @@ export default function Settings() {
         </Group>
       )}
 
-      {/* Notifikasi */}
+      {/* ── Notifikasi ── */}
       <Group label="Notifikasi">
         <ToggleRow icon={Bell} iconBg="#ff9500" label="Stok Rendah"
           desc="Peringatan saat stok di bawah minimum"
@@ -412,11 +481,63 @@ export default function Settings() {
           last />
       </Group>
 
-      {/* WhatsApp */}
+      {/* ── Notifikasi HP ── */}
+      {(isRole('owner') || isRole('admin')) && (
+        <Group
+          label="Notifikasi HP"
+          footer={
+            !notifSupported()
+              ? 'Browser ini tidak mendukung push notification. Gunakan Chrome atau Safari di iOS 16.4+.'
+              : pushEnabled
+              ? 'Aktif — HP ini akan dapat notifikasi saat ada laporan pengiriman masuk.'
+              : 'Di iOS: install dulu ke Home Screen, baru aktifkan. Di Android: langsung bisa dari Chrome.'
+          }
+        >
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 13,
+            padding: '12px 16px', background: 'transparent',
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+              background: pushEnabled ? '#ff3b30' : '#8e8e93',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.22s',
+            }}>
+              <Bell size={15} color="white" strokeWidth={1.9} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, fontWeight: 400 }}>
+                Laporan Pengiriman
+              </p>
+              <p style={{ fontSize: 12.5, color: pushEnabled ? '#34c759' : '#8e8e93', marginTop: 2 }}>
+                {pushLoading ? 'Memproses...' : pushEnabled ? 'Aktif di perangkat ini' : 'Belum aktif'}
+              </p>
+            </div>
+            {notifSupported() && (
+              pushLoading
+                ? <div style={{ width: 51, height: 31, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <p style={{ fontSize: 12, color: '#8e8e93', margin: 0 }}>...</p>
+                  </div>
+                : <Toggle on={pushEnabled} onChange={handleTogglePush} color="#ff3b30" />
+            )}
+          </div>
+          {pushError && (
+            <div style={{
+              padding: '10px 16px', borderTop: '0.5px solid #f0f0f0',
+              background: '#fff5f5',
+            }}>
+              <p style={{ fontSize: 13, color: '#ff3b30', margin: 0 }}>{pushError}</p>
+            </div>
+          )}
+        </Group>
+      )}
+
+      {/* ── WhatsApp ── */}
       {isRole('owner') && <Group
         label="WhatsApp — Laporan Otomatis"
         footer="Daftar di fonnte.com → sambungkan nomor WA → salin token ke form ini. Browser harus aktif agar laporan otomatis terkirim."
       >
+        {/* Token row with eye toggle */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 13,
           padding: '11px 16px', borderBottom: '0.5px solid #f0f0f0',
@@ -479,7 +600,7 @@ export default function Settings() {
         )}
       </Group>}
 
-      {/* Manajemen Pengguna */}
+      {/* ── Manajemen Pengguna ── */}
       {(isRole('owner') || isRole('admin')) && (
         <Group label="Pengguna">
           {users.map((u, idx) => {
@@ -491,6 +612,7 @@ export default function Settings() {
                 padding: '10px 16px',
                 borderBottom: isLast ? 'none' : '0.5px solid #f0f0f0',
               }}>
+                {/* Avatar */}
                 <div style={{
                   width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
                   background: `linear-gradient(135deg, ${rc.text}, ${rc.text}99)`,
@@ -499,6 +621,7 @@ export default function Settings() {
                 }}>
                   {(u.name || '?')[0]}
                 </div>
+                {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <p style={{ fontSize: 15, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{u.name}</p>
@@ -511,6 +634,7 @@ export default function Settings() {
                   </div>
                   <p style={{ fontSize: 12.5, color: '#8e8e93', marginTop: 2 }}>{u.email}</p>
                 </div>
+                {/* Actions — only owner can edit non-owner users */}
                 {isRole('owner') && u.role !== 'owner' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <button onClick={() => openEditUser(u)}
@@ -538,12 +662,12 @@ export default function Settings() {
         </Group>
       )}
 
-      {/* Danger zone */}
+      {/* ── Danger zone ── */}
       <Group>
         <ActionRow label="Keluar dari Akun" onClick={signOut} destructive color="#ff3b30" last />
       </Group>
 
-      {/* MODAL: Edit User */}
+      {/* ────── MODAL: Edit User ────── */}
       {userModal && (
         <Modal title="Edit Pengguna"
           onClose={() => setUserModal(false)} onSave={saveUser}>
@@ -556,7 +680,7 @@ export default function Settings() {
               placeholder="email@nelayan.id" />
             <div style={{
               display: 'flex', alignItems: 'center', gap: 13,
-              padding: '11px 16px', background: 'white',
+              padding: '11px 16px', background: 'transparent',
             }}>
               <div style={{
                 width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#ff9500',
@@ -578,7 +702,7 @@ export default function Settings() {
         </Modal>
       )}
 
-      {/* MODAL: Delete Confirm */}
+      {/* ────── MODAL: Delete Confirm ────── */}
       {deleteConfirm && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
@@ -586,7 +710,7 @@ export default function Settings() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
         }}>
           <div style={{
-            background: 'white', borderRadius: 14, overflow: 'hidden',
+            background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden',
             width: '100%', maxWidth: 280, textAlign: 'center',
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }}>
