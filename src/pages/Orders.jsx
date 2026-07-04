@@ -78,7 +78,9 @@ export default function Orders() {
   const [view, setView]                     = useState(null)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
+  const [pickerPos, setPickerPos] = useState(null)
   const monthPickerRef = useRef(null)
+  const monthBtnRef = useRef(null)
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768)
@@ -192,7 +194,13 @@ export default function Orders() {
 
         <div ref={monthPickerRef} style={{ position: 'relative', textAlign: 'center' }}>
           <button
-            onClick={() => setShowMonthPicker(p => !p)}
+            ref={monthBtnRef}
+            onClick={() => {
+              if (showMonthPicker) { setShowMonthPicker(false); return }
+              const rect = monthBtnRef.current.getBoundingClientRect()
+              setPickerPos({ top: rect.bottom + 8, left: rect.left + rect.width / 2 })
+              setShowMonthPicker(true)
+            }}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 16px', border: 'none', borderRadius: 10, background: '#eff6ff', cursor: 'pointer', color: '#2563eb', fontSize: 15, fontWeight: 700 }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -203,8 +211,8 @@ export default function Orders() {
             {isCurrentMonth && <span style={{ fontSize: 10, background: '#2563eb', color: 'white', borderRadius: 20, padding: '2px 7px', fontWeight: 700, lineHeight: 1.4 }}>Sekarang</span>}
           </button>
 
-          {showMonthPicker && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)', background: 'white', borderRadius: 14, border: '1px solid #e2e8f0', boxShadow: '0 10px 40px rgba(15,23,42,0.12)', zIndex: 50, padding: 12, minWidth: 220, maxHeight: 280, overflowY: 'auto' }}>
+          {showMonthPicker && pickerPos && (
+            <div style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left, transform: 'translateX(-50%)', background: 'white', borderRadius: 14, border: '1px solid #e2e8f0', boxShadow: '0 10px 40px rgba(15,23,42,0.12)', zIndex: 9999, padding: 12, minWidth: 220, maxHeight: 280, overflowY: 'auto' }}>
               <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px 4px' }}>Pilih Bulan</p>
               {monthsWithData.length === 0 && (
                 <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '12px 0', margin: 0 }}>Belum ada data</p>
