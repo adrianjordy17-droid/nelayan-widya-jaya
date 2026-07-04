@@ -52,6 +52,7 @@ export default function Attendance() {
   const isStaff  = profile?.role === 'staff'
   const canManage = profile?.role === 'owner' || profile?.role === 'admin'
 
+  // ── Reactive today (auto-updates at midnight) ──
   const [today, setToday] = useState(() => new Date().toISOString().slice(0, 10))
   const thisMonth = today.slice(0, 7)
 
@@ -69,6 +70,7 @@ export default function Attendance() {
   const [schedForm, setSchedForm]           = useState(null)
   const fileRef = useRef()
 
+  // ── Midnight detection: update today, reset check-in state ──
   useEffect(() => {
     const t = setInterval(() => {
       const now = new Date().toISOString().slice(0, 10)
@@ -82,6 +84,7 @@ export default function Attendance() {
     return () => clearInterval(t)
   }, [today])
 
+  // ── Fetch attendance: staff only see their own records, re-fetch when today changes ──
   useEffect(() => {
     if (!profile) return
     let q = supabase.from('attendance').select('*').order('created_at', { ascending: false })
@@ -89,12 +92,14 @@ export default function Attendance() {
     q.then(({ data }) => setLog(data || []))
   }, [profile?.name, isStaff, today])
 
+  // ── Employee list from employees table (auto-updates when employees are added) ──
   useEffect(() => {
     if (!canManage) return
     supabase.from('employees').select('id, name, jabatan, role').eq('active', true).order('name')
       .then(({ data }) => setStaffList(data || []))
   }, [canManage])
 
+  // ── Total active employees for stat card ──
   useEffect(() => {
     if (!canManage) return
     supabase.from('employees').select('id', { count: 'exact' }).eq('active', true)
@@ -187,6 +192,7 @@ export default function Attendance() {
     setSchedForm(null)
   }
 
+  // ── Computed stats ──
   const todayLog   = log.filter(e => e.date === today && e.type !== 'pulang')
   const hadirAll   = todayLog.filter(e => e.status === 'hadir').length
   const telatAll   = todayLog.filter(e => e.status === 'telat').length
@@ -203,14 +209,17 @@ export default function Attendance() {
 
   const viewLog = log.filter(e => e.date === dateView)
 
+  // ── Auto-fill jabatan when name selected in form ──
   function handleFormName(name) {
     const emp = staffList.find(s => s.name === name)
     setForm(f => ({ ...f, name, role: emp?.role || f.role }))
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+      {/* ── OWNER ONLY: Atur Jam Kerja ── */}
       {isOwner && (
         <div style={{
           borderRadius: 14, padding: '20px 24px',
@@ -239,6 +248,7 @@ export default function Attendance() {
         </div>
       )}
 
+      {/* ── STAFF / ADMIN: Selfie Check-in Card ── */}
       {!isOwner && (
         <div style={{
           borderRadius: 14, padding: '22px 24px',
@@ -343,15 +353,16 @@ export default function Attendance() {
         </div>
       )}
 
+      {/* ── Stat Cards ── */}
       {isStaff ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        <div className="rg-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
           <StatCard label="Hadir"  value={myHadir} sub="bulan ini" Icon={UserCheck}    iconColor="#16a34a" iconBg="#f0fdf4" />
           <StatCard label="Telat"  value={myTelat} sub="bulan ini" Icon={Clock}        iconColor="#d97706" iconBg="#fffbeb" />
           <StatCard label="Izin"   value={myIzin}  sub="bulan ini" Icon={CalendarDays} iconColor="#2563eb" iconBg="#eff6ff" />
           <StatCard label="Absen"  value={myAbsen} sub="bulan ini" Icon={UserX}        iconColor="#dc2626" iconBg="#fef2f2" />
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        <div className="rg-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
           <StatCard label="Hadir Hari Ini"  value={hadirAll}         sub="tepat waktu"          Icon={UserCheck} iconColor="#16a34a" iconBg="#f0fdf4" />
           <StatCard label="Telat"           value={telatAll}         sub="terlambat masuk"       Icon={Clock}     iconColor="#d97706" iconBg="#fffbeb" />
           <StatCard label="Absen"           value={absenAll}         sub="tidak hadir hari ini"  Icon={UserX}     iconColor="#dc2626" iconBg="#fef2f2" />
@@ -359,7 +370,9 @@ export default function Attendance() {
         </div>
       )}
 
+      {/* ── Log Absensi ── */}
       <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden' }}>
+
         <div style={{
           display: 'flex', flexWrap: 'wrap', alignItems: 'center',
           justifyContent: 'space-between', padding: '16px 20px',
@@ -413,7 +426,10 @@ export default function Attendance() {
             <tbody>
               {viewLog.length === 0 && (
                 <tr>
-                  <td colSpan={isStaff ? 5 : 8} style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+                  <td
+                    colSpan={isStaff ? 5 : 8}
+                    style={{ padding: '48px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}
+                  >
                     Tidak ada data absensi untuk tanggal ini.
                   </td>
                 </tr>
@@ -495,6 +511,7 @@ export default function Attendance() {
         </div>
       </div>
 
+      {/* ── Modal: Atur Jam Kerja (owner only) ── */}
       {schedForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', width: '100%', maxWidth: 380 }}>
@@ -537,6 +554,7 @@ export default function Attendance() {
         </div>
       )}
 
+      {/* ── Modal: Tambah / Edit (manager only) ── */}
       {modal && form && canManage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', width: '100%', maxWidth: 460 }}>
@@ -548,7 +566,7 @@ export default function Attendance() {
                 <X size={20} />
               </button>
             </div>
-            <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="rg-2" style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Nama Karyawan</label>
                 {staffList.length > 0 ? (
@@ -606,6 +624,7 @@ export default function Attendance() {
         </div>
       )}
 
+      {/* ── Modal: Konfirmasi Hapus (manager only) ── */}
       {deleteConfirm && canManage && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(48px) saturate(2)', WebkitBackdropFilter: 'blur(48px) saturate(2)', borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,1)', border: '1px solid rgba(255,255,255,0.9)', padding: '32px 28px', maxWidth: 360, width: '100%', textAlign: 'center' }}>
