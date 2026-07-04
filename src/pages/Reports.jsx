@@ -191,6 +191,7 @@ export default function Reports() {
   const thisYM = localYM(now)
   const thisYr = String(now.getFullYear())
 
+  // Calendar-based (not rolling): 1 Bulan = bulan ini, 3 Bulan = 3 bulan kalender, dst
   const periodDocs = docs.filter(d => {
     if (!d.date) return false
     if (period === 'hari-ini') return d.date === localDate(now)
@@ -205,12 +206,14 @@ export default function Reports() {
     ? docs.filter(d => d.date && d.date.startsWith(searchMonth) && d.status !== 'cancelled')
     : periodDocs.filter(d => d.status !== 'cancelled')
 
+  // Omzet = confirmed + delivered saja (sinkron dengan dashboard)
   const revDocs        = filteredDocs.filter(d => d.status === 'confirmed' || d.status === 'delivered')
   const totalRevenue   = revDocs.reduce((a, d) => a + docTotal(d), 0)
   const totalOrders    = filteredDocs.length
   const deliveredCount = filteredDocs.filter(d => d.status === 'delivered').length
   const avgOrder       = revDocs.length > 0 ? Math.round(totalRevenue / revDocs.length) : 0
 
+  // Chart: semua bulan, revenue dari confirmed+delivered
   const monthlyMap = {}
   docs.forEach(d => {
     if (d.status === 'cancelled') return
@@ -301,7 +304,7 @@ export default function Reports() {
       XLSX.utils.book_append_sheet(wb, ws4, 'Data Klien')
     }
     if (chartData.length > 0) {
-      const ws5 = XLSX.utils.json_to_sheet(chartData.map(d => ({ 'Bulan':d.key,'Total Dok':d.orders,'Total Omzet (Rp)':d.revenue })))
+      const ws5 = XLSX.utils.json_to_sheet(chartData.map(d => ({ 'Bulan':d.key,'Total SO':d.orders,'Total Omzet (Rp)':d.revenue })))
       ws5['!cols'] = [{ wch:12 },{ wch:14 },{ wch:20 }]
       XLSX.utils.book_append_sheet(wb, ws5, 'Ringkasan Bulanan')
     }
@@ -315,6 +318,7 @@ export default function Reports() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontFamily: FF }}>
 
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1d1d1f', margin: '0 0 2px', letterSpacing: '-0.3px', fontFamily: FF }}>
@@ -325,6 +329,7 @@ export default function Reports() {
           </p>
         </div>
 
+        {/* iOS Segmented Control */}
         <div style={{ background: 'rgba(116,116,128,0.12)', borderRadius: 10, padding: 2, display: 'inline-flex', gap: 0 }}>
           {PERIODS.map(p => {
             const active = !searchMonth && period === p.key
@@ -342,7 +347,8 @@ export default function Reports() {
         </div>
       </div>
 
-      <div style={{ background: 'white', borderRadius: 16, padding: '14px 20px', boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+      {/* Action bar */}
+      <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '14px 20px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <div>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1d1f', margin: '0 0 1px', fontFamily: FF }}>Ekspor &amp; Bagikan</p>
           <p style={{ fontSize: 12, color: '#aeaeb2', margin: 0, fontFamily: FF }}>Excel atau WhatsApp</p>
@@ -366,14 +372,15 @@ export default function Reports() {
 
       {!loading && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+          {/* Stat Cards */}
+          <div className="rg-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
             {[
               { label: 'Total Penjualan', value: fmtShort(totalRevenue), sub: `omzet ${activeLabel}`, Icon: DollarSign,   ic: '#1a7a2e', ib: 'rgba(52,199,89,0.1)'  },
-              { label: 'Total Dokumen',   value: totalOrders,            sub: 'SO + DO + GR',         Icon: ShoppingCart, ic: '#0055d4', ib: 'rgba(0,113,227,0.08)' },
-              { label: 'Terkirim',        value: deliveredCount,         sub: 'berhasil dikirim',     Icon: CheckCircle,  ic: '#7635c4', ib: 'rgba(175,82,222,0.1)' },
-              { label: 'Rata-rata',       value: fmtShort(avgOrder),     sub: 'per transaksi',        Icon: TrendingUp,   ic: '#975400', ib: 'rgba(255,159,10,0.1)' },
+              { label: 'Total Dokumen',    value: totalOrders,            sub: 'SO + DO + GR',          Icon: ShoppingCart, ic: '#0055d4', ib: 'rgba(0,113,227,0.08)' },
+              { label: 'Terkirim',         value: deliveredCount,         sub: 'berhasil dikirim',      Icon: CheckCircle,  ic: '#7635c4', ib: 'rgba(175,82,222,0.1)' },
+              { label: 'Rata-rata SO',    value: fmtShort(avgOrder),     sub: 'per transaksi',         Icon: TrendingUp,   ic: '#975400', ib: 'rgba(255,159,10,0.1)' },
             ].map(({ label, value, sub, Icon, ic, ib }) => (
-              <div key={label} style={{ background: 'white', borderRadius: 18, padding: '20px 22px', boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)' }}>
+              <div key={label} style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 18, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                   <p style={{ fontSize: 12, fontWeight: 500, color: '#6e6e73', margin: 0, lineHeight: 1.3, fontFamily: FF }}>{label}</p>
                   <div style={{ width: 32, height: 32, borderRadius: 9, background: ib, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -386,7 +393,8 @@ export default function Reports() {
             ))}
           </div>
 
-          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+          {/* Chart Card */}
+          <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 18, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden' }}>
             <div style={{ padding: '20px 24px 8px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
                 <p style={{ fontSize: 13, color: '#6e6e73', margin: '0 0 4px', fontFamily: FF }}>Omzet Bulanan</p>
@@ -409,7 +417,8 @@ export default function Reports() {
             </div>
           </div>
 
-          <div style={{ background: 'white', borderRadius: 18, padding: '18px 20px', boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)' }}>
+          {/* Month Search */}
+          <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 18, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div>
                 <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1d1f', margin: '0 0 2px', fontFamily: FF }}>Cari Omzet per Bulan</p>
@@ -455,7 +464,8 @@ export default function Reports() {
             </div>
           </div>
 
-          <div style={{ background: 'white', borderRadius: 18, boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+          {/* Top Products */}
+          <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 18, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
               <div>
                 <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1d1f', margin: '0 0 2px', fontFamily: FF }}>Produk Terlaris</p>
@@ -503,17 +513,18 @@ export default function Reports() {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+          {/* Status Breakdown */}
+          <div className="rg-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
             {STATUS_ROWS.map(s => {
               const count = docs.filter(d => d.status === s.status).length
               const rev   = docs.filter(d => d.status === s.status).reduce((a, d) => a + docTotal(d), 0)
               return (
-                <div key={s.status} style={{ background: 'white', borderRadius: 18, padding: '18px 20px', boxShadow: '0 1px 0 rgba(0,0,0,0.08),0 2px 16px rgba(0,0,0,0.04)' }}>
+                <div key={s.status} style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 18, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
                   <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 980, background: s.bg, color: s.color, marginBottom: 12, fontFamily: FF }}>
                     {s.label}
                   </span>
                   <p style={{ fontSize: 30, fontWeight: 700, color: '#1d1d1f', margin: '0 0 3px', lineHeight: 1, letterSpacing: '-0.5px', fontFamily: FF }}>{count}</p>
-                  <p style={{ fontSize: 11, color: '#aeaeb2', margin: '0 0 4px', fontFamily: FF }}>dokumen</p>
+                  <p style={{ fontSize: 11, color: '#aeaeb2', margin: '0 0 4px', fontFamily: FF }}>order</p>
                   <p style={{ fontSize: 13, fontWeight: 600, color: s.color, margin: 0, fontFamily: FF }}>{fmtShort(rev)}</p>
                 </div>
               )
