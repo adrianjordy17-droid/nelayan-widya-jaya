@@ -386,7 +386,7 @@ export default function Documents() {
   const [docs, setDocs]   = useState([])
   const [clients, setClients] = useState([])
   const [staffList, setStaffList] = useState([])
-  const [tab, setTab]     = useState(isStaff ? 'DO' : 'all')
+  const [tab, setTab]     = useState(isStaff ? 'DO' : (location.state?.tab || 'all'))
   const [menu, setMenu]   = useState(false)
   const [form, setForm]   = useState(null)
   const [saving, setSaving] = useState(false)
@@ -677,10 +677,12 @@ export default function Documents() {
     : docs.filter(d => !(d.type === 'SO' && d.status === 'confirmed'))
   const partialDOs  = visibleDocs.filter(d => d.type === 'DO' && (deliveryMap[d.id] || []).some(r => r.is_partial && (r.weight_received == null || r.photo_received_url == null)))
   const draftDOs    = visibleDocs.filter(d => d.type === 'DO' && d.status === 'draft')
-  const isSpecialTab = tab === 'partial' || tab === 'do-draft'
-  const tabFiltered = tab === 'all'      ? visibleDocs
+  const soDrafts    = visibleDocs.filter(d => d.type === 'SO' && d.status === 'draft')
+  const isSpecialTab = tab === 'partial' || tab === 'do-draft' || tab === 'so-draft'
+  const tabFiltered = tab === 'all'       ? visibleDocs
     : tab === 'partial'   ? partialDOs
     : tab === 'do-draft'  ? draftDOs
+    : tab === 'so-draft'  ? soDrafts
     : visibleDocs.filter(d => d.type === tab)
   const filtered = isStaff || isSpecialTab ? tabFiltered : tabFiltered.filter(d => (d.date || '').startsWith(selectedMonth))
   const monthsWithData = isStaff || isSpecialTab ? [] : [...new Set(
@@ -745,6 +747,7 @@ export default function Documents() {
             ['DO',       'Delivery Order', null,                  null],
             ['GR',       'Goods Receipt',  null,                  null],
             ['Invoice',  'Invoice',        null,                  null],
+            ['so-draft', 'SO Draft',       soDrafts.length,       '#5856d6'],
             ['partial',  'Partial',        partialDOs.length,     '#ff3b30'],
             ['do-draft', 'DO Draft',       draftDOs.length,       '#ff9500'],
           ].map(([val, label, count, badgeColor]) => (
