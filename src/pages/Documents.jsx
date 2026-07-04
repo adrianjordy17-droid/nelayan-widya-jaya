@@ -675,9 +675,15 @@ export default function Documents() {
   const visibleDocs = isStaff
     ? docs.filter(d => d.type === 'DO' && d.status === 'dispatched' && d.driverName?.toLowerCase() === myName)
     : docs.filter(d => !(d.type === 'SO' && d.status === 'confirmed'))
-  const tabFiltered = tab === 'all' ? visibleDocs : visibleDocs.filter(d => d.type === tab)
-  const filtered = isStaff ? tabFiltered : tabFiltered.filter(d => (d.date || '').startsWith(selectedMonth))
-  const monthsWithData = isStaff ? [] : [...new Set(
+  const partialDOs  = visibleDocs.filter(d => d.type === 'DO' && (deliveryMap[d.id] || []).some(r => r.is_partial && (r.weight_received == null || r.photo_received_url == null)))
+  const draftDOs    = visibleDocs.filter(d => d.type === 'DO' && d.status === 'draft')
+  const isSpecialTab = tab === 'partial' || tab === 'do-draft'
+  const tabFiltered = tab === 'all'      ? visibleDocs
+    : tab === 'partial'   ? partialDOs
+    : tab === 'do-draft'  ? draftDOs
+    : visibleDocs.filter(d => d.type === tab)
+  const filtered = isStaff || isSpecialTab ? tabFiltered : tabFiltered.filter(d => (d.date || '').startsWith(selectedMonth))
+  const monthsWithData = isStaff || isSpecialTab ? [] : [...new Set(
     (tab === 'all' ? visibleDocs : visibleDocs.filter(d => d.type === tab))
       .map(d => (d.date || '').slice(0, 7)).filter(Boolean)
   )].sort()
@@ -733,20 +739,39 @@ export default function Documents() {
       {/* Tabs — hidden for staff (they only see DO) */}
       {!isStaff && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[['all', 'Semua'], ...Object.entries(DOC_CFG).map(([k, v]) => [k, v.label])].map(([val, label]) => (
+          {[
+            ['all',      'Semua',          null,                  null],
+            ['SO',       'Sales Order',    null,                  null],
+            ['DO',       'Delivery Order', null,                  null],
+            ['GR',       'Goods Receipt',  null,                  null],
+            ['Invoice',  'Invoice',        null,                  null],
+            ['partial',  'Partial',        partialDOs.length,     '#ff3b30'],
+            ['do-draft', 'DO Draft',       draftDOs.length,       '#ff9500'],
+          ].map(([val, label, count, badgeColor]) => (
             <button key={val} onClick={() => setTab(val)} style={{
+              display: 'flex', alignItems: 'center', gap: 5,
               padding: '6px 14px', borderRadius: 99, border: 'none', cursor: 'pointer',
               fontSize: 13, fontWeight: tab === val ? 600 : 400, ...FF,
               background: tab === val ? '#1c1c1e' : 'white',
               color: tab === val ? 'white' : '#3c3c43',
               boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)',
-            }}>{label}</button>
+            }}>
+              {label}
+              {count != null && count > 0 && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, lineHeight: 1,
+                  padding: '2px 6px', borderRadius: 99,
+                  background: tab === val ? 'rgba(255,255,255,0.25)' : badgeColor,
+                  color: tab === val ? 'white' : 'white',
+                }}>{count}</span>
+              )}
+            </button>
           ))}
         </div>
       )}
 
-      {/* Month Navigator — hidden for staff */}
-      {!isStaff && (
+      {/* Month Navigator — hidden for staff and special tabs */}
+      {!isStaff && !isSpecialTab && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', borderRadius: 13, padding: '11px 16px', boxShadow: '0 1px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.07)' }}>
           <button
             onClick={() => setSelectedMonth(m => shiftMonth(m, -1))}
