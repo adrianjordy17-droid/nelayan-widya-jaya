@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
@@ -155,8 +155,11 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
 
 /* ── Notification Panel — Liquid Glass dark ── */
 function NotifPanel({ notifs, onClose }) {
+  const navigate = useNavigate()
   const stockN  = notifs.filter(n => n.type === 'stock')
   const orderN  = notifs.filter(n => n.type === 'order')
+
+  function goTo(path) { onClose(); navigate(path) }
   return (
     <>
       {/* backdrop to close on outside click */}
@@ -185,14 +188,20 @@ function NotifPanel({ notifs, onClose }) {
         <div style={{ maxHeight: 280, overflowY: 'auto' }}>
           {stockN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff453a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Stok Kritis</p>}
           {stockN.map(n => (
-            <div key={n.id} style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
+            <div key={n.id} onClick={() => goTo('/dashboard/stock')}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
           {orderN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff9f0a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>SO Draft</p>}
           {orderN.map(n => (
-            <div key={n.id} style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
+            <div key={n.id} onClick={() => goTo('/dashboard/documents')}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{n.desc}</p>
             </div>
