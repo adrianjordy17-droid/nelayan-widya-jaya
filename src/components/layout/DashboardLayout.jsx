@@ -198,7 +198,7 @@ function NotifPanel({ notifs, onClose }) {
           ))}
           {orderN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff9f0a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>SO Draft</p>}
           {orderN.map(n => (
-            <div key={n.id} onClick={() => goTo('/dashboard/documents')}
+            <div key={n.id} onClick={() => { onClose(); navigate('/dashboard/documents', { state: { tab: 'so-draft' } }) }}
               style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
               onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
