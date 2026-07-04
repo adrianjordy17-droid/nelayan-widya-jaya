@@ -22,6 +22,7 @@ const STATUS_CFG = {
   pending:    { label: 'Menunggu',      color: '#5856d6', bg: '#f0f0ff' },
   confirmed:  { label: 'Dikonfirmasi',  color: '#007aff', bg: '#eff6ff' },
   dispatched: { label: 'Dikirim',       color: '#ff9500', bg: '#fff8e1' },
+  delayed:    { label: 'Terlambat',     color: '#ff3b30', bg: '#fff0f0' },
   delivered:  { label: 'Terkirim',      color: '#34c759', bg: '#f0fdf4' },
   received:   { label: 'Diterima',      color: '#34c759', bg: '#f0fdf4' },
   sent:       { label: 'Terkirim',      color: '#ff9500', bg: '#fff8e1' },
@@ -516,6 +517,13 @@ export default function Documents() {
     await supabase.from('documents').update({ status: 'cancelled' }).eq('id', doc.id)
   }
 
+  async function setDocStatus(doc, status) {
+    const updated = { ...doc, status }
+    setDocs(prev => prev.map(d => d.id === doc.id ? updated : d))
+    setDetail(updated)
+    await supabase.from('documents').update({ status }).eq('id', doc.id)
+  }
+
   function openEdit(doc) {
     const withPrice = doc.type === 'SO' || doc.type === 'Invoice'
     const f = {
@@ -901,7 +909,7 @@ export default function Documents() {
                 <FieldRow label="Status" last>
                   <select value={form.status} onChange={e => setF({ status: e.target.value })} style={selectR}>
                     {createType === 'SO' && <><option value="draft">Draft</option><option value="confirmed">Dikonfirmasi</option><option value="cancelled">Batal</option></>}
-                    {createType === 'DO' && <><option value="pending">Menunggu</option><option value="draft">Draft</option><option value="dispatched">Dikirim</option><option value="delivered">Terkirim</option></>}
+                    {createType === 'DO' && <><option value="pending">Menunggu</option><option value="draft">Draft</option><option value="dispatched">Dikirim</option><option value="delayed">Terlambat</option><option value="delivered">Terkirim</option></>}
                     {createType === 'GR' && <><option value="draft">Draft</option><option value="received">Diterima</option></>}
                     {createType === 'Invoice' && <><option value="draft">Draft</option><option value="sent">Terkirim</option><option value="paid">Dibayar</option><option value="overdue">Jatuh Tempo</option></>}
                   </select>
@@ -1293,7 +1301,23 @@ export default function Documents() {
                   </div>
                 </div>
               )}
-              {isStaff && detail.type === 'DO' && detail.status === 'dispatched' && (
+              {canEdit && detail.type === 'DO' && detail.status === 'dispatched' && (
+                <button
+                  onClick={() => setDocStatus(detail, 'delayed')}
+                  style={{ width: '100%', padding: '13px', background: '#fff0f0', border: '0.5px solid rgba(255,59,48,0.2)', borderRadius: 13, color: '#ff3b30', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  Tandai Terlambat
+                </button>
+              )}
+              {canEdit && detail.type === 'DO' && detail.status === 'delayed' && (
+                <button
+                  onClick={() => setDocStatus(detail, 'delivered')}
+                  style={{ width: '100%', padding: '13px', background: '#f0fdf4', border: '0.5px solid rgba(52,199,89,0.2)', borderRadius: 13, color: '#34c759', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  Tandai Terkirim
+                </button>
+              )}
+              {isStaff && detail.type === 'DO' && (detail.status === 'dispatched' || detail.status === 'delayed') && (
                 <button
                   onClick={() => { navigate('/dashboard/deliveries', { state: { doRef: detail.number, doId: detail.id, clientName: detail.clientName, items: detail.items, driverName: detail.driverName } }); setDetail(null) }}
                   style={{ width: '100%', padding: '15px', background: '#ff9500', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
