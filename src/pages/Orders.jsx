@@ -182,7 +182,7 @@ export default function Orders() {
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
 
       {/* Month Navigator */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
         <button
           onClick={() => { setSelectedMonth(m => shiftMonth(m, -1)); setSearch(''); setStatusFilter('semua') }}
           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: isMobile ? '7px 10px' : '7px 12px', border: '1.5px solid #e2e8f0', borderRadius: 9, background: 'white', cursor: 'pointer', color: '#64748b', fontSize: 13, fontWeight: 600 }}
