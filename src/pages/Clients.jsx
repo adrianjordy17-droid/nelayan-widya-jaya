@@ -202,7 +202,7 @@ export default function Clients() {
           const [bg, tc] = (TYPE_COLOR[client.type] || '#f8fafc:#64748b').split(':')
           return (
             <div key={client.id}
-              style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', padding: 18, display: 'flex', flexDirection: 'column', opacity: client.active ? 1 : 0.65, transition: 'box-shadow 0.15s' }}
+              style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', padding: 14, display: 'flex', flexDirection: 'column', opacity: client.active ? 1 : 0.65, transition: 'box-shadow 0.15s', minWidth: 0, overflow: 'hidden' }}
               onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(15,23,42,0.10)'}
               onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.06)'}
             >
@@ -228,17 +228,19 @@ export default function Clients() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
-                <div>
-                  <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 2px' }}>Order</p>
-                  <p style={{ fontWeight: 700, color: '#0f172a', fontSize: 13.5, margin: 0 }}>{client.totalOrders}</p>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 2px' }}>Total Belanja</p>
-                  <p style={{ fontWeight: 700, color: '#2563eb', fontSize: 13.5, margin: 0 }}>{fmt(client.totalSpend)}</p>
+              <div style={{ paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                  <div>
+                    <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 2px' }}>Order</p>
+                    <p style={{ fontWeight: 700, color: '#0f172a', fontSize: 13.5, margin: 0 }}>{client.totalOrders}</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ color: '#94a3b8', fontSize: 11, margin: '0 0 2px' }}>Total Belanja</p>
+                    <p style={{ fontWeight: 700, color: '#2563eb', fontSize: 13.5, margin: 0 }}>{fmt(client.totalSpend)}</p>
+                  </div>
                 </div>
                 {canEdit && (
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', marginTop: 8 }}>
                     <button onClick={() => openEdit(client)} title="Edit"
                       style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', borderRadius: 8, display: 'flex', alignItems: 'center' }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#d97706'; e.currentTarget.style.background = '#fffbeb' }}
@@ -248,7 +250,7 @@ export default function Clients() {
                     <button onClick={() => setDeleteConfirm(client.id)} title="Hapus"
                       style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', borderRadius: 8, display: 'flex', alignItems: 'center' }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fef2f2' }}
-                      onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}>
+                      onMouseLeave={e => { e.currentTarget.style.color: '#94a3b8'; e.currentTarget.style.background = 'none' }}>
                       <Trash2 size={14} />
                     </button>
                   </div>
