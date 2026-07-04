@@ -43,9 +43,10 @@ const PAGE_TITLE = {
 /* ── notifications from Supabase ── */
 async function fetchNotifications() {
   try {
-    const [{ data: products }, { data: draftSOs }] = await Promise.all([
+    const [{ data: products }, { data: draftSOs }, { data: delayedDOs }] = await Promise.all([
       supabase.from('products').select('id, nama, qty, min_qty, satuan'),
       supabase.from('documents').select('id, number, client_name').eq('type', 'SO').eq('status', 'draft'),
+      supabase.from('documents').select('id, number, client_name').eq('type', 'DO').eq('status', 'delayed'),
     ])
 
     const stockNotifs = (products || [])
@@ -62,7 +63,13 @@ async function fetchNotifications() {
       desc:  d.client_name,
     }))
 
-    return [...stockNotifs, ...orderNotifs]
+    const delayNotifs = (delayedDOs || []).map(d => ({
+      id: `delay-${d.id}`, type: 'delay',
+      title: `DO ${d.number} terlambat`,
+      desc:  d.client_name,
+    }))
+
+    return [...stockNotifs, ...delayNotifs, ...orderNotifs]
   } catch {
     return []
   }
@@ -157,6 +164,7 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
 function NotifPanel({ notifs, onClose }) {
   const navigate = useNavigate()
   const stockN  = notifs.filter(n => n.type === 'stock')
+  const delayN  = notifs.filter(n => n.type === 'delay')
   const orderN  = notifs.filter(n => n.type === 'order')
 
   function goTo(path) { onClose(); navigate(path) }
@@ -189,6 +197,16 @@ function NotifPanel({ notifs, onClose }) {
           {stockN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff453a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Stok Kritis</p>}
           {stockN.map(n => (
             <div key={n.id} onClick={() => goTo('/dashboard/stock')}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{n.desc}</p>
+            </div>
+          ))}
+          {delayN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff453a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Pengiriman Terlambat</p>}
+          {delayN.map(n => (
+            <div key={n.id} onClick={() => { onClose(); navigate('/dashboard/documents', { state: { tab: 'delayed' } }) }}
               style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
               onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
