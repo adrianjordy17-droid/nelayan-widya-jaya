@@ -3,18 +3,21 @@ import { useAuth } from '../../contexts/AuthContext'
 // v2
 
 const NAV_ITEMS = [
-  { path: '/dashboard', label: 'Beranda', feature: null },
-  { path: '/dashboard/orders', label: 'Order', feature: 'orders' },
-  { path: '/dashboard/deliveries', label: 'Laporan Kirim', feature: 'deliveries' },
-  { path: '/dashboard/clients', label: 'Klien', feature: 'clients' },
-  { path: '/dashboard/stock', label: 'Stok', feature: 'stock' },
-  { path: '/dashboard/reports', label: 'Laporan', feature: 'reports' },
-  { path: '/dashboard/attendance', label: 'Absensi', feature: 'attendance' },
-  { path: '/dashboard/bookkeeping', label: 'Pembukuan', feature: 'bookkeeping' },
-  { path: '/dashboard/suppliers', label: 'Supplier', feature: 'suppliers' },
-  { path: '/dashboard/purchases', label: 'Pembelian', feature: 'purchases' },
-  { path: '/dashboard/employees', label: 'Karyawan', feature: 'settings' },
-  { path: '/dashboard/settings', label: 'Pengaturan', feature: 'settings' },
+  { path: '/dashboard',              label: 'Beranda',      feature: null },
+  { path: '/dashboard/orders',       label: 'Order',        feature: 'orders' },
+  { path: '/dashboard/deliveries',   label: 'Laporan Kirim',feature: 'deliveries' },
+  { path: '/dashboard/documents',    label: 'Dokumen',      feature: 'documents' },
+  { path: '/dashboard/clients',      label: 'Klien',        feature: 'clients' },
+  { path: '/dashboard/stock',        label: 'Stok',         feature: 'stock' },
+  { path: '/dashboard/reports',      label: 'Laporan',      feature: 'reports' },
+  { path: '/dashboard/attendance',   label: 'Absensi',      feature: 'attendance' },
+  { path: '/dashboard/jobdesk',      label: 'Jobdesk',      feature: 'jobdesk' },
+  { path: '/dashboard/products',     label: 'Produk & Harga',feature: 'products' },
+  { path: '/dashboard/bookkeeping',  label: 'Pembukuan',    feature: 'bookkeeping' },
+  { path: '/dashboard/suppliers',    label: 'Supplier',     feature: 'suppliers' },
+  { path: '/dashboard/purchases',    label: 'Pembelian',    feature: 'purchases' },
+  { path: '/dashboard/employees',    label: 'Karyawan',     feature: 'settings' },
+  { path: '/dashboard/settings',     label: 'Pengaturan',   feature: 'settings' },
 ]
 
 export default function Sidebar() {
