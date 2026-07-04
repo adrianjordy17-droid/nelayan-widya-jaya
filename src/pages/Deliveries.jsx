@@ -110,12 +110,19 @@ export default function Deliveries() {
   const [modal, setModal] = useState(null)        // null | 'new' | report-object (detail)
   const [completing, setCompleting] = useState(null) // in-transit report being completed (Step 2)
   const [form, setForm] = useState(emptyForm())
-  const [step2, setStep2] = useState({ weightReceived: '', photoFile: null, photoPreview: null })
+  const [step2, setStep2] = useState({ weightReceived: '', itemWeights: {}, photoFile: null, photoPreview: null })
+  const [completingDoItems, setCompletingDoItems] = useState([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const sentRef = useRef(null)
   const recvRef = useRef(null)
+
+  useEffect(() => {
+    if (!completing?.doId) { setCompletingDoItems([]); return }
+    supabase.from('documents').select('items').eq('id', completing.doId).single()
+      .then(({ data }) => setCompletingDoItems(data?.items || []))
+  }, [completing?.doId])
 
   useEffect(() => {
     supabase.from('delivery_reports')
@@ -244,7 +251,14 @@ export default function Deliveries() {
       let photoReceivedUrl = null
       if (step2.photoFile) photoReceivedUrl = await uploadPhoto(step2.photoFile, `${completing.id}/received.jpg`)
 
-      const weightReceived = step2.weightReceived !== '' ? parseFloat(step2.weightReceived) : null
+      let weightReceived = step2.weightReceived !== '' ? parseFloat(step2.weightReceived) : null
+      if (completingDoItems.length > 0) {
+        const vals = Object.values(step2.itemWeights)
+        if (vals.length > 0) {
+          const sum = vals.reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+          if (sum > 0) weightReceived = sum
+        }
+      }
 
       await supabase.from('delivery_reports').update({
         weight_received: weightReceived,
@@ -265,7 +279,7 @@ export default function Deliveries() {
       setTimeout(() => {
         setSaved(false)
         setCompleting(null)
-        setStep2({ weightReceived: '', photoFile: null, photoPreview: null })
+        setStep2({ weightReceived: '', itemWeights: {}, photoFile: null, photoPreview: null })
       }, 1000)
     } finally {
       setSaving(false)
@@ -355,7 +369,7 @@ export default function Deliveries() {
                 key={r.id}
                 onClick={() => {
                   if (inTransit) {
-                    setStep2({ weightReceived: '', photoFile: null, photoPreview: null })
+                    setStep2({ weightReceived: '', itemWeights: {}, photoFile: null, photoPreview: null })
                     setSaved(false)
                     setCompleting(r)
                   } else {
@@ -741,7 +755,7 @@ export default function Deliveries() {
               position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1,
             }}>
               <button
-                onClick={() => { setCompleting(null); setStep2({ weightReceived: '', photoFile: null, photoPreview: null }) }}
+                onClick={() => { setCompleting(null); setStep2({ weightReceived: '', itemWeights: {}, photoFile: null, photoPreview: null }) }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}
               >
                 <X size={22} />
@@ -853,24 +867,66 @@ export default function Deliveries() {
                     )}
                   </div>
                   <input ref={recvRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoRecv} style={{ display: 'none' }} />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid #f0f0f0', paddingTop: 14 }}>
-                    <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, fontWeight: 400 }}>Berat Terima</p>
-                    <input
-                      type="number" step="0.1" min="0"
-                      value={step2.weightReceived}
-                      onChange={e => setStep2(s => ({ ...s, weightReceived: e.target.value }))}
-                      placeholder="0.0"
-                      autoFocus
-                      style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
-                    />
-                    <span style={{ fontSize: 15, color: '#8e8e93' }}>kg</span>
-                  </div>
+
+                  {completingDoItems.length > 0 ? (
+                    <div style={{ borderTop: '0.5px solid #f0f0f0', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {completingDoItems.map((it, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          paddingBottom: 11, marginBottom: 11,
+                          borderBottom: i < completingDoItems.length - 1 ? '0.5px solid #f0f0f0' : 'none',
+                        }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 14, fontWeight: 500, color: '#1c1c1e', margin: 0, lineHeight: 1.3 }}>{it.name}</p>
+                            <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>DO: {it.qty} {it.unit}</p>
+                          </div>
+                          <input
+                            type="number" step="0.1" min="0"
+                            value={step2.itemWeights[i] ?? ''}
+                            onChange={e => setStep2(s => ({ ...s, itemWeights: { ...s.itemWeights, [i]: e.target.value } }))}
+                            placeholder="0.0"
+                            style={{ width: 72, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, fontWeight: 600, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                          />
+                          <span style={{ fontSize: 14, color: '#8e8e93', flexShrink: 0 }}>kg</span>
+                        </div>
+                      ))}
+                      {Object.values(step2.itemWeights).some(v => v !== '' && v !== undefined) && (() => {
+                        const total = Object.values(step2.itemWeights).reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: '0.5px solid #e5e5ea' }}>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>Total Berat Terima</p>
+                            <p style={{ fontSize: 17, fontWeight: 700, color: '#34c759', margin: 0 }}>{total.toFixed(1)} kg</p>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid #f0f0f0', paddingTop: 14 }}>
+                      <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, fontWeight: 400 }}>Berat Terima</p>
+                      <input
+                        type="number" step="0.1" min="0"
+                        value={step2.weightReceived}
+                        onChange={e => setStep2(s => ({ ...s, weightReceived: e.target.value }))}
+                        placeholder="0.0"
+                        autoFocus
+                        style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                      />
+                      <span style={{ fontSize: 15, color: '#8e8e93' }}>kg</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Live selisih preview */}
-              {step2.weightReceived !== '' && completing.weightSent != null && (() => {
-                const diff = parseFloat(step2.weightReceived) - completing.weightSent
+              {completing.weightSent != null && (() => {
+                const recvTotal = completingDoItems.length > 0
+                  ? Object.values(step2.itemWeights).reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+                  : (step2.weightReceived !== '' ? parseFloat(step2.weightReceived) : null)
+                const hasInput = completingDoItems.length > 0
+                  ? Object.values(step2.itemWeights).some(v => v !== '' && v !== undefined)
+                  : step2.weightReceived !== ''
+                if (!hasInput || recvTotal === null) return null
+                const diff = recvTotal - completing.weightSent
                 if (isNaN(diff)) return null
                 return (
                   <div style={{
