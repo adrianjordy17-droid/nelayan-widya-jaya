@@ -93,9 +93,9 @@ body {
 
 /* ── Responsive grid utilities (mobile-first, !important overrides inline styles) ── */
 @media (max-width: 767px) {
-  .rg-4 { grid-template-columns: repeat(2, 1fr) !important; }
-  .rg-3 { grid-template-columns: repeat(2, 1fr) !important; }
-  .rg-2 { grid-template-columns: 1fr !important; }
+  .rg-4 { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+  .rg-3 { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+  .rg-2 { grid-template-columns: 1fr !important; gap: 8px !important; }
   .rw   { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
   .rw-modal { width: 92vw !important; max-width: 92vw !important; }
 }
