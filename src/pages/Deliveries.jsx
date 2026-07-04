@@ -293,6 +293,32 @@ export default function Deliveries() {
     setConfirmDelete(false)
   }
 
+  async function handleBuatGR(report) {
+    let prefillDoc = null
+    if (report.doId) {
+      const { data } = await supabase.from('documents').select('*').eq('id', report.doId).single()
+      if (data) {
+        prefillDoc = {
+          number: data.number,
+          clientName: data.client_name || report.clientName,
+          clientAddress: data.client_address || '',
+          clientPhone: data.client_phone || '',
+          clientPoNumber: data.client_po_number || '',
+          items: (data.items || []).map(it => ({
+            ...it,
+            id: crypto.randomUUID(),
+            receivedQty: String(it.qty ?? ''),
+            condition: 'Baik',
+            price: null,
+            total: null,
+          })),
+        }
+      }
+    }
+    setModal(null)
+    navigate('/dashboard/documents', { state: { createType: 'GR', refNumber: report.doRef, prefillDoc } })
+  }
+
   async function handleSusulan(report) {
     let doItems = []
     if (report.doId) {
@@ -1112,10 +1138,7 @@ export default function Deliveries() {
                     {modal.doRef && (
                       <>
                         <button
-                          onClick={allDOComplete ? () => {
-                            setModal(null)
-                            navigate('/dashboard/documents', { state: { createType: 'GR', refNumber: modal.doRef } })
-                          } : undefined}
+                          onClick={allDOComplete ? () => handleBuatGR(modal) : undefined}
                           disabled={!allDOComplete}
                           style={{
                             width: '100%', padding: '14px',
