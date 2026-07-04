@@ -411,11 +411,24 @@ export default function Documents() {
   // Auto-open creation if navigated from another page
   useEffect(() => {
     if (location.state?.createType) {
-      const { createType: type, refNumber } = location.state
-      openCreate(type)
-      if (refNumber) {
-        // Delay so docs list loads first (fillFromRef needs docs in state)
-        setTimeout(() => fillFromRef(refNumber), 600)
+      const { createType: type, refNumber, prefillDoc } = location.state
+      if (prefillDoc) {
+        // Full pre-fill from delivery report — no timeout needed
+        setForm({
+          ...emptyForm(type),
+          refNumber: prefillDoc.number || refNumber || '',
+          clientName: prefillDoc.clientName || '',
+          clientAddress: prefillDoc.clientAddress || '',
+          clientPhone: prefillDoc.clientPhone || '',
+          clientPoNumber: prefillDoc.clientPoNumber || '',
+          items: prefillDoc.items.length > 0 ? prefillDoc.items : [blankItem(false)],
+        })
+      } else {
+        openCreate(type)
+        if (refNumber) {
+          // Delay so docs list loads first (fillFromRef needs docs in state)
+          setTimeout(() => fillFromRef(refNumber), 600)
+        }
       }
       window.history.replaceState({}, document.title)
     }
