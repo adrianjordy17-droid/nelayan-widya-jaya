@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Eye, X, ShoppingBag, Clock, CheckCircle2, TrendingUp, ChevronDown, ChevronLeft, ChevronRight, Calendar, Truck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -91,7 +92,9 @@ export default function Orders() {
   useEffect(() => {
     if (!showMonthPicker) return
     function handleOutside(e) {
-      if (!monthPickerRef.current?.contains(e.target)) setShowMonthPicker(false)
+      if (monthPickerRef.current?.contains(e.target)) return
+      if (monthBtnRef.current?.contains(e.target)) return
+      setShowMonthPicker(false)
     }
     document.addEventListener('mousedown', handleOutside)
     document.addEventListener('touchstart', handleOutside)
@@ -192,7 +195,7 @@ export default function Orders() {
           <ChevronLeft size={15} />
         </button>
 
-        <div ref={monthPickerRef} style={{ position: 'relative', textAlign: 'center' }}>
+        <div style={{ position: 'relative', textAlign: 'center' }}>
           <button
             ref={monthBtnRef}
             onClick={() => {
@@ -210,27 +213,6 @@ export default function Orders() {
             </div>
             {isCurrentMonth && <span style={{ fontSize: 10, background: '#2563eb', color: 'white', borderRadius: 20, padding: '2px 7px', fontWeight: 700, lineHeight: 1.4 }}>Sekarang</span>}
           </button>
-
-          {showMonthPicker && pickerPos && (
-            <div style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left, transform: 'translateX(-50%)', background: 'white', borderRadius: 14, border: '1px solid #e2e8f0', boxShadow: '0 10px 40px rgba(15,23,42,0.12)', zIndex: 9999, padding: 12, minWidth: 220, maxHeight: 280, overflowY: 'auto' }}>
-              <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px 4px' }}>Pilih Bulan</p>
-              {monthsWithData.length === 0 && (
-                <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '12px 0', margin: 0 }}>Belum ada data</p>
-              )}
-              {[...monthsWithData].reverse().map(ym => (
-                <button key={ym} onClick={() => { setSelectedMonth(ym); setShowMonthPicker(false); setSearch(''); setStatusFilter('semua') }}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 2, textAlign: 'left',
-                    background: ym === selectedMonth ? '#eff6ff' : 'transparent',
-                    color: ym === selectedMonth ? '#2563eb' : '#0f172a',
-                  }}>
-                  {fmtMonth(ym)}
-                  <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
-                    {soList.filter(o => (o.date || '').startsWith(ym)).length} SO
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         <button
@@ -367,6 +349,29 @@ export default function Orders() {
           </table>
         </div>
       </div>
+
+      {/* Month Picker Portal — rendered to document.body to escape backdropFilter stacking contexts */}
+      {showMonthPicker && pickerPos && createPortal(
+        <div ref={monthPickerRef} style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left, transform: 'translateX(-50%)', background: 'white', borderRadius: 14, border: '1px solid #e2e8f0', boxShadow: '0 10px 40px rgba(15,23,42,0.12)', zIndex: 9999, padding: 12, minWidth: 220, maxHeight: 280, overflowY: 'auto' }}>
+          <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px 4px' }}>Pilih Bulan</p>
+          {monthsWithData.length === 0 && (
+            <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '12px 0', margin: 0 }}>Belum ada data</p>
+          )}
+          {[...monthsWithData].reverse().map(ym => (
+            <button key={ym} onClick={() => { setSelectedMonth(ym); setShowMonthPicker(false); setSearch(''); setStatusFilter('semua') }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 2, textAlign: 'left',
+                background: ym === selectedMonth ? '#eff6ff' : 'transparent',
+                color: ym === selectedMonth ? '#2563eb' : '#0f172a',
+              }}>
+              {fmtMonth(ym)}
+              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
+                {soList.filter(o => (o.date || '').startsWith(ym)).length} SO
+              </span>
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
 
       {/* Detail Modal */}
       {view && (
