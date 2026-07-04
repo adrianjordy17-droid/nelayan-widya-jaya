@@ -179,12 +179,14 @@ export default function Orders() {
         <div style={{ position: 'relative', textAlign: 'center' }}>
           <button
             onClick={() => setShowMonthPicker(p => !p)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', border: 'none', borderRadius: 10, background: '#eff6ff', cursor: 'pointer', color: '#2563eb', fontSize: 15, fontWeight: 700 }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 16px', border: 'none', borderRadius: 10, background: '#eff6ff', cursor: 'pointer', color: '#2563eb', fontSize: 15, fontWeight: 700 }}
           >
-            <Calendar size={16} />
-            {fmtMonth(selectedMonth)}
-            {isCurrentMonth && <span style={{ fontSize: 10, background: '#2563eb', color: 'white', borderRadius: 20, padding: '2px 7px', fontWeight: 700 }}>Sekarang</span>}
-            <ChevronDown size={13} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Calendar size={16} />
+              {fmtMonth(selectedMonth)}
+              <ChevronDown size={13} />
+            </div>
+            {isCurrentMonth && <span style={{ fontSize: 10, background: '#2563eb', color: 'white', borderRadius: 20, padding: '2px 7px', fontWeight: 700, lineHeight: 1.4 }}>Sekarang</span>}
           </button>
 
           {showMonthPicker && (
