@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react'
 import {
   TrendingUp, ShoppingCart, UserCheck, AlertTriangle, ArrowRight,
   Truck, CheckCircle2, ClipboardList, Package, Check,
-  ClipboardEdit, Clock, GitBranch,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -339,7 +338,7 @@ function OwnerAdminDashboard() {
               label: 'SO Draft',
               desc: 'Sales order belum dikonfirmasi',
               count: orderPending,
-              Icon: ClipboardEdit,
+              Icon: ClipboardList,
               color: '#5856d6', bg: 'rgba(88,86,214,0.10)',
               tab: 'so-draft',
             },
@@ -347,7 +346,7 @@ function OwnerAdminDashboard() {
               label: 'Pengiriman Partial',
               desc: 'DO belum selesai diterima',
               count: partialCount,
-              Icon: GitBranch,
+              Icon: Package,
               color: '#d97706', bg: 'rgba(217,119,6,0.10)',
               tab: 'partial',
             },
@@ -355,7 +354,7 @@ function OwnerAdminDashboard() {
               label: 'Pengiriman Terlambat',
               desc: 'DO menunggu konfirmasi tiba',
               count: delayedCount,
-              Icon: Clock,
+              Icon: AlertTriangle,
               color: '#dc2626', bg: 'rgba(220,38,38,0.10)',
               tab: 'delayed',
             },
