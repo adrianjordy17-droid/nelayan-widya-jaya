@@ -399,7 +399,7 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: isMobile ? '20px 12px' : '24px 28px', background: '#f2f2f7' }}>
+        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'clip', padding: isMobile ? '20px 12px' : '24px 28px', background: '#f2f2f7' }}>
           <Outlet />
         </main>
       </div>
