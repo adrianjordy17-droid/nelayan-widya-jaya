@@ -1102,10 +1102,11 @@ export default function Deliveries() {
               {/* Admin/Owner actions */}
               {canEdit && !confirmDelete && (() => {
                 const doDeliveries = modal.doId ? reports.filter(r => r.doId === modal.doId) : []
-                const allDOComplete = doDeliveries.length === 0
-                  ? true
-                  : doDeliveries.every(r => r.weightReceived != null && r.photoReceivedUrl != null)
-                const pendingCount = doDeliveries.filter(r => r.weightReceived == null || r.photoReceivedUrl == null).length
+                // GR hanya terkunci jika pengiriman INI partial (masih ada susulan yang pending)
+                const pendingCount = modal.isPartial
+                  ? doDeliveries.filter(r => r.id !== modal.id && (r.weightReceived == null || r.photoReceivedUrl == null)).length
+                  : 0
+                const allDOComplete = !modal.isPartial || pendingCount === 0
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {modal.doRef && (
