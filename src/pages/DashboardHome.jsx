@@ -164,6 +164,13 @@ function StaffDashboard() {
 function OwnerAdminDashboard() {
   const { profile } = useAuth()
 
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
   const [todayLabel, setTodayLabel] = useState(() => format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
   const [todayKey,  setTodayKey]  = useState(localToday)
   const [thisMonth, setThisMonth] = useState(() => localToday().slice(0, 7))
@@ -278,7 +285,7 @@ function OwnerAdminDashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 14 }}>
         {STATS.map(({ label, value, sub, Icon, iconColor, iconBg, bar }) => (
           <div key={label} style={{ ...GLASS, borderRadius: 16, padding: '18px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -297,7 +304,7 @@ function OwnerAdminDashboard() {
       </div>
 
       {/* Bottom Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
 
         {/* Dokumen Terbaru */}
         <div style={{ ...GLASS, borderRadius: 16, overflow: 'hidden' }}>
