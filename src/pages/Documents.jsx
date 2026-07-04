@@ -396,6 +396,7 @@ export default function Documents() {
   const [selectedMonth, setSelectedMonth] = useState(currentYM)
   const [liveMonth, setLiveMonth]         = useState(currentYM)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
+  const [deliveryMap, setDeliveryMap] = useState({}) // { [doId]: delivery_report[] }
 
   const navigate = useNavigate()
   const createType = form?.type || null
@@ -405,6 +406,21 @@ export default function Documents() {
       .then(({ data }) => {
         if (!data) return
         setDocs(data.map(dbToDoc).filter(d => !(d.type === 'SO' && d.status === 'confirmed')))
+      })
+  }, [])
+
+  useEffect(() => {
+    supabase.from('delivery_reports')
+      .select('id,do_id,delivery_date,weight_sent,weight_received,photo_received_url,is_partial,partial_notes,created_by_name')
+      .not('do_id', 'is', null)
+      .then(({ data }) => {
+        if (!data) return
+        const map = {}
+        data.forEach(r => {
+          if (!map[r.do_id]) map[r.do_id] = []
+          map[r.do_id].push(r)
+        })
+        setDeliveryMap(map)
       })
   }, [])
 
@@ -800,9 +816,15 @@ export default function Documents() {
                   <cfg.Icon size={18} color={cfg.color} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#1c1c1e' }}>{doc.number}</span>
                     <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: st.bg, color: st.color }}>{st.label}</span>
+                    {doc.type === 'DO' && (deliveryMap[doc.id] || []).some(r => r.is_partial && (r.weight_received == null || r.photo_received_url == null)) && (
+                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#fff0f0', color: '#ff3b30' }}>⚠ Partial</span>
+                    )}
+                    {doc.type === 'DO' && (deliveryMap[doc.id] || []).length > 0 && !(deliveryMap[doc.id] || []).some(r => r.weight_received == null || r.photo_received_url == null) && (
+                      <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: '#f0fdf4', color: '#34c759' }}>✓ Terkirim</span>
+                    )}
                   </div>
                   <p style={{ fontSize: 13.5, color: '#3c3c43', margin: 0 }}>{doc.clientName}</p>
                   {doc.refNumber && <p style={{ fontSize: 11.5, color: '#8e8e93', margin: '2px 0 0' }}>Ref: {doc.refNumber}</p>}
@@ -1135,6 +1157,71 @@ export default function Documents() {
                   </div>
                 </div>
               )}
+              {/* Pengiriman Terkait — hanya untuk DO */}
+              {detail.type === 'DO' && (() => {
+                const deliveries = (deliveryMap[detail.id] || []).slice().sort((a, b) => new Date(a.delivery_date) - new Date(b.delivery_date))
+                if (deliveries.length === 0) return null
+                const allComplete = deliveries.every(r => r.weight_received != null && r.photo_received_url != null)
+                const hasPartial  = deliveries.some(r => r.is_partial)
+                return (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+                      <SLabel text={`Pengiriman Terkait (${deliveries.length})`} />
+                      {allComplete
+                        ? <span style={{ fontSize: 11, fontWeight: 700, color: '#34c759', background: '#f0fdf4', padding: '2px 8px', borderRadius: 99 }}>✓ Semua Selesai</span>
+                        : hasPartial
+                          ? <span style={{ fontSize: 11, fontWeight: 700, color: '#ff3b30', background: '#fff0f0', padding: '2px 8px', borderRadius: 99 }}>⚠ Ada Partial</span>
+                          : <span style={{ fontSize: 11, fontWeight: 600, color: '#ff9500', background: '#fff8e1', padding: '2px 8px', borderRadius: 99 }}>Dalam Proses</span>
+                      }
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
+                      {deliveries.map((r, idx) => {
+                        const inTransit = r.weight_received == null && r.photo_received_url == null
+                        const diff = r.weight_sent != null && r.weight_received != null ? r.weight_received - r.weight_sent : null
+                        return (
+                          <div key={r.id} style={{ padding: '12px 16px', borderBottom: idx < deliveries.length - 1 ? '0.5px solid #f0f0f0' : 'none' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                <span style={{
+                                  fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99,
+                                  background: inTransit ? '#fff3e0' : '#f0fdf4',
+                                  color: inTransit ? '#e65100' : '#34c759',
+                                }}>
+                                  {inTransit ? 'Dalam Perjalanan' : 'Selesai'}
+                                </span>
+                                {r.is_partial && (
+                                  <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#fff0f0', color: '#ff3b30' }}>⚠ Partial</span>
+                                )}
+                              </div>
+                              <p style={{ fontSize: 12, color: '#8e8e93', margin: 0 }}>{fmtDate(r.delivery_date)}</p>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                              <p style={{ fontSize: 13.5, color: '#3c3c43', margin: 0 }}>
+                                Kirim <strong>{r.weight_sent ?? '–'} kg</strong>
+                                {!inTransit && <> → Terima <strong>{r.weight_received ?? '–'} kg</strong></>}
+                              </p>
+                              {diff !== null && (
+                                <span style={{
+                                  fontSize: 11.5, fontWeight: 600, padding: '1px 6px', borderRadius: 6,
+                                  background: diff < 0 ? '#fff0f0' : '#f0fff4',
+                                  color: diff < 0 ? '#ff3b30' : '#34c759',
+                                }}>
+                                  {diff > 0 ? '+' : ''}{diff.toFixed(1)} kg
+                                </span>
+                              )}
+                            </div>
+                            {r.is_partial && r.partial_notes && (
+                              <p style={{ fontSize: 12, color: '#ff3b30', margin: '4px 0 0', lineHeight: 1.4 }}>Sisa: {r.partial_notes}</p>
+                            )}
+                            <p style={{ fontSize: 12, color: '#8e8e93', margin: '4px 0 0' }}>oleh {r.created_by_name}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+
               {/* Edit + Cancel buttons — SO/DO/GR only */}
               {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && !confirmCancel && (
                 <div style={{ display: 'flex', gap: 10 }}>
