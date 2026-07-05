@@ -267,6 +267,13 @@ export default function Settings() {
       })
   }, [])
 
+  // Load company settings from DB once profile is available
+  useEffect(() => {
+    if (profile?.role === 'owner' && profile?.settings?.company) {
+      setCompany(c => ({ ...INIT_COMPANY, ...profile.settings.company }))
+    }
+  }, [profile?.id])
+
   const [waStatus, setWaStatus]       = useState({ loading: false, msg: '', ok: null })
   const [showToken, setShowToken]     = useState(false)
   const [companySaved, setCompanySaved] = useState(false)
@@ -320,7 +327,17 @@ export default function Settings() {
     finally { setAvatarUploading(false) }
   }
 
-  function saveCompany() { setCompanySaved(true); setTimeout(() => setCompanySaved(false), 2500) }
+  async function saveCompany() {
+    if (user) {
+      try {
+        const cur = profile?.settings || {}
+        await supabase.from('profiles').update({ settings: { ...cur, company } }).eq('id', user.id)
+        await refreshProfile()
+      } catch {}
+    }
+    setCompanySaved(true)
+    setTimeout(() => setCompanySaved(false), 2500)
+  }
 
   async function saveAccount() {
     if (user) {
