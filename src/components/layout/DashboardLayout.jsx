@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag,
+  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, BookOpen,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { path: '/dashboard/attendance',  label: 'Absensi',        icon: CalendarCheck,   feature: 'attendance' },
   { path: '/dashboard/jobdesk',     label: 'Jobdesk',        icon: ClipboardList,   feature: 'jobdesk' },
   { path: '/dashboard/products',    label: 'Produk & Harga', icon: Tag,             feature: 'products' },
+  { path: '/dashboard/bookkeeping', label: 'Pembukuan',      icon: BookOpen,        feature: 'bookkeeping' },
   { path: '/dashboard/settings',    label: 'Pengaturan',     icon: Settings2,       feature: 'settings' },
 ]
 
@@ -37,16 +38,22 @@ const PAGE_TITLE = {
   '/dashboard/attendance':  'Absensi Karyawan',
   '/dashboard/jobdesk':     'Jobdesk — Tugas Staf',
   '/dashboard/products':    'Produk & Daftar Harga',
+  '/dashboard/bookkeeping': 'Pembukuan',
   '/dashboard/settings':    'Pengaturan',
 }
 
 /* ── notifications from Supabase ── */
 async function fetchNotifications() {
   try {
-    const [{ data: products }, { data: draftSOs }, { data: delayedDOs }] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10)
+    const soon = new Date(); soon.setDate(soon.getDate() + 7)
+    const soonDate = soon.toISOString().slice(0, 10)
+
+    const [{ data: products }, { data: draftSOs }, { data: delayedDOs }, { data: invDue }] = await Promise.all([
       supabase.from('products').select('id, nama, qty, min_qty, satuan'),
       supabase.from('documents').select('id, number, client_name').eq('type', 'SO').eq('status', 'draft'),
       supabase.from('documents').select('id, number, client_name').eq('type', 'DO').eq('status', 'delayed'),
+      supabase.from('documents').select('id, number, client_name, due_date').eq('type', 'Invoice').in('status', ['sent', 'overdue']),
     ])
 
     const stockNotifs = (products || [])
@@ -69,7 +76,19 @@ async function fetchNotifications() {
       desc:  d.client_name,
     }))
 
-    return [...stockNotifs, ...delayNotifs, ...orderNotifs]
+    const invNotifs = (invDue || [])
+      .filter(d => d.due_date && d.due_date <= soonDate)
+      .map(d => {
+        const dayDiff = Math.round((new Date(d.due_date + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000)
+        const type = dayDiff < 0 ? 'invoice_overdue' : 'invoice_soon'
+        const daysLabel = dayDiff < 0
+          ? `${Math.abs(dayDiff)} hari lewat jatuh tempo`
+          : dayDiff === 0 ? 'jatuh tempo hari ini'
+          : `jatuh tempo ${dayDiff} hari lagi`
+        return { id: `inv-${d.id}`, type, title: `Invoice ${d.number}`, desc: `${d.client_name || '–'} — ${daysLabel}` }
+      })
+
+    return [...stockNotifs, ...delayNotifs, ...invNotifs, ...orderNotifs]
   } catch {
     return []
   }
@@ -163,9 +182,11 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
 /* ── Notification Panel — Liquid Glass dark ── */
 function NotifPanel({ notifs, onClose }) {
   const navigate = useNavigate()
-  const stockN  = notifs.filter(n => n.type === 'stock')
-  const delayN  = notifs.filter(n => n.type === 'delay')
-  const orderN  = notifs.filter(n => n.type === 'order')
+  const stockN   = notifs.filter(n => n.type === 'stock')
+  const delayN   = notifs.filter(n => n.type === 'delay')
+  const orderN   = notifs.filter(n => n.type === 'order')
+  const invOvN   = notifs.filter(n => n.type === 'invoice_overdue')
+  const invSoonN = notifs.filter(n => n.type === 'invoice_soon')
 
   function goTo(path) { onClose(); navigate(path) }
   return (
@@ -212,6 +233,26 @@ function NotifPanel({ notifs, onClose }) {
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{n.desc}</p>
+            </div>
+          ))}
+          {invOvN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff453a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Invoice Jatuh Tempo</p>}
+          {invOvN.map(n => (
+            <div key={n.id} onClick={() => goTo('/dashboard/bookkeeping')}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 2 }}>{n.desc}</p>
+            </div>
+          ))}
+          {invSoonN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff9f0a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Invoice Segera Jatuh Tempo</p>}
+          {invSoonN.map(n => (
+            <div key={n.id} onClick={() => goTo('/dashboard/bookkeeping')}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 12, color: '#ff9f0a', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
           {orderN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff9f0a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>SO Draft</p>}
