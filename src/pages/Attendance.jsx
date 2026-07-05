@@ -69,6 +69,7 @@ export default function Attendance() {
   const [totalEmployees, setTotalEmployees] = useState(0)
   const [schedule, setSchedule]             = useState(loadSchedule)
   const [schedForm, setSchedForm]           = useState(null)
+  const [reportMonth, setReportMonth]       = useState(() => new Date().toISOString().slice(0, 7))
   const fileRef = useRef()
 
   // ── Midnight detection: update today, reset check-in state ──
@@ -234,6 +235,22 @@ export default function Attendance() {
   const myPulangEntry = log.find(e => e.date === today && e.name === profile?.name && e.type === 'pulang')
 
   const viewLog = log.filter(e => e.date === dateView)
+
+  // ── Monthly attendance report ──
+  const reportLog = log.filter(e => e.date.startsWith(reportMonth) && e.type === 'masuk')
+  const reportEmpMap = {}
+  reportLog.forEach(e => {
+    const n = e.name || '–'
+    if (!reportEmpMap[n]) reportEmpMap[n] = { name: n, hadir: 0, telat: 0, izin: 0, absen: 0 }
+    reportEmpMap[n][e.status] = (reportEmpMap[n][e.status] || 0) + 1
+  })
+  const reportRows = Object.values(reportEmpMap)
+    .map(r => ({ ...r, total: r.hadir + r.telat + r.izin + r.absen }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const reportTotals = reportRows.reduce(
+    (acc, r) => ({ hadir: acc.hadir + r.hadir, telat: acc.telat + r.telat, izin: acc.izin + r.izin, absen: acc.absen + r.absen, total: acc.total + r.total }),
+    { hadir: 0, telat: 0, izin: 0, absen: 0, total: 0 }
+  )
 
   // ── Auto-fill jabatan when name selected in form ──
   function handleFormName(name) {
@@ -536,6 +553,74 @@ export default function Attendance() {
           </table>
         </div>
       </div>
+
+      {/* ── Laporan Absensi Bulanan (canManage only) ── */}
+      {canManage && (
+        <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #f1f5f9', gap: 10 }}>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Laporan Absensi Bulanan</p>
+              <p style={{ fontSize: 11.5, color: '#94a3b8', margin: 0 }}>
+                {reportRows.length} karyawan · {reportTotals.total} total presensi masuk
+              </p>
+            </div>
+            <input
+              type="month" value={reportMonth}
+              onChange={e => setReportMonth(e.target.value)}
+              style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', color: '#0f172a', background: 'white' }}
+            />
+          </div>
+
+          {reportRows.length === 0 ? (
+            <div style={{ padding: '36px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+              Tidak ada data absensi untuk bulan ini.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                    {['Karyawan', 'Hadir', 'Telat', 'Izin', 'Absen', 'Total'].map((h, i) => (
+                      <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: i === 0 ? 'left' : 'center', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportRows.map((row, idx) => (
+                    <tr key={row.name} style={{ borderBottom: idx < reportRows.length - 1 ? '1px solid #f8fafc' : '1px solid #f1f5f9' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '11px 16px', fontWeight: 600, color: '#0f172a' }}>{row.name}</td>
+                      <td style={{ padding: '11px 16px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', background: '#f0fdf4', padding: '3px 10px', borderRadius: 20, display: 'inline-block', minWidth: 28 }}>{row.hadir}</span>
+                      </td>
+                      <td style={{ padding: '11px 16px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: row.telat > 0 ? '#d97706' : '#94a3b8', background: row.telat > 0 ? '#fffbeb' : '#f8fafc', padding: '3px 10px', borderRadius: 20, display: 'inline-block', minWidth: 28 }}>{row.telat}</span>
+                      </td>
+                      <td style={{ padding: '11px 16px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: row.izin > 0 ? '#2563eb' : '#94a3b8', background: row.izin > 0 ? '#eff6ff' : '#f8fafc', padding: '3px 10px', borderRadius: 20, display: 'inline-block', minWidth: 28 }}>{row.izin}</span>
+                      </td>
+                      <td style={{ padding: '11px 16px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: row.absen > 0 ? '#dc2626' : '#94a3b8', background: row.absen > 0 ? '#fef2f2' : '#f8fafc', padding: '3px 10px', borderRadius: 20, display: 'inline-block', minWidth: 28 }}>{row.absen}</span>
+                      </td>
+                      <td style={{ padding: '11px 16px', textAlign: 'center', fontWeight: 700, color: '#0f172a' }}>{row.total}</td>
+                    </tr>
+                  ))}
+                  {/* Totals row */}
+                  <tr style={{ background: 'rgba(0,0,0,0.02)', borderTop: '1.5px solid #e2e8f0' }}>
+                    <td style={{ padding: '10px 16px', fontWeight: 700, color: '#64748b', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 700, color: '#16a34a' }}>{reportTotals.hadir}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 700, color: reportTotals.telat > 0 ? '#d97706' : '#94a3b8' }}>{reportTotals.telat}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 700, color: reportTotals.izin > 0 ? '#2563eb' : '#94a3b8' }}>{reportTotals.izin}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 700, color: reportTotals.absen > 0 ? '#dc2626' : '#94a3b8' }}>{reportTotals.absen}</td>
+                    <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 700, color: '#0f172a' }}>{reportTotals.total}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Modal: Atur Jam Kerja (owner only) ── */}
       {schedForm && (
