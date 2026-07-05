@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, AlertTriangle, Package, DollarSign, Tag, BarChart2, Plus, X } from 'lucide-react'
+import { Search, AlertTriangle, Package, DollarSign, Tag, BarChart2, Plus, X, Clock, TrendingUp, TrendingDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -13,6 +13,13 @@ const KAT_MAP = {
 
 function fmt(n) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0)
+}
+
+function fmtTime(ts) {
+  if (!ts) return '–'
+  const d = new Date(ts)
+  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: '2-digit' }) +
+    ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
 
 function StockBar({ qty, minQty }) {
@@ -37,20 +44,25 @@ const inputStyle = {
   boxSizing: 'border-box',
 }
 
+const EMPTY_FORM = { product_id: '', mode: 'add', qty: '', min_qty: '', notes: '' }
+
 export default function Stock() {
   const { isRole } = useAuth()
-  const [stock, setStock]         = useState([])
-  const [search, setSearch]       = useState('')
-  const [katFilter, setKatFilter] = useState('semua')
+  const [stock, setStock]             = useState([])
+  const [search, setSearch]           = useState('')
+  const [katFilter, setKatFilter]     = useState('semua')
   const [showAddModal, setShowAddModal] = useState(false)
-  const [addForm, setAddForm]     = useState({ product_id: '', qty: '', min_qty: '', notes: '' })
-  const [addLoading, setAddLoading] = useState(false)
-  const [addError, setAddError]   = useState('')
+  const [addForm, setAddForm]         = useState(EMPTY_FORM)
+  const [addLoading, setAddLoading]   = useState(false)
+  const [addError, setAddError]       = useState('')
+  const [stockLogs, setStockLogs]     = useState([])
+  const [logsLoading, setLogsLoading] = useState(false)
 
   const canEdit = isRole('admin') || isRole('owner')
 
   useEffect(() => {
     loadStock()
+    loadStockLogs()
   }, [])
 
   function loadStock() {
@@ -58,6 +70,18 @@ export default function Stock() {
       .select('id, nama, ukuran, kategori, qty, min_qty, harga_jual, satuan, location')
       .order('kategori')
       .then(({ data }) => setStock(data || []))
+  }
+
+  async function loadStockLogs() {
+    setLogsLoading(true)
+    try {
+      const { data } = await supabase.from('stock_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(30)
+      setStockLogs(data || [])
+    } catch {}
+    setLogsLoading(false)
   }
 
   const kats     = ['semua', ...new Set(stock.map(s => KAT_MAP[s.kategori] || s.kategori || 'Lainnya'))]
@@ -90,12 +114,26 @@ export default function Stock() {
   async function handleAddStock() {
     setAddError('')
     if (!addForm.product_id) { setAddError('Pilih produk terlebih dahulu.'); return }
-    const addQty = parseFloat(addForm.qty)
-    if (!addForm.qty || isNaN(addQty) || addQty <= 0) { setAddError('Jumlah stok harus lebih dari 0.'); return }
+    const inputQty = parseFloat(addForm.qty)
+    if (!addForm.qty || isNaN(inputQty) || inputQty <= 0) { setAddError('Jumlah harus lebih dari 0.'); return }
 
     setAddLoading(true)
-    const product = stock.find(s => s.id === addForm.product_id)
-    const newQty  = (product?.qty || 0) + addQty
+    const product    = stock.find(s => s.id === addForm.product_id)
+    const currentQty = parseFloat(product?.qty) || 0
+
+    let qtyChange, newQty
+    if (addForm.mode === 'add') {
+      qtyChange = inputQty
+      newQty    = currentQty + inputQty
+    } else {
+      if (inputQty > currentQty) {
+        setAddError(`Stok tidak cukup. Stok saat ini: ${currentQty} ${product?.satuan || 'kg'}.`)
+        setAddLoading(false)
+        return
+      }
+      qtyChange = -inputQty
+      newQty    = currentQty - inputQty
+    }
 
     const updates = { qty: newQty }
     if (addForm.min_qty !== '' && parseFloat(addForm.min_qty) >= 0) {
@@ -103,25 +141,26 @@ export default function Stock() {
     }
 
     const { error: e1 } = await supabase.from('products').update(updates).eq('id', addForm.product_id)
-
     if (e1) { setAddError(e1.message); setAddLoading(false); return }
 
-    // Log the stock addition
     await supabase.from('stock_logs').insert({
-      product_id: addForm.product_id,
+      product_id:   addForm.product_id,
       product_name: product?.nama || '',
-      qty_added: addQty,
-      qty_before: product?.qty || 0,
-      qty_after: newQty,
-      notes: addForm.notes || null,
-      created_at: new Date().toISOString(),
-    }).then(() => {}) // ignore error if table doesn't exist
+      qty_added:    qtyChange,
+      qty_before:   currentQty,
+      qty_after:    newQty,
+      notes:        addForm.notes || null,
+      created_at:   new Date().toISOString(),
+    }).then(() => {})
 
     setAddLoading(false)
     setShowAddModal(false)
-    setAddForm({ product_id: '', qty: '', min_qty: '', notes: '' })
+    setAddForm(EMPTY_FORM)
     loadStock()
+    loadStockLogs()
   }
+
+  const isAdd = addForm.mode === 'add'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif" }}>
@@ -187,13 +226,13 @@ export default function Stock() {
               style={{ border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '8px 12px 8px 36px', fontSize: 13, outline: 'none', background: 'white', width: 200, color: '#0f172a', fontFamily: 'inherit' }} />
           </div>
           {canEdit && (
-            <button onClick={() => { setShowAddModal(true); setAddError('') }} style={{
+            <button onClick={() => { setShowAddModal(true); setAddError(''); setAddForm(EMPTY_FORM) }} style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '8px 16px', borderRadius: 10, border: 'none',
               background: '#2563eb', color: 'white', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit',
             }}>
-              <Plus size={15} /> Tambah Stok
+              <Plus size={15} /> Update Stok
             </button>
           )}
         </div>
@@ -256,7 +295,75 @@ export default function Stock() {
         </div>
       </div>
 
-      {/* ── Tambah Stok Modal ── */}
+      {/* ── Riwayat Stok ── */}
+      <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Clock size={15} color="#64748b" />
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0 }}>Riwayat Perubahan Stok</h3>
+          <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 4 }}>30 perubahan terakhir</span>
+        </div>
+        {logsLoading ? (
+          <div style={{ padding: '32px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Memuat riwayat...</div>
+        ) : stockLogs.length === 0 ? (
+          <div style={{ padding: '32px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Belum ada riwayat perubahan stok.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                  {['Produk', 'Perubahan', 'Sebelum → Sesudah', 'Catatan', 'Waktu'].map((h, i) => (
+                    <th key={h} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: i === 1 ? 'center' : 'left' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {stockLogs.map((log, idx) => {
+                  const isPositive = (log.qty_added || 0) >= 0
+                  const absQty     = Math.abs(log.qty_added || 0)
+                  return (
+                    <tr key={log.id || idx}
+                      style={{ borderBottom: idx < stockLogs.length - 1 ? '1px solid #f8fafc' : 'none' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ padding: '10px 16px', fontWeight: 500, color: '#0f172a' }}>
+                        {log.product_name || '–'}
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 700,
+                          background: isPositive ? '#f0fdf4' : '#fef2f2',
+                          color: isPositive ? '#16a34a' : '#dc2626',
+                        }}>
+                          {isPositive
+                            ? <TrendingUp size={11} strokeWidth={2.5} />
+                            : <TrendingDown size={11} strokeWidth={2.5} />}
+                          {isPositive ? '+' : '-'}{absQty}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 16px', color: '#64748b', fontSize: 12.5 }}>
+                        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {log.qty_before ?? '–'} → {log.qty_after ?? '–'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 16px', color: '#64748b', fontSize: 12, maxWidth: 180 }}>
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {log.notes || log.reason || '–'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 16px', color: '#94a3b8', fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                        {fmtTime(log.created_at)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Update Stok Modal ── */}
       {showAddModal && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 50,
@@ -275,15 +382,34 @@ export default function Stock() {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '18px 20px 16px', borderBottom: '1px solid #f1f5f9',
             }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Tambah Stok</h3>
-              <button onClick={() => { setShowAddModal(false); setAddForm({ product_id: '', qty: '', min_qty: '', notes: '' }); setAddError('') }}
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Update Stok</h3>
+              <button onClick={() => { setShowAddModal(false); setAddForm(EMPTY_FORM); setAddError('') }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}>
                 <X size={18} />
               </button>
             </div>
 
+            {/* Mode toggle */}
+            <div style={{ padding: '16px 20px 0' }}>
+              <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 10, padding: 4, gap: 4 }}>
+                {[
+                  { key: 'add',    label: 'Tambah Stok',  color: '#16a34a' },
+                  { key: 'reduce', label: 'Kurangi Stok', color: '#dc2626' },
+                ].map(({ key, label, color }) => (
+                  <button key={key} onClick={() => setAddForm(f => ({ ...f, mode: key }))} style={{
+                    flex: 1, padding: '9px 0', borderRadius: 8, border: 'none',
+                    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    transition: 'all 0.15s',
+                    background: addForm.mode === key ? 'white' : 'transparent',
+                    color: addForm.mode === key ? color : '#94a3b8',
+                    boxShadow: addForm.mode === key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                  }}>{label}</button>
+                ))}
+              </div>
+            </div>
+
             {/* Form */}
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ padding: '16px 20px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
               {addError && (
                 <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px' }}>
                   <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>{addError}</p>
@@ -302,9 +428,14 @@ export default function Stock() {
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Jumlah Ditambahkan *</label>
-                <input type="number" min="0.01" step="0.01" placeholder="cth: 50" value={addForm.qty}
-                  onChange={e => setAddForm(f => ({ ...f, qty: e.target.value }))} style={inputStyle} />
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>
+                  Jumlah {isAdd ? 'Ditambahkan' : 'Dikurangi'} *
+                </label>
+                <input type="number" min="0.01" step="0.01"
+                  placeholder={isAdd ? 'cth: 50' : 'cth: 10'}
+                  value={addForm.qty}
+                  onChange={e => setAddForm(f => ({ ...f, qty: e.target.value }))}
+                  style={{ ...inputStyle, borderColor: isAdd ? '#bbf7d0' : '#fecaca' }} />
               </div>
 
               <div>
@@ -315,20 +446,27 @@ export default function Stock() {
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>Catatan</label>
-                <input type="text" placeholder="Opsional — cth: pembelian dari supplier" value={addForm.notes}
+                <input type="text"
+                  placeholder={isAdd ? 'cth: pembelian dari supplier' : 'cth: jual eceran, rusak/expired'}
+                  value={addForm.notes}
                   onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} style={inputStyle} />
               </div>
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '0 20px 20px', display: 'flex', gap: 10 }}>
-              <button onClick={() => { setShowAddModal(false); setAddForm({ product_id: '', qty: '', min_qty: '', notes: '' }); setAddError('') }}
+            <div style={{ padding: '16px 20px 20px', display: 'flex', gap: 10 }}>
+              <button onClick={() => { setShowAddModal(false); setAddForm(EMPTY_FORM); setAddError('') }}
                 style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: 'white', fontSize: 14, fontWeight: 600, color: '#64748b', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Batal
               </button>
               <button onClick={handleAddStock} disabled={addLoading}
-                style={{ flex: 1, padding: '11px', borderRadius: 10, border: 'none', background: addLoading ? '#93c5fd' : '#2563eb', fontSize: 14, fontWeight: 600, color: 'white', cursor: addLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                {addLoading ? 'Menyimpan...' : 'Simpan'}
+                style={{
+                  flex: 1, padding: '11px', borderRadius: 10, border: 'none',
+                  background: addLoading ? '#93c5fd' : isAdd ? '#2563eb' : '#dc2626',
+                  fontSize: 14, fontWeight: 600, color: 'white',
+                  cursor: addLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                }}>
+                {addLoading ? 'Menyimpan...' : isAdd ? 'Tambah Stok' : 'Kurangi Stok'}
               </button>
             </div>
           </div>
