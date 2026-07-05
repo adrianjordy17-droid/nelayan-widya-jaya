@@ -58,6 +58,7 @@ export default function Attendance() {
 
   const [log, setLog]                       = useState([])
   const [selfie, setSelfie]                 = useState(null)
+  const [selfieFile, setSelfieFile]         = useState(null)
   const [submitted, setSubmitted]           = useState(false)
   const [submittedPulang, setSubmittedPulang] = useState(false)
   const [dateView, setDateView]             = useState(today)
@@ -106,6 +107,11 @@ export default function Attendance() {
       .then(({ count }) => setTotalEmployees(count || 0))
   }, [canManage])
 
+  // ── Load work schedule from DB profile settings (overrides localStorage on first load) ──
+  useEffect(() => {
+    if (profile?.settings?.work_schedule) setSchedule(profile.settings.work_schedule)
+  }, [profile?.id])
+
   const todayLabel = format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale })
   const nowTime    = format(new Date(), 'HH:mm')
   const jamMasuk   = schedule.jamMasuk || '08:00'
@@ -113,19 +119,32 @@ export default function Attendance() {
   function handlePhoto(e) {
     const file = e.target.files[0]
     if (!file) return
+    setSelfieFile(file)
     setSelfie(URL.createObjectURL(file))
     e.target.value = ''
   }
 
   async function submitSelfie() {
     const status = timeStatus(nowTime, jamMasuk)
+    let photoUrl = null
+    if (selfieFile) {
+      try {
+        const ext = selfieFile.name.split('.').pop() || 'jpg'
+        const path = `${profile?.id || 'u'}-${today}-${nowTime.replace(':', '')}.${ext}`
+        const { error: upErr } = await supabase.storage.from('attendance-photos').upload(path, selfieFile, { upsert: true })
+        if (!upErr) {
+          const { data: { publicUrl } } = supabase.storage.from('attendance-photos').getPublicUrl(path)
+          photoUrl = publicUrl
+        }
+      } catch {}
+    }
     const entry = {
       name: profile?.name || 'User',
       role: profile?.role || 'staff',
       type: 'masuk',
       time: nowTime,
       date: today,
-      photo: null,
+      photo: photoUrl,
       status,
       catatan: status === 'telat' ? `Terlambat — jam masuk: ${jamMasuk}` : '',
     }
@@ -133,6 +152,7 @@ export default function Attendance() {
     setLog(prev => [data || { ...entry, id: Date.now() }, ...prev])
     setSubmitted(true)
     setSelfie(null)
+    setSelfieFile(null)
   }
 
   async function submitPulang() {
@@ -185,9 +205,15 @@ export default function Attendance() {
     await supabase.from('attendance').delete().eq('id', id)
   }
 
-  function saveSchedule() {
+  async function saveSchedule() {
     const s = { jamMasuk: schedForm.jamMasuk || '08:00' }
     localStorage.setItem('nwj_work_schedule', JSON.stringify(s))
+    if (user) {
+      try {
+        const cur = profile?.settings || {}
+        await supabase.from('profiles').update({ settings: { ...cur, work_schedule: s } }).eq('id', user.id)
+      } catch {}
+    }
     setSchedule(s)
     setSchedForm(null)
   }
@@ -315,7 +341,7 @@ export default function Attendance() {
                       }}>
                         <CheckCircle size={15} /> Konfirmasi Hadir
                       </button>
-                      <button onClick={() => setSelfie(null)} style={{
+                      <button onClick={() => { setSelfie(null); setSelfieFile(null) }} style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         background: 'rgba(255,255,255,0.1)', color: 'white',
                         border: '1px solid rgba(255,255,255,0.2)',
