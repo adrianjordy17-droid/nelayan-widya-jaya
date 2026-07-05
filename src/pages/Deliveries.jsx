@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Camera, Check, Plus, X, Truck, Store, FileText, Calendar, Package, MapPin, ChevronLeft, ChevronRight, PackageCheck, Trash2 } from 'lucide-react'
+import { Camera, Check, Plus, X, Truck, Store, FileText, Calendar, Package, MapPin, ChevronLeft, ChevronRight, PackageCheck, Trash2, Edit2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -115,6 +115,9 @@ export default function Deliveries() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [editForm, setEditForm] = useState({ weightSent: '', weightReceived: '' })
+  const [editSaving, setEditSaving] = useState(false)
   const sentRef = useRef(null)
   const recvRef = useRef(null)
 
@@ -283,6 +286,30 @@ export default function Deliveries() {
       }, 1000)
     } finally {
       setSaving(false)
+    }
+  }
+
+  function openEdit(report) {
+    setEditForm({
+      weightSent: report.weightSent != null ? String(report.weightSent) : '',
+      weightReceived: report.weightReceived != null ? String(report.weightReceived) : '',
+    })
+    setEditing(report)
+  }
+
+  async function saveEdit() {
+    if (!editing) return
+    setEditSaving(true)
+    try {
+      const ws = editForm.weightSent !== '' ? parseFloat(editForm.weightSent) : null
+      const wr = editForm.weightReceived !== '' ? parseFloat(editForm.weightReceived) : null
+      await supabase.from('delivery_reports').update({ weight_sent: ws, weight_received: wr }).eq('id', editing.id)
+      setReports(prev => prev.map(r => r.id === editing.id ? { ...r, weightSent: ws, weightReceived: wr } : r))
+      if (modal && modal !== 'new' && modal.id === editing.id) setModal(prev => ({ ...prev, weightSent: ws, weightReceived: wr }))
+      if (completing?.id === editing.id) setCompleting(prev => ({ ...prev, weightSent: ws }))
+      setEditing(null)
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -850,6 +877,20 @@ export default function Deliveries() {
                 </div>
               </div>
 
+              {/* Edit berat kirim (gudang) — all roles */}
+              <button
+                onClick={() => openEdit(completing)}
+                style={{
+                  alignSelf: 'flex-start', padding: '7px 14px',
+                  background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)',
+                  border: '0.5px solid #e5e5ea', borderRadius: 10, color: '#007aff',
+                  fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6, ...FF,
+                }}
+              >
+                <Edit2 size={13} /> Edit Berat Kirim
+              </button>
+
               {/* Partial info in Step 2 */}
               {completing.isPartial && (
                 <div style={{
@@ -1110,6 +1151,22 @@ export default function Deliveries() {
                 {modal.notes && <InfoRow label="Catatan" value={modal.notes} last />}
               </div>
 
+              {/* Edit Berat — all roles */}
+              {!confirmDelete && (
+                <button
+                  onClick={() => openEdit(modal)}
+                  style={{
+                    width: '100%', padding: '14px',
+                    background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)',
+                    border: '0.5px solid #e5e5ea', borderRadius: 13,
+                    color: '#007aff', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                    ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}
+                >
+                  <Edit2 size={15} /> Edit Berat
+                </button>
+              )}
+
               {/* Kirim Susulan — semua role bisa, tampil hanya jika partial */}
               {!confirmDelete && modal.isPartial && (
                 <button
@@ -1195,6 +1252,111 @@ export default function Deliveries() {
           </div>
         </div>
       )}
+
+      {/* ──────────────────────────────────────────
+          MODAL: Edit Berat
+      ────────────────────────────────────────── */}
+      {editing && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 60,
+          background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#f2f2f7', borderRadius: '20px 20px 0 0',
+            width: '100%', maxWidth: 560, ...FF,
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6',
+            }}>
+              <button onClick={() => setEditing(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
+                <X size={22} />
+              </button>
+              <p style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>Edit Berat</p>
+              <button
+                onClick={saveEdit}
+                disabled={editSaving}
+                style={{ background: 'none', border: 'none', cursor: editSaving ? 'not-allowed' : 'pointer', fontSize: 15, fontWeight: 600, color: '#007aff', padding: 0, ...FF }}
+              >
+                {editSaving ? '...' : 'Simpan'}
+              </button>
+            </div>
+
+            <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <p style={{ fontSize: 13.5, color: '#8e8e93', margin: 0 }}>
+                {editing.clientName} · {formatDate(editing.deliveryDate)}
+              </p>
+
+              <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: editing.weightReceived != null ? '0.5px solid #f0f0f0' : 'none' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ff9500', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Truck size={15} color="white" strokeWidth={1.9} />
+                  </div>
+                  <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flex: 1, fontWeight: 400 }}>Berat Kirim</p>
+                  <input
+                    type="number" step="0.1" min="0"
+                    value={editForm.weightSent}
+                    onChange={e => setEditForm(f => ({ ...f, weightSent: e.target.value }))}
+                    placeholder="0.0"
+                    autoFocus
+                    style={{ width: 80, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, fontWeight: 600, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                  />
+                  <span style={{ fontSize: 15, color: '#8e8e93', flexShrink: 0 }}>kg</span>
+                </div>
+                {editing.weightReceived != null && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#007aff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Store size={15} color="white" strokeWidth={1.9} />
+                    </div>
+                    <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flex: 1, fontWeight: 400 }}>Berat Terima</p>
+                    <input
+                      type="number" step="0.1" min="0"
+                      value={editForm.weightReceived}
+                      onChange={e => setEditForm(f => ({ ...f, weightReceived: e.target.value }))}
+                      placeholder="0.0"
+                      style={{ width: 80, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, fontWeight: 600, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                    />
+                    <span style={{ fontSize: 15, color: '#8e8e93', flexShrink: 0 }}>kg</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Live selisih in edit modal */}
+              {editing.weightReceived != null && editForm.weightSent !== '' && editForm.weightReceived !== '' && (() => {
+                const ws = parseFloat(editForm.weightSent)
+                const wr = parseFloat(editForm.weightReceived)
+                if (isNaN(ws) || isNaN(wr)) return null
+                const diff = wr - ws
+                return (
+                  <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: '14px 18px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <p style={{ fontSize: 15, color: '#8e8e93', margin: 0 }}>Selisih Berat</p>
+                    <p style={{ fontSize: 17, fontWeight: 700, margin: 0, color: diff < 0 ? '#ff3b30' : '#34c759' }}>
+                      {diff > 0 ? '+' : ''}{diff.toFixed(1)} kg
+                    </p>
+                  </div>
+                )
+              })()}
+
+              <button
+                onClick={saveEdit}
+                disabled={editSaving}
+                style={{
+                  width: '100%', padding: '15px',
+                  background: '#007aff', border: 'none', borderRadius: 13,
+                  color: 'white', fontSize: 15, fontWeight: 600,
+                  cursor: editSaving ? 'not-allowed' : 'pointer',
+                  ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                {editSaving ? '...' : <><Check size={16} /> Simpan Perubahan</>}
+              </button>
+            </div>
+            <div style={{ height: 32 }} />
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
