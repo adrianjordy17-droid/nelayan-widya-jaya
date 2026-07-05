@@ -494,6 +494,26 @@ export default function Purchases() {
     setDetail(null)
     await supabase.from('purchases').update({ status: newStatus }).eq('id', doc.id)
     setDocs(prev => prev.map(d => d.id === doc.id ? { ...d, status: newStatus } : d))
+    if (doc.type === 'GRP' && newStatus === 'received') {
+      const itemsToProcess = (doc.items || []).filter(item => item.condition !== 'return')
+      for (const item of itemsToProcess) {
+        const qty = parseFloat(item.receivedQty) || 0
+        if (qty <= 0) continue
+        const { data: prods } = await supabase.from('products').select('id, qty').ilike('nama', item.name.trim())
+        if (prods?.length > 0) {
+          const prod = prods[0]
+          const newQty = (parseFloat(prod.qty) || 0) + qty
+          await supabase.from('products').update({ qty: newQty }).eq('id', prod.id)
+          try {
+            await supabase.from('stock_logs').insert({
+              product_id: prod.id,
+              qty_change: qty,
+              reason: `GRP ${doc.number} diterima`,
+            })
+          } catch {}
+        }
+      }
+    }
   }
 
   const TabBtn = ({ t }) => {
