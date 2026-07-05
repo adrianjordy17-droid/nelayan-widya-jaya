@@ -250,7 +250,7 @@ export default function Clients() {
                     <button onClick={() => setDeleteConfirm(client.id)} title="Hapus"
                       style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', borderRadius: 8, display: 'flex', alignItems: 'center' }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fef2f2' }}
-                      onMouseLeave={e => { e.currentTarget.style.color: '#94a3b8'; e.currentTarget.style.background = 'none' }}>
+                      onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'none' }}>
                       <Trash2 size={14} />
                     </button>
                   </div>
