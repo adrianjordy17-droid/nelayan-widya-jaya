@@ -747,7 +747,6 @@ export default function Documents() {
   const grByDoRef = new Set(docs.filter(d => d.type === 'GR').map(d => d.refNumber).filter(Boolean))
   const partialDOs  = visibleDocs.filter(d =>
     d.type === 'DO' &&
-    d.status !== 'delivered' &&
     !grByDoRef.has(d.number) &&
     (deliveryMap[d.id] || []).some(r => r.is_partial)
   )
