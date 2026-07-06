@@ -1301,8 +1301,8 @@ export default function Documents() {
                 )
               })()}
 
-              {/* Edit + Cancel buttons — SO/DO/GR only */}
-              {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && !confirmCancel && (
+              {/* Edit + Cancel buttons */}
+              {canEdit && ['SO', 'DO', 'GR', 'Invoice'].includes(detail.type) && !confirmCancel && (
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button
                     onClick={() => openEdit(detail)}
@@ -1323,7 +1323,7 @@ export default function Documents() {
                   )}
                 </div>
               )}
-              {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && confirmCancel && (
+              {canEdit && ['SO', 'DO', 'GR', 'Invoice'].includes(detail.type) && confirmCancel && (
                 <div style={{ background: '#fff0f0', borderRadius: 13, padding: '16px', border: '0.5px solid rgba(255,59,48,0.2)' }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#ff3b30', margin: '0 0 12px' }}>
                     Yakin batalkan {detail.number}?
