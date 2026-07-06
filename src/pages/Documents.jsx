@@ -707,7 +707,13 @@ export default function Documents() {
   const visibleDocs = isStaff
     ? docs.filter(d => d.type === 'DO' && d.status === 'dispatched' && d.driverName?.toLowerCase() === myName)
     : docs.filter(d => !(d.type === 'SO' && d.status === 'confirmed'))
-  const partialDOs  = visibleDocs.filter(d => d.type === 'DO' && (deliveryMap[d.id] || []).some(r => r.is_partial && (r.weight_received == null || r.photo_received_url == null)))
+  const grByDoRef = new Set(docs.filter(d => d.type === 'GR').map(d => d.refNumber).filter(Boolean))
+  const partialDOs  = visibleDocs.filter(d =>
+    d.type === 'DO' &&
+    d.status !== 'delivered' &&
+    !grByDoRef.has(d.number) &&
+    (deliveryMap[d.id] || []).some(r => r.is_partial && (r.weight_received == null || r.photo_received_url == null))
+  )
   const draftDOs    = visibleDocs.filter(d => d.type === 'DO' && d.status === 'draft')
   const soDrafts    = visibleDocs.filter(d => d.type === 'SO' && d.status === 'draft')
   const delayedDOs  = visibleDocs.filter(d => d.type === 'DO' && d.status === 'delayed')
