@@ -259,7 +259,7 @@ export default function Deliveries() {
         partial_notes: form.partialNotes.trim() || null,
       })
 
-      if (form.hasLocationWeigh && form.doId) {
+      if (form.hasLocationWeigh && form.doId && !form.isPartial) {
         await supabase.from('documents').update({ status: 'delivered' }).eq('id', form.doId)
       }
 
@@ -299,7 +299,7 @@ export default function Deliveries() {
         photo_received_url: photoReceivedUrl,
       }).eq('id', completing.id)
 
-      if (completing.doId) {
+      if (completing.doId && !completing.isPartial) {
         await supabase.from('documents').update({ status: 'delivered' }).eq('id', completing.doId)
       }
 
