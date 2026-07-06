@@ -78,6 +78,10 @@ function emptyForm() {
     notes: '',
     doRef: '', doId: null, doItems: [],
     isPartial: false, partialNotes: '',
+    hasLocationWeigh: false,
+    weightReceived: '',
+    itemWeightsReceived: {},
+    photoReceivedFile: null, photoReceivedPreview: null,
   }
 }
 
@@ -120,6 +124,7 @@ export default function Deliveries() {
   const [editSaving, setEditSaving] = useState(false)
   const sentRef = useRef(null)
   const recvRef = useRef(null)
+  const recvRef2 = useRef(null)
 
   useEffect(() => {
     if (!completing?.doId) { setCompletingDoItems([]); return }
@@ -170,6 +175,13 @@ export default function Deliveries() {
     e.target.value = ''
   }
 
+  function handlePhotoRecv2(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setForm(f => ({ ...f, photoReceivedFile: file, photoReceivedPreview: URL.createObjectURL(file) }))
+    e.target.value = ''
+  }
+
   async function uploadPhoto(file, path) {
     try {
       await supabase.storage.from('delivery-photos').upload(path, file, { upsert: true })
@@ -196,14 +208,29 @@ export default function Deliveries() {
         }
       }
 
+      // Timbang di lokasi sekarang (single-step mode)
+      let photoReceivedUrl = null
+      let effectiveWeightReceived = null
+      if (form.hasLocationWeigh) {
+        if (form.photoReceivedFile) photoReceivedUrl = await uploadPhoto(form.photoReceivedFile, `${id}/received.jpg`)
+        effectiveWeightReceived = form.weightReceived !== '' ? parseFloat(form.weightReceived) : null
+        if (form.doItems.length > 0) {
+          const vals = Object.values(form.itemWeightsReceived)
+          if (vals.length > 0) {
+            const sum = vals.reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+            if (sum > 0) effectiveWeightReceived = sum
+          }
+        }
+      }
+
       const report = mapReport({
         id,
         client_name: form.clientName.trim(),
         delivery_date: form.deliveryDate,
         weight_sent: effectiveWeightSent,
-        weight_received: null,
+        weight_received: effectiveWeightReceived,
         photo_sent_url: photoSentUrl,
-        photo_received_url: null,
+        photo_received_url: photoReceivedUrl,
         notes: form.notes.trim(),
         created_by_name: profile?.name || '',
         created_at: new Date().toISOString(),
@@ -220,9 +247,9 @@ export default function Deliveries() {
         client_name: report.clientName,
         delivery_date: report.deliveryDate,
         weight_sent: effectiveWeightSent,
-        weight_received: null,
+        weight_received: effectiveWeightReceived,
         photo_sent_url: photoSentUrl,
-        photo_received_url: null,
+        photo_received_url: photoReceivedUrl,
         notes: report.notes,
         created_by: user?.id,
         created_by_name: report.createdByName,
@@ -231,6 +258,10 @@ export default function Deliveries() {
         is_partial: form.isPartial,
         partial_notes: form.partialNotes.trim() || null,
       })
+
+      if (form.hasLocationWeigh && form.doId) {
+        await supabase.from('documents').update({ status: 'delivered' }).eq('id', form.doId)
+      }
 
       setSaved(true)
       if (andContinue) {
@@ -687,6 +718,148 @@ export default function Deliveries() {
                         style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
                       />
                       <span style={{ fontSize: 15, color: '#8e8e93' }}>kg</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Timbang di Lokasi Sekarang (toggle) */}
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', textTransform: 'uppercase', letterSpacing: '0.06em', paddingLeft: 6, marginBottom: 8 }}>
+                  Timbang di Lokasi
+                </p>
+                <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
+                  {/* Toggle row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 16px', borderBottom: form.hasLocationWeigh ? '0.5px solid #f0f0f0' : 'none' }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: '#34c759', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Store size={15} color="white" strokeWidth={1.9} />
+                    </div>
+                    <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, flex: 1, fontWeight: 400 }}>Timbang di Resto Sekarang</p>
+                    <div
+                      onClick={() => setForm(f => ({ ...f, hasLocationWeigh: !f.hasLocationWeigh }))}
+                      style={{
+                        width: 51, height: 31, borderRadius: 16, cursor: 'pointer', flexShrink: 0,
+                        background: form.hasLocationWeigh ? '#34c759' : '#e5e5ea',
+                        position: 'relative', transition: 'background 0.2s',
+                      }}
+                    >
+                      <div style={{
+                        position: 'absolute', top: 2,
+                        left: form.hasLocationWeigh ? 22 : 2,
+                        width: 27, height: 27, borderRadius: '50%',
+                        background: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.22)',
+                        transition: 'left 0.2s',
+                      }} />
+                    </div>
+                  </div>
+
+                  {/* Location weigh inputs — shown when toggled on */}
+                  {form.hasLocationWeigh && (
+                    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {/* Photo */}
+                      <div
+                        onClick={() => recvRef2.current?.click()}
+                        style={{
+                          height: 160, borderRadius: 10, cursor: 'pointer', overflow: 'hidden', position: 'relative',
+                          background: form.photoReceivedPreview ? 'transparent' : '#f2f2f7',
+                          border: form.photoReceivedPreview ? 'none' : '1.5px dashed #c7c7cc',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        {form.photoReceivedPreview
+                          ? <img src={form.photoReceivedPreview} alt="terima" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <div style={{ textAlign: 'center' }}>
+                              <Camera size={28} color="#c7c7cc" style={{ display: 'block', margin: '0 auto' }} />
+                              <p style={{ fontSize: 13, color: '#c7c7cc', marginTop: 10, marginBottom: 0 }}>Foto timbangan diterima resto</p>
+                            </div>
+                        }
+                        {form.photoReceivedPreview && (
+                          <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.55)', borderRadius: 7, padding: '5px 9px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Camera size={12} color="white" />
+                            <span style={{ fontSize: 12, color: 'white' }}>Ganti</span>
+                          </div>
+                        )}
+                      </div>
+                      <input ref={recvRef2} type="file" accept="image/*" capture="environment" onChange={handlePhotoRecv2} style={{ display: 'none' }} />
+
+                      {/* Weight inputs */}
+                      {form.doItems.length > 0 ? (
+                        <div style={{ borderTop: '0.5px solid #f0f0f0', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                          {form.doItems.map((it, i) => (
+                            <div key={i} style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              paddingBottom: 11, marginBottom: 11,
+                              borderBottom: i < form.doItems.length - 1 ? '0.5px solid #f0f0f0' : 'none',
+                            }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: 14, fontWeight: 500, color: '#1c1c1e', margin: 0, lineHeight: 1.3 }}>{it.name}</p>
+                                <p style={{ fontSize: 12, color: '#8e8e93', margin: '2px 0 0' }}>DO: {it.qty} {it.unit}</p>
+                              </div>
+                              <input
+                                type="number" step="0.1" min="0"
+                                value={form.itemWeightsReceived[i] ?? ''}
+                                onChange={e => setForm(f => ({ ...f, itemWeightsReceived: { ...f.itemWeightsReceived, [i]: e.target.value } }))}
+                                placeholder="0.0"
+                                style={{ width: 72, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, fontWeight: 600, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                              />
+                              <span style={{ fontSize: 14, color: '#8e8e93', flexShrink: 0 }}>kg</span>
+                            </div>
+                          ))}
+                          {Object.values(form.itemWeightsReceived).some(v => v !== '' && v !== undefined) && (() => {
+                            const total = Object.values(form.itemWeightsReceived).reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, borderTop: '0.5px solid #e5e5ea' }}>
+                                <p style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>Total Berat Terima</p>
+                                <p style={{ fontSize: 17, fontWeight: 700, color: '#34c759', margin: 0 }}>{total.toFixed(1)} kg</p>
+                              </div>
+                            )
+                          })()}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '0.5px solid #f0f0f0', paddingTop: 14 }}>
+                          <p style={{ fontSize: 15, color: '#1c1c1e', margin: 0, fontWeight: 400 }}>Berat Terima</p>
+                          <input
+                            type="number" step="0.1" min="0"
+                            value={form.weightReceived}
+                            onChange={e => setForm(f => ({ ...f, weightReceived: e.target.value }))}
+                            placeholder="0.0"
+                            style={{ flex: 1, border: 'none', outline: 'none', textAlign: 'right', fontSize: 15, color: '#3c3c43', background: 'transparent', fontFamily: 'inherit' }}
+                          />
+                          <span style={{ fontSize: 15, color: '#8e8e93' }}>kg</span>
+                        </div>
+                      )}
+
+                      {/* Live selisih preview */}
+                      {(() => {
+                        const sentTotal = form.doItems.length > 0
+                          ? Object.values(form.itemWeights).reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+                          : (form.weightSent !== '' ? parseFloat(form.weightSent) : null)
+                        const recvTotal = form.doItems.length > 0
+                          ? Object.values(form.itemWeightsReceived).reduce((acc, v) => acc + (parseFloat(v) || 0), 0)
+                          : (form.weightReceived !== '' ? parseFloat(form.weightReceived) : null)
+                        const hasSent = form.doItems.length > 0
+                          ? Object.values(form.itemWeights).some(v => v !== '' && v !== undefined)
+                          : form.weightSent !== ''
+                        const hasRecv = form.doItems.length > 0
+                          ? Object.values(form.itemWeightsReceived).some(v => v !== '' && v !== undefined)
+                          : form.weightReceived !== ''
+                        if (!hasSent || !hasRecv || sentTotal === null || recvTotal === null) return null
+                        const diff = recvTotal - sentTotal
+                        if (isNaN(diff)) return null
+                        return (
+                          <div style={{
+                            background: diff < 0 ? '#fff0f0' : '#f0fff4',
+                            borderRadius: 10, padding: '12px 16px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            border: `0.5px solid ${diff < 0 ? 'rgba(255,59,48,0.15)' : 'rgba(52,199,89,0.2)'}`,
+                          }}>
+                            <p style={{ fontSize: 14, color: '#8e8e93', margin: 0 }}>Selisih Berat</p>
+                            <p style={{ fontSize: 16, fontWeight: 700, margin: 0, color: diff < 0 ? '#ff3b30' : '#34c759' }}>
+                              {diff > 0 ? '+' : ''}{diff.toFixed(1)} kg
+                            </p>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
