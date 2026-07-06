@@ -76,6 +76,18 @@ function calcDueDate(date, terms) {
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
 }
+async function withRetry(fn, maxTries = 3) {
+  let lastErr
+  for (let i = 0; i < maxTries; i++) {
+    try { return await fn() } catch (err) {
+      lastErr = err
+      const isNetwork = err.message?.includes('Load failed') || err.message?.includes('Failed to fetch') || err.message?.includes('Network')
+      if (!isNetwork || i === maxTries - 1) throw err
+      await new Promise(r => setTimeout(r, 800 * (i + 1)))
+    }
+  }
+  throw lastErr
+}
 async function fetchProductPrices(items) {
   const needPrice = items.filter(it => (it.price == null || it.price === '') && it.name?.trim())
   if (!needPrice.length) return items
@@ -704,16 +716,16 @@ export default function Documents() {
         const orig = docs.find(d => d.id === form.editId) || {}
         const doc = buildDoc({ id: form.editId, number: orig.number || '', createdByName: orig.createdByName || profile?.name || '', createdAt: orig.createdAt || new Date().toISOString() })
         setDocs(prev => prev.map(d => d.id === form.editId ? doc : d))
-        await pushDocToDB(doc, false)
+        await withRetry(() => pushDocToDB(doc, false))
         if (doc.type === 'SO' && doc.status === 'confirmed' && orig.status !== 'confirmed') {
           await autoCreateDO(doc)
         }
       } else {
         const id = newId()
-        const number = await getNextNumber(form.type)
+        const number = await withRetry(() => getNextNumber(form.type))
         const doc = buildDoc({ id, number, createdByName: profile?.name || '', createdAt: new Date().toISOString() })
         setDocs(prev => [doc, ...prev])
-        await pushDocToDB(doc, true)
+        await withRetry(() => pushDocToDB(doc, true))
         if (doc.type === 'SO' && doc.status === 'confirmed') {
           await autoCreateDO(doc)
         }
@@ -721,7 +733,10 @@ export default function Documents() {
       setSaved(true)
       setTimeout(() => { setSaved(false); setForm(null) }, 900)
     } catch (err) {
-      alert('Gagal menyimpan: ' + err.message)
+      const isNetwork = err.message?.includes('Load failed') || err.message?.includes('Failed to fetch')
+      alert(isNetwork
+        ? 'Gagal menyimpan: koneksi bermasalah. Coba lagi sebentar.'
+        : 'Gagal menyimpan: ' + err.message)
     } finally { setSaving(false) }
   }
 
