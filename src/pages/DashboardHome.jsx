@@ -244,14 +244,12 @@ function OwnerAdminDashboard() {
     supabase.from('documents').select('id').eq('type', 'DO').eq('status', 'delayed')
       .then(({ data }) => setDelayedCount(data?.length || 0))
 
-    supabase.from('delivery_reports').select('do_id, is_partial, weight_received, photo_received_url')
+    supabase.from('delivery_reports').select('do_id')
       .eq('is_partial', true)
+      .not('do_id', 'is', null)
       .then(({ data }) => {
         if (!data) return
-        const partialDoIds = new Set(
-          data.filter(r => r.weight_received == null || r.photo_received_url == null).map(r => r.do_id)
-        )
-        setPartialCount(partialDoIds.size)
+        setPartialCount(new Set(data.map(r => r.do_id)).size)
       })
   }, [todayKey, thisMonth])
 
