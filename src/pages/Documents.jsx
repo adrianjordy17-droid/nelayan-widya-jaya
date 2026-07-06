@@ -67,6 +67,21 @@ function recalcForm(f) {
   const tax = Math.round(sub * (+f.taxPct || 0) / 100)
   return { ...f, subtotal: sub, total: sub + tax - (+f.discount || 0) }
 }
+async function fetchProductPrices(items) {
+  const needPrice = items.filter(it => (it.price == null || it.price === '') && it.name?.trim())
+  if (!needPrice.length) return items
+  const names = needPrice.map(it => it.name.trim())
+  const { data: products } = await supabase.from('products').select('nama, harga_jual').in('nama', names)
+  const priceMap = {}
+  ;(products || []).forEach(p => { priceMap[p.nama.toLowerCase()] = p.harga_jual })
+  return items.map(it => {
+    if ((it.price == null || it.price === '') && it.name?.trim()) {
+      const price = priceMap[it.name.trim().toLowerCase()]
+      if (price != null) return recalcItem({ ...it, price })
+    }
+    return it
+  })
+}
 function emptyForm(type) {
   const withPrice = type === 'SO' || type === 'Invoice'
   return {
@@ -487,8 +502,18 @@ export default function Documents() {
     setSaved(false)
   }
 
-  function openCreateFrom(type, sourceDoc) {
+  async function openCreateFrom(type, sourceDoc) {
     const withPrice = type === 'SO' || type === 'Invoice'
+    let items = sourceDoc.items.map(it => ({
+      ...it, id: newId(),
+      price: withPrice ? (it.price ?? '') : null,
+      receivedQty: '',
+      condition: 'Baik',
+      total: withPrice ? (it.total ?? 0) : null,
+    }))
+    if (type === 'Invoice') {
+      items = await fetchProductPrices(items)
+    }
     const f = {
       ...emptyForm(type),
       clientName: sourceDoc.clientName,
@@ -496,13 +521,7 @@ export default function Documents() {
       clientPhone: sourceDoc.clientPhone || '',
       clientPoNumber: sourceDoc.clientPoNumber || '',
       refNumber: sourceDoc.number,
-      items: sourceDoc.items.map(it => ({
-        ...it, id: newId(),
-        price: withPrice ? (it.price ?? '') : null,
-        receivedQty: '',
-        condition: 'Baik',
-        total: withPrice ? (it.total ?? 0) : null,
-      })),
+      items,
     }
     setDetail(null)
     setForm(withPrice ? recalcForm(f) : f)
@@ -570,19 +589,24 @@ export default function Documents() {
     else    setF({ clientName: name })
   }
 
-  function fillFromRef(refNumber) {
+  async function fillFromRef(refNumber) {
     setF({ refNumber })
     const ref = docs.find(d => d.number === refNumber)
     if (!ref) return
+    const isInvoice = form?.type === 'Invoice'
+    let items = ref.items.map(it => ({
+      ...it, id: newId(),
+      price: isInvoice ? (it.price ?? '') : null,
+      receivedQty: '', condition: 'Baik',
+      total: isInvoice ? (it.total ?? 0) : null,
+    }))
+    if (isInvoice) {
+      items = await fetchProductPrices(items)
+    }
     setF(prev => ({
       ...prev, refNumber,
       clientName: ref.clientName, clientAddress: ref.clientAddress || '', clientPhone: ref.clientPhone || '',
-      items: ref.items.map(it => ({
-        ...it, id: newId(),
-        price: (prev.type === 'Invoice') ? it.price : null,
-        receivedQty: '', condition: 'Baik',
-        total: (prev.type === 'Invoice') ? it.total : null,
-      })),
+      items,
     }))
   }
 
@@ -702,6 +726,7 @@ export default function Documents() {
   const isCurrentMonth = selectedMonth === liveMonth
   const soList = docs.filter(d => d.type === 'SO')
   const doList = docs.filter(d => d.type === 'DO')
+  const grList = docs.filter(d => d.type === 'GR')
 
   // ── Render ──
   return (
@@ -922,12 +947,27 @@ export default function Documents() {
               {/* Referensi dokumen */}
               {(createType === 'DO' || createType === 'GR' || createType === 'Invoice') && (
                 <>
-                  <SLabel text={createType === 'GR' ? 'Referensi DO' : 'Referensi SO'} />
+                  <SLabel text={createType === 'GR' ? 'Referensi DO' : createType === 'Invoice' ? 'Referensi Dokumen' : 'Referensi SO'} />
                   <Card>
-                    <FieldRow label={createType === 'GR' ? 'No. DO' : 'No. SO'} last>
+                    <FieldRow label={createType === 'GR' ? 'No. DO' : createType === 'Invoice' ? 'No. Dokumen' : 'No. SO'} last>
                       <select value={form.refNumber} onChange={e => fillFromRef(e.target.value)} style={selectR}>
                         <option value="">– Pilih atau ketik manual –</option>
-                        {(createType === 'GR' ? doList : soList).map(d => (
+                        {createType === 'Invoice' && soList.length > 0 && (
+                          <optgroup label="Sales Order">
+                            {soList.map(d => <option key={d.id} value={d.number}>{d.number} — {d.clientName}</option>)}
+                          </optgroup>
+                        )}
+                        {createType === 'Invoice' && grList.length > 0 && (
+                          <optgroup label="Goods Receipt">
+                            {grList.map(d => <option key={d.id} value={d.number}>{d.number} — {d.clientName}</option>)}
+                          </optgroup>
+                        )}
+                        {createType === 'Invoice' && doList.length > 0 && (
+                          <optgroup label="Delivery Order">
+                            {doList.map(d => <option key={d.id} value={d.number}>{d.number} — {d.clientName}</option>)}
+                          </optgroup>
+                        )}
+                        {createType !== 'Invoice' && (createType === 'GR' ? doList : soList).map(d => (
                           <option key={d.id} value={d.number}>{d.number} — {d.clientName}</option>
                         ))}
                       </select>
