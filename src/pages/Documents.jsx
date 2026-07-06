@@ -67,6 +67,15 @@ function recalcForm(f) {
   const tax = Math.round(sub * (+f.taxPct || 0) / 100)
   return { ...f, subtotal: sub, total: sub + tax - (+f.discount || 0) }
 }
+function calcDueDate(date, terms) {
+  if (!date || !terms) return ''
+  if (terms === 'Net Cash') return date
+  const days = terms === 'Net 7 hari' ? 7 : terms === 'Net 14 hari' ? 14 : null
+  if (!days) return ''
+  const d = new Date(date + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
 async function fetchProductPrices(items) {
   const needPrice = items.filter(it => (it.price == null || it.price === '') && it.name?.trim())
   if (!needPrice.length) return items
@@ -84,13 +93,16 @@ async function fetchProductPrices(items) {
 }
 function emptyForm(type) {
   const withPrice = type === 'SO' || type === 'Invoice'
+  const today = todayStr()
+  const defaultTerms = 'Net 14 hari'
   return {
-    type, date: todayStr(), status: 'draft',
+    type, date: today, status: 'draft',
     clientName: '', clientAddress: '', clientPhone: '', clientPoNumber: '',
     refNumber: '', driverName: '', vehicle: '',
     items: [blankItem(withPrice)],
     subtotal: 0, taxPct: 0, discount: 0, total: 0,
-    dueDate: '', paymentTerms: 'Net 14 hari',
+    dueDate: type === 'Invoice' ? calcDueDate(today, defaultTerms) : '',
+    paymentTerms: defaultTerms,
     bankName: '', accountNumber: '', accountName: '',
     notes: '',
   }
@@ -514,13 +526,17 @@ export default function Documents() {
     if (type === 'Invoice') {
       items = await fetchProductPrices(items)
     }
+    const baseForm = emptyForm(type)
+    const invoiceDate = sourceDoc.date || baseForm.date
     const f = {
-      ...emptyForm(type),
+      ...baseForm,
       clientName: sourceDoc.clientName,
       clientAddress: sourceDoc.clientAddress || '',
       clientPhone: sourceDoc.clientPhone || '',
       clientPoNumber: sourceDoc.clientPoNumber || '',
       refNumber: sourceDoc.number,
+      date: invoiceDate,
+      dueDate: type === 'Invoice' ? calcDueDate(invoiceDate, baseForm.paymentTerms) : baseForm.dueDate,
       items,
     }
     setDetail(null)
@@ -603,11 +619,17 @@ export default function Documents() {
     if (isInvoice) {
       items = await fetchProductPrices(items)
     }
-    setF(prev => ({
-      ...prev, refNumber,
-      clientName: ref.clientName, clientAddress: ref.clientAddress || '', clientPhone: ref.clientPhone || '',
-      items,
-    }))
+    setF(prev => {
+      const newDate = ref.date || prev.date
+      const newDueDate = isInvoice ? calcDueDate(newDate, prev.paymentTerms) : prev.dueDate
+      return {
+        ...prev, refNumber,
+        date: newDate,
+        dueDate: newDueDate,
+        clientName: ref.clientName, clientAddress: ref.clientAddress || '', clientPhone: ref.clientPhone || '',
+        items,
+      }
+    })
   }
 
   async function pushDocToDB(doc, isNew) {
@@ -938,7 +960,14 @@ export default function Documents() {
               <SLabel text="Informasi Dasar" />
               <Card>
                 <FieldRow label="Tanggal">
-                  <input type="date" value={form.date} onChange={e => setF({ date: e.target.value })} style={inputR} />
+                  <input type="date" value={form.date} onChange={e => {
+                    const date = e.target.value
+                    const patch = { date }
+                    if (createType === 'Invoice' && form.paymentTerms) {
+                      patch.dueDate = calcDueDate(date, form.paymentTerms)
+                    }
+                    setF(patch)
+                  }} style={inputR} />
                 </FieldRow>
                 <FieldRow label="Status" last>
                   <select value={form.status} onChange={e => setF({ status: e.target.value })} style={selectR}>
@@ -1045,11 +1074,19 @@ export default function Documents() {
                 <>
                   <SLabel text="Info Pembayaran" />
                   <Card>
+                    <FieldRow label="Termin">
+                      <select value={form.paymentTerms} onChange={e => {
+                        const terms = e.target.value
+                        setF({ paymentTerms: terms, dueDate: calcDueDate(form.date, terms) })
+                      }} style={selectR}>
+                        <option value="">– Pilih –</option>
+                        <option value="Net Cash">Net Cash</option>
+                        <option value="Net 7 hari">Net 7 hari</option>
+                        <option value="Net 14 hari">Net 14 hari</option>
+                      </select>
+                    </FieldRow>
                     <FieldRow label="Jatuh Tempo">
                       <input type="date" value={form.dueDate} onChange={e => setF({ dueDate: e.target.value })} style={inputR} />
-                    </FieldRow>
-                    <FieldRow label="Termin">
-                      <input value={form.paymentTerms} onChange={e => setF({ paymentTerms: e.target.value })} placeholder="Net 14 hari" style={inputR} />
                     </FieldRow>
                     <FieldRow label="Nama Bank">
                       <input value={form.bankName} onChange={e => setF({ bankName: e.target.value })} placeholder="BCA / BRI / Mandiri" style={inputR} />
