@@ -749,7 +749,7 @@ export default function Documents() {
     d.type === 'DO' &&
     d.status !== 'delivered' &&
     !grByDoRef.has(d.number) &&
-    (deliveryMap[d.id] || []).some(r => r.is_partial && (r.weight_received == null || r.photo_received_url == null))
+    (deliveryMap[d.id] || []).some(r => r.is_partial)
   )
   const draftDOs    = visibleDocs.filter(d => d.type === 'DO' && d.status === 'draft')
   const soDrafts    = visibleDocs.filter(d => d.type === 'SO' && d.status === 'draft')
@@ -926,7 +926,7 @@ export default function Documents() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#1c1c1e' }}>{doc.number}</span>
                     <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: st.bg, color: st.color }}>{st.label}</span>
-                    {doc.type === 'DO' && (deliveryMap[doc.id] || []).some(r => r.is_partial && (r.weight_received == null || r.photo_received_url == null)) && (
+                    {doc.type === 'DO' && (deliveryMap[doc.id] || []).some(r => r.is_partial) && (
                       <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#fff0f0', color: '#ff3b30' }}>⚠ Partial</span>
                     )}
                     {doc.type === 'DO' && (deliveryMap[doc.id] || []).length > 0 && !(deliveryMap[doc.id] || []).some(r => r.weight_received == null || r.photo_received_url == null) && (
