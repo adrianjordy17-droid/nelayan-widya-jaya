@@ -90,8 +90,8 @@ function mapReport(r) {
     id: r.id,
     clientName: r.client_name,
     deliveryDate: r.delivery_date,
-    weightSent: r.weight_sent,
-    weightReceived: r.weight_received,
+    weightSent: r.weight_sent != null ? parseFloat(r.weight_sent) : null,
+    weightReceived: r.weight_received != null ? parseFloat(r.weight_received) : null,
     photoSentUrl: r.photo_sent_url,
     photoReceivedUrl: r.photo_received_url,
     notes: r.notes,
@@ -393,8 +393,8 @@ export default function Deliveries() {
       (r.doId && r.doId === report.doId) ||
       (!r.doId && r.doRef && r.doRef === report.doRef)
     )
-    const totalSent     = doReports.reduce((s, r) => s + (r.weightSent || 0), 0)
-    const totalReceived = doReports.filter(r => r.weightReceived != null).reduce((s, r) => s + (r.weightReceived || 0), 0)
+    const totalSent     = doReports.reduce((s, r) => s + (parseFloat(r.weightSent) || 0), 0)
+    const totalReceived = doReports.filter(r => r.weightReceived != null).reduce((s, r) => s + (parseFloat(r.weightReceived) || 0), 0)
 
     setSusulanInfo({
       doRef: report.doRef,
@@ -454,8 +454,8 @@ export default function Deliveries() {
     return Object.values(grouped)
       .filter(g => !grDoRefs.has(g.doRef))
       .map(g => {
-        const totalSent = g.reports.reduce((s, r) => s + (r.weightSent || 0), 0)
-        const totalReceived = g.reports.filter(r => r.weightReceived != null).reduce((s, r) => s + (r.weightReceived || 0), 0)
+        const totalSent = g.reports.reduce((s, r) => s + (parseFloat(r.weightSent) || 0), 0)
+        const totalReceived = g.reports.filter(r => r.weightReceived != null).reduce((s, r) => s + (parseFloat(r.weightReceived) || 0), 0)
         const pendingCount = g.reports.filter(r => r.weightReceived == null && r.photoReceivedUrl == null).length
         return { ...g, totalSent, totalReceived, deficit: Math.max(0, totalSent - totalReceived), pendingCount }
       })
