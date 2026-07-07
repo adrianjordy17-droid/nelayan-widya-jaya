@@ -433,6 +433,7 @@ export default function Documents() {
   const [saved, setSaved]   = useState(false)
   const [detail, setDetail] = useState(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(currentYM)
   const [liveMonth, setLiveMonth]         = useState(currentYM)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
@@ -562,6 +563,13 @@ export default function Documents() {
     setDocs(prev => prev.map(d => d.id === doc.id ? updated : d))
     setDetail(updated)
     await supabase.from('documents').update({ status: 'cancelled' }).eq('id', doc.id)
+  }
+
+  async function deleteDoc(doc) {
+    await supabase.from('documents').delete().eq('id', doc.id)
+    setDocs(prev => prev.filter(d => d.id !== doc.id))
+    setDetail(null)
+    setConfirmDelete(false)
   }
 
   async function setDocStatus(doc, status) {
@@ -914,7 +922,7 @@ export default function Documents() {
             const cfg = DOC_CFG[doc.type]
             const st  = STATUS_CFG[doc.status] || STATUS_CFG.draft
             return (
-              <div key={doc.id} onClick={() => { setDetail(doc); setConfirmCancel(false) }} style={{
+              <div key={doc.id} onClick={() => { setDetail(doc); setConfirmCancel(false); setConfirmDelete(false) }} style={{
                 display: 'flex', alignItems: 'center', gap: 13, padding: '13px 16px', cursor: 'pointer',
                 borderBottom: idx === filtered.length - 1 ? 'none' : '0.5px solid #f0f0f0',
               }}>
@@ -1401,6 +1409,36 @@ export default function Documents() {
                   </div>
                 </div>
               )}
+              {/* Hapus dokumen — SO/DO/GR, admin/owner only */}
+              {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && !confirmCancel && !confirmDelete && (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  style={{ width: '100%', padding: '13px', background: 'transparent', border: '0.5px solid rgba(255,59,48,0.25)', borderRadius: 13, color: '#ff3b30', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF }}
+                >
+                  Hapus {detail.type}
+                </button>
+              )}
+              {canEdit && ['SO', 'DO', 'GR'].includes(detail.type) && confirmDelete && (
+                <div style={{ background: '#fff0f0', borderRadius: 13, padding: '16px', border: '0.5px solid rgba(255,59,48,0.2)' }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#ff3b30', margin: '0 0 4px' }}>Hapus {detail.number}?</p>
+                  <p style={{ fontSize: 12.5, color: '#8e8e93', margin: '0 0 14px', lineHeight: 1.5 }}>Data ini akan dihapus permanen dan tidak bisa dikembalikan.</p>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={() => deleteDoc(detail)}
+                      style={{ flex: 1, padding: '12px', background: '#ff3b30', border: 'none', borderRadius: 10, color: 'white', fontSize: 14, fontWeight: 700, cursor: 'pointer', ...FF }}
+                    >
+                      Ya, Hapus
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      style={{ flex: 1, padding: '12px', background: '#e5e5ea', border: 'none', borderRadius: 10, color: '#3c3c43', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF }}
+                    >
+                      Batal
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {canEdit && detail.type === 'DO' && detail.status === 'dispatched' && (
                 <button
                   onClick={() => setDocStatus(detail, 'delayed')}
