@@ -387,13 +387,8 @@ export default function Deliveries() {
     navigate('/dashboard/documents', { state: { createType: 'GR', refNumber: report.doRef, prefillDoc } })
   }
 
-  async function handleSusulan(report) {
-    let doItems = []
-    if (report.doId) {
-      const { data } = await supabase.from('documents').select('items').eq('id', report.doId).single()
-      doItems = data?.items || []
-    }
-
+  function handleSusulan(report) {
+    // Compute rekap synchronously from in-memory reports — no network wait
     const doReports = reports.filter(r =>
       (r.doId && r.doId === report.doId) ||
       (!r.doId && r.doRef && r.doRef === report.doRef)
@@ -401,28 +396,37 @@ export default function Deliveries() {
     const totalSent     = doReports.reduce((s, r) => s + (r.weightSent || 0), 0)
     const totalReceived = doReports.filter(r => r.weightReceived != null).reduce((s, r) => s + (r.weightReceived || 0), 0)
 
-    // Sisa dihitung dari target DO (qty dalam kg), bukan dari selisih sent-received
-    // supaya tidak terpengaruh kesalahan edit weight_sent
-    const allKg = doItems.length > 0 && doItems.every(it => (it.unit || '').toLowerCase() === 'kg')
-    const doOrderedKg = allKg ? doItems.reduce((s, it) => s + (it.qty || 0), 0) : null
-    const deficit = doOrderedKg != null
-      ? Math.max(0, doOrderedKg - totalReceived)
-      : Math.max(0, totalSent - totalReceived)
-
     setSusulanInfo({
       doRef: report.doRef,
       deliveryCount: doReports.length,
-      doOrderedKg,
+      doOrderedKg: null,   // loaded in background below
       totalSent,
       totalReceived,
-      deficit,
+      deficit: Math.max(0, totalSent - totalReceived),
     })
-
-    setModal(null)
     setConfirmDelete(false)
-    setForm({ ...emptyForm(), doRef: report.doRef || '', doId: report.doId || null, doItems, clientName: report.clientName || '' })
+    setForm({ ...emptyForm(), doRef: report.doRef || '', doId: report.doId || null, doItems: [], clientName: report.clientName || '' })
     setSaved(false)
     setModal('new')
+
+    // Load DO items + compute doOrderedKg after form is already open
+    if (report.doId) {
+      supabase.from('documents').select('items').eq('id', report.doId).single()
+        .then(({ data }) => {
+          const doItems = data?.items || []
+          const allKg = doItems.length > 0 && doItems.every(it => (it.unit || '').toLowerCase() === 'kg')
+          const doOrderedKg = allKg ? doItems.reduce((s, it) => s + (it.qty || 0), 0) : null
+          setForm(f => ({ ...f, doItems }))
+          setSusulanInfo(prev => {
+            if (!prev) return prev
+            const deficit = doOrderedKg != null
+              ? Math.max(0, doOrderedKg - prev.totalReceived)
+              : Math.max(0, prev.totalSent - prev.totalReceived)
+            return { ...prev, doOrderedKg, deficit }
+          })
+        })
+        .catch(() => {})
+    }
   }
 
   const isDetail = modal && modal !== 'new'
