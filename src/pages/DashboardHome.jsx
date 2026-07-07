@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import {
   TrendingUp, ShoppingCart, UserCheck, AlertTriangle, ArrowRight,
-  Truck, CheckCircle2, ClipboardList, Package, Check,
+  Truck, CheckCircle2, ClipboardList, Package, Check, PackageCheck,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -247,8 +247,11 @@ function OwnerAdminDashboard() {
   const [recentDocs, setRecentDocs]     = useState([])
   const [penjualanBulanIni, setPenjualan] = useState(0)
   const [orderPending, setOrderPending] = useState(0)
+  const [dispatchedCount, setDispatched]= useState(0)
   const [delayedCount, setDelayedCount] = useState(0)
   const [partialCount, setPartialCount] = useState(0)
+  const [noGrCount, setNoGrCount]       = useState(0)
+  const [invoiceUnpaid, setInvoiceUnpaid] = useState(0)
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -289,34 +292,49 @@ function OwnerAdminDashboard() {
     supabase.from('employees').select('id', { count: 'exact' }).eq('active', true)
       .then(({ count }) => setExpected(count || 0))
 
-    supabase.from('documents')
-      .select('id, number, type, status, client_name, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5)
-      .then(({ data }) => { if (data) setRecentDocs(data) })
+    // Load all docs + partial delivery reports in parallel
+    Promise.all([
+      supabase.from('documents')
+        .select('id,number,type,status,total,date,ref_number,client_name,created_at')
+        .order('created_at', { ascending: false }),
+      supabase.from('delivery_reports')
+        .select('do_id')
+        .eq('is_partial', true)
+        .not('do_id', 'is', null),
+    ]).then(([{ data: docs }, { data: partialReports }]) => {
+      if (!docs) return
 
-    supabase.from('documents')
-      .select('id, type, status, total, date')
-      .eq('type', 'SO')
-      .then(({ data }) => {
-        if (!data) return
-        setOrderPending(data.filter(d => d.status === 'draft').length)
-        const soTotal = data
-          .filter(d => (d.status === 'confirmed' || d.status === 'delivered') && (d.date || '').startsWith(thisMonth))
-          .reduce((sum, d) => sum + (d.total || 0), 0)
-        setPenjualan(soTotal)
-      })
+      // Recent docs (last 5)
+      setRecentDocs(docs.slice(0, 5))
 
-    supabase.from('documents').select('id').eq('type', 'DO').eq('status', 'delayed')
-      .then(({ data }) => setDelayedCount(data?.length || 0))
+      // SO metrics
+      const soDocs = docs.filter(d => d.type === 'SO')
+      setOrderPending(soDocs.filter(d => d.status === 'draft').length)
+      setPenjualan(
+        soDocs
+          .filter(d => ['confirmed','delivered'].includes(d.status) && (d.date||'').startsWith(thisMonth))
+          .reduce((s, d) => s + (d.total || 0), 0)
+      )
 
-    supabase.from('delivery_reports').select('do_id')
-      .eq('is_partial', true)
-      .not('do_id', 'is', null)
-      .then(({ data }) => {
-        if (!data) return
-        setPartialCount(new Set(data.map(r => r.do_id)).size)
-      })
+      // DO metrics
+      const doDocs = docs.filter(d => d.type === 'DO')
+      setDispatched(doDocs.filter(d => d.status === 'dispatched').length)
+      setDelayedCount(doDocs.filter(d => d.status === 'delayed').length)
+
+      // GR set (ref_number = DO number it covers)
+      const grRefs = new Set(docs.filter(d => d.type === 'GR').map(d => d.ref_number).filter(Boolean))
+
+      // DO delivered but no GR yet
+      setNoGrCount(doDocs.filter(d => d.status === 'delivered' && !grRefs.has(d.number)).length)
+
+      // Partial count: partial DOs that have no GR yet
+      const partialDoIds = new Set((partialReports || []).map(r => r.do_id).filter(Boolean))
+      const partialDONumbers = new Set(doDocs.filter(d => partialDoIds.has(d.id)).map(d => d.number))
+      setPartialCount([...partialDONumbers].filter(n => !grRefs.has(n)).length)
+
+      // Invoice unpaid
+      setInvoiceUnpaid(docs.filter(d => d.type === 'Invoice' && d.status === 'sent').length)
+    })
   }, [todayKey, thisMonth])
 
   const stokTipis = products.filter(p => (p.qty || 0) <= (p.min_qty > 0 ? p.min_qty : 10)).length
@@ -411,23 +429,39 @@ function OwnerAdminDashboard() {
               count: orderPending,
               Icon: ClipboardList,
               color: '#5856d6', bg: 'rgba(88,86,214,0.10)',
-              tab: 'so-draft',
+              to: '/dashboard/documents', tab: 'so-draft',
+            },
+            {
+              label: 'DO Dalam Pengiriman',
+              desc: 'Sedang dalam perjalanan ke klien',
+              count: dispatchedCount,
+              Icon: Truck,
+              color: '#0891b2', bg: 'rgba(8,145,178,0.10)',
+              to: '/dashboard/deliveries', tab: null,
             },
             {
               label: 'Pengiriman Partial',
-              desc: 'DO belum selesai diterima',
+              desc: 'DO belum selesai diterima, belum di-GR',
               count: partialCount,
               Icon: Package,
               color: '#d97706', bg: 'rgba(217,119,6,0.10)',
-              tab: 'partial',
+              to: '/dashboard/documents', tab: 'partial',
             },
             {
-              label: 'Pengiriman Terlambat',
-              desc: 'DO menunggu konfirmasi tiba',
-              count: delayedCount,
-              Icon: AlertTriangle,
-              color: '#dc2626', bg: 'rgba(220,38,38,0.10)',
-              tab: 'delayed',
+              label: 'DO Belum Di-GR',
+              desc: 'Terkirim tapi belum ada Goods Receipt',
+              count: noGrCount,
+              Icon: PackageCheck,
+              color: '#16a34a', bg: 'rgba(22,163,74,0.10)',
+              to: '/dashboard/documents', tab: null,
+            },
+            {
+              label: 'Invoice Belum Dibayar',
+              desc: 'Invoice terkirim, menunggu pembayaran',
+              count: invoiceUnpaid,
+              Icon: ArrowRight,
+              color: '#7c3aed', bg: 'rgba(124,58,237,0.10)',
+              to: '/dashboard/invoices', tab: null,
             },
           ]
           return (
@@ -439,8 +473,8 @@ function OwnerAdminDashboard() {
                 </Link>
               </div>
               <div>
-                {items.map(({ label, desc, count, Icon, color, bg, tab }, idx) => (
-                  <Link key={tab} to="/dashboard/documents" state={{ tab }}
+                {items.map(({ label, desc, count, Icon, color, bg, to, tab }, idx) => (
+                  <Link key={label} to={to} state={tab ? { tab } : undefined}
                     style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: idx < items.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', textDecoration: 'none', cursor: 'pointer' }}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Icon size={16} color={color} />
