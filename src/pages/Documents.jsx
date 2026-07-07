@@ -933,7 +933,7 @@ export default function Documents() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#1c1c1e' }}>{doc.number}</span>
                     <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 99, background: st.bg, color: st.color }}>{st.label}</span>
-                    {doc.type === 'DO' && (deliveryMap[doc.id] || []).some(r => r.is_partial) && (
+                    {doc.type === 'DO' && !grByDoRef.has(doc.number) && (deliveryMap[doc.id] || []).some(r => r.is_partial) && (
                       <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#fff0f0', color: '#ff3b30' }}>⚠ Partial</span>
                     )}
                     {doc.type === 'DO' && (deliveryMap[doc.id] || []).length > 0 && !(deliveryMap[doc.id] || []).some(r => r.weight_received == null || r.photo_received_url == null) && (
@@ -1307,11 +1307,12 @@ export default function Documents() {
                 if (deliveries.length === 0) return null
                 const allComplete = deliveries.every(r => r.weight_received != null && r.photo_received_url != null)
                 const hasPartial  = deliveries.some(r => r.is_partial)
+                const grExists    = grByDoRef.has(detail.number)
                 return (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
                       <SLabel text={`Pengiriman Terkait (${deliveries.length})`} />
-                      {allComplete
+                      {(allComplete || grExists)
                         ? <span style={{ fontSize: 11, fontWeight: 700, color: '#34c759', background: '#f0fdf4', padding: '2px 8px', borderRadius: 99 }}>✓ Semua Selesai</span>
                         : hasPartial
                           ? <span style={{ fontSize: 11, fontWeight: 700, color: '#ff3b30', background: '#fff0f0', padding: '2px 8px', borderRadius: 99 }}>⚠ Ada Partial</span>
@@ -1333,7 +1334,7 @@ export default function Documents() {
                                 }}>
                                   {inTransit ? 'Dalam Perjalanan' : 'Selesai'}
                                 </span>
-                                {r.is_partial && (
+                                {r.is_partial && !grExists && (
                                   <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, background: '#fff0f0', color: '#ff3b30' }}>⚠ Partial</span>
                                 )}
                               </div>
@@ -1354,7 +1355,7 @@ export default function Documents() {
                                 </span>
                               )}
                             </div>
-                            {r.is_partial && r.partial_notes && (
+                            {r.is_partial && !grExists && r.partial_notes && (
                               <p style={{ fontSize: 12, color: '#ff3b30', margin: '4px 0 0', lineHeight: 1.4 }}>Sisa: {r.partial_notes}</p>
                             )}
                             <p style={{ fontSize: 12, color: '#8e8e93', margin: '4px 0 0' }}>oleh {r.created_by_name}</p>
