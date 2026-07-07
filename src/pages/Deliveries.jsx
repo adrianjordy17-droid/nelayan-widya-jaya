@@ -415,7 +415,7 @@ export default function Deliveries() {
         .then(({ data }) => {
           const doItems = data?.items || []
           const allKg = doItems.length > 0 && doItems.every(it => (it.unit || '').toLowerCase() === 'kg')
-          const doOrderedKg = allKg ? doItems.reduce((s, it) => s + (it.qty || 0), 0) : null
+          const doOrderedKg = allKg ? doItems.reduce((s, it) => s + number (it.qty || 0), 0) : null
           setForm(f => ({ ...f, doItems }))
           setSusulanInfo(prev => {
             if (!prev) return prev
