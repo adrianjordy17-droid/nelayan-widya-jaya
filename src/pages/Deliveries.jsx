@@ -123,6 +123,7 @@ export default function Deliveries() {
   const [editForm, setEditForm] = useState({ weightSent: '', weightReceived: '' })
   const [editSaving, setEditSaving] = useState(false)
   const [grDoRefs, setGrDoRefs] = useState(new Set())
+  const [susulanInfo, setSusulanInfo] = useState(null)
   const sentRef = useRef(null)
   const recvRef = useRef(null)
   const recvRef2 = useRef(null)
@@ -392,6 +393,21 @@ export default function Deliveries() {
       const { data } = await supabase.from('documents').select('items').eq('id', report.doId).single()
       doItems = data?.items || []
     }
+
+    const doReports = reports.filter(r =>
+      (r.doId && r.doId === report.doId) ||
+      (!r.doId && r.doRef && r.doRef === report.doRef)
+    )
+    const totalSent     = doReports.reduce((s, r) => s + (r.weightSent || 0), 0)
+    const totalReceived = doReports.filter(r => r.weightReceived != null).reduce((s, r) => s + (r.weightReceived || 0), 0)
+    setSusulanInfo({
+      doRef: report.doRef,
+      deliveryCount: doReports.length,
+      totalSent,
+      totalReceived,
+      deficit: Math.max(0, totalSent - totalReceived),
+    })
+
     setModal(null)
     setConfirmDelete(false)
     setForm({ ...emptyForm(), doRef: report.doRef || '', doId: report.doId || null, doItems, clientName: report.clientName })
@@ -439,7 +455,7 @@ export default function Deliveries() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>Laporan Kirim</h2>
         <button
-          onClick={() => { setForm(emptyForm()); setSaved(false); setModal('new') }}
+          onClick={() => { setForm(emptyForm()); setSaved(false); setSusulanInfo(null); setModal('new') }}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             background: '#007aff', color: 'white', border: 'none',
@@ -675,7 +691,7 @@ export default function Deliveries() {
               padding: '16px 20px', borderBottom: '0.5px solid #d1d1d6',
               position: 'sticky', top: 0, background: '#f2f2f7', zIndex: 1,
             }}>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
+              <button onClick={() => { setModal(null); setSusulanInfo(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8e8e93', padding: 0 }}>
                 <X size={22} />
               </button>
               <p style={{ fontSize: 16, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>Laporan Pengiriman</p>
@@ -722,6 +738,30 @@ export default function Deliveries() {
                         ))}
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Susulan Rekap */}
+              {susulanInfo && form.doRef === susulanInfo.doRef && (
+                <div style={{ background: 'rgba(255,59,48,0.06)', border: '1px solid rgba(255,59,48,0.18)', borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 11.5, fontWeight: 700, color: '#ff3b30', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                    Rekap Pengiriman Sebelumnya ({susulanInfo.deliveryCount}x)
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13.5, color: '#3c3c43' }}>Total sudah dikirim</span>
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e' }}>{susulanInfo.totalSent.toFixed(1)} kg</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13.5, color: '#3c3c43' }}>Total sudah diterima</span>
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e' }}>{susulanInfo.totalReceived.toFixed(1)} kg</span>
+                    </div>
+                    <div style={{ height: '0.5px', background: 'rgba(255,59,48,0.2)', margin: '2px 0' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#ff3b30' }}>Sisa perlu dikirim</span>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: '#ff3b30', letterSpacing: '-0.02em' }}>{susulanInfo.deficit.toFixed(1)} kg</span>
+                    </div>
                   </div>
                 </div>
               )}
