@@ -400,12 +400,22 @@ export default function Deliveries() {
     )
     const totalSent     = doReports.reduce((s, r) => s + (r.weightSent || 0), 0)
     const totalReceived = doReports.filter(r => r.weightReceived != null).reduce((s, r) => s + (r.weightReceived || 0), 0)
+
+    // Sisa dihitung dari target DO (qty dalam kg), bukan dari selisih sent-received
+    // supaya tidak terpengaruh kesalahan edit weight_sent
+    const allKg = doItems.length > 0 && doItems.every(it => (it.unit || '').toLowerCase() === 'kg')
+    const doOrderedKg = allKg ? doItems.reduce((s, it) => s + (it.qty || 0), 0) : null
+    const deficit = doOrderedKg != null
+      ? Math.max(0, doOrderedKg - totalReceived)
+      : Math.max(0, totalSent - totalReceived)
+
     setSusulanInfo({
       doRef: report.doRef,
       deliveryCount: doReports.length,
+      doOrderedKg,
       totalSent,
       totalReceived,
-      deficit: Math.max(0, totalSent - totalReceived),
+      deficit,
     })
 
     setModal(null)
@@ -749,6 +759,12 @@ export default function Deliveries() {
                     Rekap Pengiriman Sebelumnya ({susulanInfo.deliveryCount}x)
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                    {susulanInfo.doOrderedKg != null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 13.5, color: '#3c3c43' }}>Target DO</span>
+                        <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e' }}>{susulanInfo.doOrderedKg.toFixed(1)} kg</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 13.5, color: '#3c3c43' }}>Total sudah dikirim</span>
                       <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e' }}>{susulanInfo.totalSent.toFixed(1)} kg</span>
