@@ -59,6 +59,7 @@ function StaffDashboard() {
   const [pendingDOs, setPendingDOs]    = useState([])
   const [deliveredCount, setDelivered] = useState(0)
   const [partialDOs, setPartialDOs]    = useState([])
+  const [doKgMap, setDoKgMap]          = useState({})
   const [tasks, setTasks]              = useState([])
 
   useEffect(() => {
@@ -79,9 +80,10 @@ function StaffDashboard() {
 
       const doIds = doData.map(d => d.id).filter(Boolean)
       if (doIds.length > 0) {
-        const [{ data: partialReports }, { data: grDocs }] = await Promise.all([
+        const [{ data: partialReports }, { data: grDocs }, { data: allReports }] = await Promise.all([
           supabase.from('delivery_reports').select('do_id').eq('is_partial', true).in('do_id', doIds),
           supabase.from('documents').select('ref_number').eq('type', 'GR'),
+          supabase.from('delivery_reports').select('do_id,weight_sent,weight_received').in('do_id', doIds),
         ])
         const partialDoIds = new Set((partialReports || []).map(r => r.do_id).filter(Boolean))
         const grRefs       = new Set((grDocs || []).map(d => d.ref_number).filter(Boolean))
@@ -90,6 +92,14 @@ function StaffDashboard() {
             .filter(d => partialDoIds.has(d.id) && !grRefs.has(d.number))
             .map(d => ({ id: d.id, number: d.number, clientName: d.client_name, items: d.items || [] }))
         )
+        const kgMap = {}
+        ;(allReports || []).forEach(r => {
+          if (!r.do_id) return
+          if (!kgMap[r.do_id]) kgMap[r.do_id] = { totalSent: 0, totalReceived: 0 }
+          kgMap[r.do_id].totalSent += r.weight_sent || 0
+          if (r.weight_received != null) kgMap[r.do_id].totalReceived += r.weight_received
+        })
+        setDoKgMap(kgMap)
       }
     })()
 
@@ -158,20 +168,28 @@ function StaffDashboard() {
           <SectionHeader title={`Order Dikirim (${pendingDOs.length})`} icon={<Truck size={15} color="#d97706" />} iconBg="rgba(217,119,6,0.12)" />
           {pendingDOs.length === 0 ? (
             <p style={{ padding: '28px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Tidak ada order yang harus dikirim.</p>
-          ) : pendingDOs.map((d, idx) => (
-            <div key={d.id} onClick={() => navigate('/dashboard/documents')} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 18px', borderBottom: idx < pendingDOs.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: 'rgba(217,119,6,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Package size={15} color="#d97706" />
+          ) : pendingDOs.map((d, idx) => {
+            const kg = doKgMap[d.id]
+            return (
+              <div key={d.id} onClick={() => navigate('/dashboard/documents')} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 18px', borderBottom: idx < pendingDOs.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: 'rgba(217,119,6,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Package size={15} color="#d97706" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>{d.clientName}</p>
+                  <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {d.number} · {d.items.map(i => `${i.qty} ${i.unit} ${i.name}`).join(', ')}
+                  </p>
+                  {kg && kg.totalSent > 0 && (
+                    <p style={{ fontSize: 11, color: '#d97706', fontWeight: 600, marginTop: 3 }}>
+                      Terkirim {kg.totalSent.toFixed(1)} kg{kg.totalReceived > 0 ? ` · Diterima ${kg.totalReceived.toFixed(1)} kg` : ''}
+                    </p>
+                  )}
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 600, padding: '3px 10px', borderRadius: 99, color: '#d97706', background: 'rgba(217,119,6,0.10)', border: '1px solid rgba(217,119,6,0.22)', whiteSpace: 'nowrap', flexShrink: 0 }}>Dikirim</span>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>{d.clientName}</p>
-                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {d.number} · {d.items.map(i => `${i.qty} ${i.unit} ${i.name}`).join(', ')}
-                </p>
-              </div>
-              <span style={{ fontSize: 10.5, fontWeight: 600, padding: '3px 10px', borderRadius: 99, color: '#d97706', background: 'rgba(217,119,6,0.10)', border: '1px solid rgba(217,119,6,0.22)', whiteSpace: 'nowrap', flexShrink: 0 }}>Dikirim</span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -179,20 +197,29 @@ function StaffDashboard() {
       {partialDOs.length > 0 && (
         <div style={{ ...GLASS, borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,59,48,0.18)' }}>
           <SectionHeader title={`Order Partial (${partialDOs.length})`} icon={<AlertTriangle size={15} color="#ff3b30" />} iconBg="rgba(255,59,48,0.12)" />
-          {partialDOs.map((d, idx) => (
-            <div key={d.id} onClick={() => navigate('/dashboard/deliveries')} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 18px', borderBottom: idx < partialDOs.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: 'rgba(255,59,48,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Truck size={15} color="#ff3b30" />
+          {partialDOs.map((d, idx) => {
+            const kg = doKgMap[d.id]
+            const deficit = kg ? Math.max(0, kg.totalSent - kg.totalReceived) : null
+            return (
+              <div key={d.id} onClick={() => navigate('/dashboard/deliveries')} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 18px', borderBottom: idx < partialDOs.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: 'rgba(255,59,48,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Truck size={15} color="#ff3b30" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>{d.clientName}</p>
+                  <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {d.number} · {d.items.map(i => `${i.qty} ${i.unit} ${i.name}`).join(', ')}
+                  </p>
+                  {kg && kg.totalSent > 0 && (
+                    <p style={{ fontSize: 11, fontWeight: 600, marginTop: 3, color: deficit > 0 ? '#ff3b30' : '#34c759' }}>
+                      Kirim {kg.totalSent.toFixed(1)} kg · Terima {kg.totalReceived.toFixed(1)} kg{deficit > 0 ? ` · Sisa ${deficit.toFixed(1)} kg` : ''}
+                    </p>
+                  )}
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 600, padding: '3px 10px', borderRadius: 99, color: '#ff3b30', background: 'rgba(255,59,48,0.10)', border: '1px solid rgba(255,59,48,0.22)', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠ Partial</span>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>{d.clientName}</p>
-                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {d.number} · {d.items.map(i => `${i.qty} ${i.unit} ${i.name}`).join(', ')}
-                </p>
-              </div>
-              <span style={{ fontSize: 10.5, fontWeight: 600, padding: '3px 10px', borderRadius: 99, color: '#ff3b30', background: 'rgba(255,59,48,0.10)', border: '1px solid rgba(255,59,48,0.22)', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠ Partial</span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
