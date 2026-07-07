@@ -420,7 +420,7 @@ export default function Deliveries() {
 
     setModal(null)
     setConfirmDelete(false)
-    setForm({ ...emptyForm(), doRef: report.doRef || '', doId: report.doId || null, doItems, clientName: report.clientName })
+    setForm({ ...emptyForm(), doRef: report.doRef || '', doId: report.doId || null, doItems, clientName: report.clientName || '' })
     setSaved(false)
     setModal('new')
   }
