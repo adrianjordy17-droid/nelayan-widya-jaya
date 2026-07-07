@@ -122,6 +122,7 @@ export default function Deliveries() {
   const [editing, setEditing] = useState(null)
   const [editForm, setEditForm] = useState({ weightSent: '', weightReceived: '' })
   const [editSaving, setEditSaving] = useState(false)
+  const [grDoRefs, setGrDoRefs] = useState(new Set())
   const sentRef = useRef(null)
   const recvRef = useRef(null)
   const recvRef2 = useRef(null)
@@ -139,6 +140,14 @@ export default function Deliveries() {
       .then(({ data }) => {
         if (!data) return
         setReports(data.map(mapReport))
+      })
+  }, [])
+
+  useEffect(() => {
+    supabase.from('documents').select('ref_number').eq('type', 'GR')
+      .then(({ data }) => {
+        if (!data) return
+        setGrDoRefs(new Set(data.map(d => d.ref_number).filter(Boolean)))
       })
   }, [])
 
@@ -400,6 +409,29 @@ export default function Deliveries() {
     return inTransit || r.deliveryDate === selectedDate
   })
 
+  // Partial DO groups: DOs with at least one partial delivery and no GR yet
+  const partialDoGroups = (() => {
+    const partialKeys = new Set(
+      reports.filter(r => r.isPartial).map(r => r.doId || r.doRef).filter(Boolean)
+    )
+    const grouped = {}
+    reports.forEach(r => {
+      const key = r.doId || r.doRef
+      if (!key || !partialKeys.has(key)) return
+      if (!grouped[key]) grouped[key] = { doRef: r.doRef, doId: r.doId, clientName: r.clientName, reports: [] }
+      grouped[key].reports.push(r)
+    })
+    return Object.values(grouped)
+      .filter(g => !grDoRefs.has(g.doRef))
+      .map(g => {
+        const totalSent = g.reports.reduce((s, r) => s + (r.weightSent || 0), 0)
+        const totalReceived = g.reports.filter(r => r.weightReceived != null).reduce((s, r) => s + (r.weightReceived || 0), 0)
+        const pendingCount = g.reports.filter(r => r.weightReceived == null && r.photoReceivedUrl == null).length
+        return { ...g, totalSent, totalReceived, deficit: Math.max(0, totalSent - totalReceived), pendingCount }
+      })
+      .filter(g => g.deficit > 0 || g.pendingCount > 0)
+  })()
+
   return (
     <div style={{ maxWidth: 600, ...FF, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -418,6 +450,56 @@ export default function Deliveries() {
           <Plus size={15} /> Tambah
         </button>
       </div>
+
+      {/* Partial DO Summary */}
+      {partialDoGroups.length > 0 && (
+        <div style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,140,0,0.2)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
+          <div style={{ padding: '11px 16px', borderBottom: '0.5px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, background: '#fff0f0', color: '#ff3b30', borderRadius: 99, padding: '2px 9px' }}>⚠ Partial Belum Selesai</span>
+            <span style={{ fontSize: 12, color: '#8e8e93' }}>{partialDoGroups.length} DO</span>
+          </div>
+          {partialDoGroups.map((g, idx) => {
+            const latestPartial = g.reports.filter(r => r.isPartial).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+            const canSusulan = g.pendingCount === 0 && latestPartial
+            return (
+              <div key={g.doRef || idx} style={{ padding: '12px 16px', borderBottom: idx < partialDoGroups.length - 1 ? '0.5px solid #f0f0f0' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>{g.clientName}</p>
+                    {g.doRef && <span style={{ fontSize: 11.5, color: '#007aff', fontWeight: 500, background: '#e8f4ff', padding: '1px 7px', borderRadius: 5 }}>{g.doRef}</span>}
+                  </div>
+                  <span style={{ fontSize: 12, color: '#8e8e93' }}>{g.reports.length} kiriman</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: canSusulan ? 10 : 0 }}>
+                  <p style={{ fontSize: 13, color: '#3c3c43', margin: 0 }}>
+                    Total kirim <strong>{g.totalSent.toFixed(1)} kg</strong>
+                    {' · '}
+                    Diterima <strong>{g.totalReceived.toFixed(1)} kg</strong>
+                  </p>
+                  {g.deficit > 0 && (
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: '#fff0f0', color: '#ff3b30' }}>
+                      Kurang {g.deficit.toFixed(1)} kg
+                    </span>
+                  )}
+                  {g.pendingCount > 0 && (
+                    <span style={{ fontSize: 11.5, fontWeight: 600, padding: '2px 8px', borderRadius: 8, background: '#fff3e0', color: '#e65100' }}>
+                      {g.pendingCount} dalam perjalanan
+                    </span>
+                  )}
+                </div>
+                {canSusulan && (
+                  <button
+                    onClick={() => handleSusulan(latestPartial)}
+                    style={{ padding: '8px 16px', background: '#ff9500', border: 'none', borderRadius: 10, color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Truck size={13} /> Kirim Susulan
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Day Navigator */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 14, padding: '11px 16px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
