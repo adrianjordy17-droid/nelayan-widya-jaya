@@ -169,6 +169,7 @@ export default function Reports() {
   const [docs, setDocs]         = useState([])
   const [products, setProducts] = useState([])
   const [clients, setClients]   = useState([])
+  const [deliveryReports, setDeliveryReports] = useState([])
   const [loading, setLoading]   = useState(true)
   const [period, setPeriod]     = useState('1bulan')
   const [searchMonth, setSearchMonth] = useState(null)
@@ -179,10 +180,12 @@ export default function Reports() {
       supabase.from('documents').select('*').in('type', ['SO', 'DO', 'GR']).order('date', { ascending: false }),
       supabase.from('products').select('*').order('kategori'),
       supabase.from('clients').select('*').order('name'),
-    ]).then(([{ data: d }, { data: p }, { data: c }]) => {
+      supabase.from('delivery_reports').select('*'),
+    ]).then(([{ data: d }, { data: p }, { data: c }, { data: dr }]) => {
       setDocs(d || [])
       setProducts(p || [])
       setClients(c || [])
+      setDeliveryReports(dr || [])
       setLoading(false)
     })
   }, [])
@@ -206,22 +209,65 @@ export default function Reports() {
     ? docs.filter(d => d.date && d.date.startsWith(searchMonth) && d.status !== 'cancelled')
     : periodDocs.filter(d => d.status !== 'cancelled')
 
-  // Omzet = confirmed + delivered saja (sinkron dengan dashboard)
+  // ---- Omset akumulasi sesuai DO: berat TERIMA × harga per kg per DO ----
+  // Harga per kg tiap DO diambil dari nilai SO sumbernya (DO.ref_number =
+  // nomor SO), fallback ke harga_jual produk kalau SO tak punya nilai.
+  const productPrice = {}
+  products.forEach(p => { productPrice[(p.nama || '').toLowerCase()] = p.harga_jual || 0 })
+  const soByNumber = {}
+  docs.forEach(d => { if (d.type === 'SO') soByNumber[d.number] = d })
+
+  const pricePerKgByDoId = {}
+  docs.forEach(d => {
+    if (d.type !== 'DO') return
+    const orderedKg = (d.items || []).reduce((s, it) => s + (parseFloat(it.qty) || 0), 0)
+    if (orderedKg <= 0) { pricePerKgByDoId[d.id] = 0; return }
+    const so = soByNumber[d.ref_number]
+    let orderedValue = so ? (so.total || itemsTotal(so.items)) : 0
+    if (!orderedValue) {
+      orderedValue = (d.items || []).reduce((s, it) =>
+        s + (parseFloat(it.qty) || 0) * (productPrice[(it.name || '').toLowerCase()] || 0), 0)
+    }
+    pricePerKgByDoId[d.id] = orderedValue / orderedKg
+  })
+
+  const inPeriod = (ds) => {
+    if (!ds) return false
+    if (searchMonth) return ds.startsWith(searchMonth)
+    if (period === 'hari-ini') return ds === localDate(now)
+    if (period === '1bulan')   return ds.startsWith(thisYM)
+    if (period === '3bulan')   return ds >= calMonthStart(now, 2)
+    if (period === '6bulan')   return ds >= calMonthStart(now, 5)
+    if (period === '1tahun')   return ds.startsWith(thisYr)
+    return true
+  }
+
+  // Tiap laporan pengiriman yang sudah punya berat terima = omset terealisasi
+  const omsetOf = (r) => (parseFloat(r.weight_received) || 0) * (pricePerKgByDoId[r.do_id] || 0)
+  const receivedReports = deliveryReports.filter(r => r.weight_received != null && r.do_id)
+  const periodReceived  = receivedReports.filter(r => inPeriod(r.delivery_date))
+
   const revDocs        = filteredDocs.filter(d => d.status === 'confirmed' || d.status === 'delivered')
-  const totalRevenue   = revDocs.reduce((a, d) => a + docTotal(d), 0)
+  const totalRevenue   = periodReceived.reduce((a, r) => a + omsetOf(r), 0)
   const totalOrders    = filteredDocs.length
   const deliveredCount = filteredDocs.filter(d => d.status === 'delivered').length
-  const avgOrder       = revDocs.length > 0 ? Math.round(totalRevenue / revDocs.length) : 0
+  const deliveredDoIds = new Set(periodReceived.map(r => r.do_id))
+  const avgOrder       = deliveredDoIds.size > 0 ? Math.round(totalRevenue / deliveredDoIds.size) : 0
 
-  // Chart: semua bulan, revenue dari confirmed+delivered
+  // Chart: omzet per bulan dari berat terima (tanggal kirim); jumlah dok dari documents
   const monthlyMap = {}
   docs.forEach(d => {
     if (d.status === 'cancelled') return
     const m = (d.date || '').slice(0, 7)
     if (!m || m.length < 7) return
     if (!monthlyMap[m]) monthlyMap[m] = { revenue: 0, orders: 0 }
-    if (d.status === 'confirmed' || d.status === 'delivered') monthlyMap[m].revenue += docTotal(d)
     monthlyMap[m].orders += 1
+  })
+  receivedReports.forEach(r => {
+    const m = (r.delivery_date || '').slice(0, 7)
+    if (!m || m.length < 7) return
+    if (!monthlyMap[m]) monthlyMap[m] = { revenue: 0, orders: 0 }
+    monthlyMap[m].revenue += omsetOf(r)
   })
   const chartData = Object.keys(monthlyMap).sort().map(m => ({
     month: MO[parseInt(m.slice(5),10)-1] || m.slice(5),
@@ -378,7 +424,7 @@ export default function Reports() {
               { label: 'Total Penjualan', value: fmtShort(totalRevenue), sub: `omzet ${activeLabel}`, Icon: DollarSign,   ic: '#1a7a2e', ib: 'rgba(52,199,89,0.1)'  },
               { label: 'Total Dokumen',    value: totalOrders,            sub: 'SO + DO + GR',          Icon: ShoppingCart, ic: '#0055d4', ib: 'rgba(0,113,227,0.08)' },
               { label: 'Terkirim',         value: deliveredCount,         sub: 'berhasil dikirim',      Icon: CheckCircle,  ic: '#7635c4', ib: 'rgba(175,82,222,0.1)' },
-              { label: 'Rata-rata SO',    value: fmtShort(avgOrder),     sub: 'per transaksi',         Icon: TrendingUp,   ic: '#975400', ib: 'rgba(255,159,10,0.1)' },
+              { label: 'Rata-rata DO',    value: fmtShort(avgOrder),     sub: 'per DO terkirim',       Icon: TrendingUp,   ic: '#975400', ib: 'rgba(255,159,10,0.1)' },
             ].map(({ label, value, sub, Icon, ic, ib }) => (
               <div key={label} style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(24px) saturate(1.8)', WebkitBackdropFilter: 'blur(24px) saturate(1.8)', borderRadius: 18, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.88)', boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
