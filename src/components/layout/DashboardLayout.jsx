@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -8,6 +8,14 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
+
+function PageLoader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 240 }}>
+      <div className="w-9 h-9 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
 
 const NAV_ITEMS = [
   { path: '/dashboard',             label: 'Beranda',        icon: LayoutDashboard, feature: null },
@@ -441,7 +449,9 @@ export default function DashboardLayout() {
         </header>
 
         <main style={{ flex: 1, overflowY: 'auto', overflowX: 'clip', padding: isMobile ? '20px 12px' : '24px 28px', background: '#f2f2f7' }}>
-          <Outlet />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 
