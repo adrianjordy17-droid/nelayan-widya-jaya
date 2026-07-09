@@ -37,5 +37,21 @@ export default defineConfig({
   ],
   build: {
     chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        // Core libs rarely change — keep them in one long-cached chunk so an
+        // app update doesn't force re-downloading React/Supabase/etc.
+        manualChunks(id) {
+          if (
+            id.includes('node_modules/react') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react-router') ||
+            id.includes('node_modules/@supabase')
+          ) {
+            return 'vendor'
+          }
+        },
+      },
+    },
   },
 })
