@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import {
   TrendingUp, ShoppingCart, UserCheck, AlertTriangle, ArrowRight,
-  Truck, CheckCircle2, ClipboardList, Package, Check, PackageCheck,
+  Truck, CheckCircle2, ClipboardList, Package, Check, PackageCheck, ChevronRight,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
@@ -231,6 +231,7 @@ function StaffDashboard() {
 // ── Owner / Admin Dashboard ──────────────────────────────────────────────────
 function OwnerAdminDashboard() {
   const { profile } = useAuth()
+  const navigate    = useNavigate()
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -254,6 +255,10 @@ function OwnerAdminDashboard() {
   const [partialCount, setPartialCount] = useState(0)
   const [noGrCount, setNoGrCount]       = useState(0)
   const [invoiceUnpaid, setInvoiceUnpaid] = useState(0)
+  // Actual documents behind each Status Operasional row, so tapping a row
+  // reveals which SO/DO/Invoice make up the count.
+  const [opsLists, setOpsLists] = useState({ soDraft: [], dispatched: [], partial: [], noGr: [], invoiceUnpaid: [] })
+  const [openOps, setOpenOps]   = useState(null)
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -317,24 +322,37 @@ function OwnerAdminDashboard() {
           .reduce((s, d) => s + (d.total || 0), 0)
       )
 
+      const soDraftList = soDocs.filter(d => d.status === 'draft')
+
       // DO metrics
       const doDocs = docs.filter(d => d.type === 'DO')
-      setDispatched(doDocs.filter(d => d.status === 'dispatched').length)
+      const dispatchedList = doDocs.filter(d => d.status === 'dispatched')
+      setDispatched(dispatchedList.length)
       setDelayedCount(doDocs.filter(d => d.status === 'delayed').length)
 
       // GR set (ref_number = DO number it covers)
       const grRefs = new Set(docs.filter(d => d.type === 'GR').map(d => d.ref_number).filter(Boolean))
 
       // DO delivered but no GR yet
-      setNoGrCount(doDocs.filter(d => d.status === 'delivered' && !grRefs.has(d.number)).length)
+      const noGrList = doDocs.filter(d => d.status === 'delivered' && !grRefs.has(d.number))
+      setNoGrCount(noGrList.length)
 
-      // Partial count: partial DOs that have no GR yet
+      // Partial: partial DOs that have no GR yet
       const partialDoIds = new Set((partialReports || []).map(r => r.do_id).filter(Boolean))
-      const partialDONumbers = new Set(doDocs.filter(d => partialDoIds.has(d.id)).map(d => d.number))
-      setPartialCount([...partialDONumbers].filter(n => !grRefs.has(n)).length)
+      const partialList = doDocs.filter(d => partialDoIds.has(d.id) && !grRefs.has(d.number))
+      setPartialCount(partialList.length)
 
       // Invoice unpaid
-      setInvoiceUnpaid(docs.filter(d => d.type === 'Invoice' && d.status === 'sent').length)
+      const invoiceUnpaidList = docs.filter(d => d.type === 'Invoice' && d.status === 'sent')
+      setInvoiceUnpaid(invoiceUnpaidList.length)
+
+      setOpsLists({
+        soDraft: soDraftList,
+        dispatched: dispatchedList,
+        partial: partialList,
+        noGr: noGrList,
+        invoiceUnpaid: invoiceUnpaidList,
+      })
     })
   }, [todayKey, thisMonth])
 
@@ -424,46 +442,11 @@ function OwnerAdminDashboard() {
         {/* Status Operasional */}
         {(() => {
           const items = [
-            {
-              label: 'SO Draft',
-              desc: 'Sales order belum dikonfirmasi',
-              count: orderPending,
-              Icon: ClipboardList,
-              color: '#5856d6', bg: 'rgba(88,86,214,0.10)',
-              to: '/dashboard/documents', tab: 'so-draft',
-            },
-            {
-              label: 'DO Dalam Pengiriman',
-              desc: 'Sedang dalam perjalanan ke klien',
-              count: dispatchedCount,
-              Icon: Truck,
-              color: '#0891b2', bg: 'rgba(8,145,178,0.10)',
-              to: '/dashboard/deliveries', tab: null,
-            },
-            {
-              label: 'Pengiriman Partial',
-              desc: 'DO belum selesai diterima, belum di-GR',
-              count: partialCount,
-              Icon: Package,
-              color: '#d97706', bg: 'rgba(217,119,6,0.10)',
-              to: '/dashboard/documents', tab: 'partial',
-            },
-            {
-              label: 'DO Belum Di-GR',
-              desc: 'Terkirim tapi belum ada Goods Receipt',
-              count: noGrCount,
-              Icon: PackageCheck,
-              color: '#16a34a', bg: 'rgba(22,163,74,0.10)',
-              to: '/dashboard/documents', tab: null,
-            },
-            {
-              label: 'Invoice Belum Dibayar',
-              desc: 'Invoice terkirim, menunggu pembayaran',
-              count: invoiceUnpaid,
-              Icon: ArrowRight,
-              color: '#7c3aed', bg: 'rgba(124,58,237,0.10)',
-              to: '/dashboard/invoices', tab: null,
-            },
+            { label: 'SO Draft',             desc: 'Sales order belum dikonfirmasi',      count: orderPending,   Icon: ClipboardList, color: '#5856d6', bg: 'rgba(88,86,214,0.10)',  listKey: 'soDraft' },
+            { label: 'DO Dalam Pengiriman',  desc: 'Sedang dalam perjalanan ke klien',     count: dispatchedCount, Icon: Truck,        color: '#0891b2', bg: 'rgba(8,145,178,0.10)', listKey: 'dispatched' },
+            { label: 'Pengiriman Partial',   desc: 'DO belum selesai diterima, belum di-GR', count: partialCount, Icon: Package,       color: '#d97706', bg: 'rgba(217,119,6,0.10)', listKey: 'partial' },
+            { label: 'DO Belum Di-GR',       desc: 'Terkirim tapi belum ada Goods Receipt', count: noGrCount,     Icon: PackageCheck,  color: '#16a34a', bg: 'rgba(22,163,74,0.10)', listKey: 'noGr' },
+            { label: 'Invoice Belum Dibayar', desc: 'Invoice terkirim, menunggu pembayaran', count: invoiceUnpaid, Icon: ArrowRight,   color: '#7c3aed', bg: 'rgba(124,58,237,0.10)', listKey: 'invoiceUnpaid' },
           ]
           return (
             <div style={{ ...GLASS, borderRadius: 16, overflow: 'hidden' }}>
@@ -474,22 +457,52 @@ function OwnerAdminDashboard() {
                 </Link>
               </div>
               <div>
-                {items.map(({ label, desc, count, Icon, color, bg, to, tab }, idx) => (
-                  <Link key={label} to={to} state={tab ? { tab } : undefined}
-                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: idx < items.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', textDecoration: 'none', cursor: 'pointer' }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Icon size={16} color={color} />
+                {items.map(({ label, desc, count, Icon, color, bg, listKey }, idx) => {
+                  const list = opsLists[listKey] || []
+                  const isOpen = openOps === label
+                  const clickable = count > 0
+                  return (
+                    <div key={label} style={{ borderBottom: idx < items.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
+                      <div
+                        onClick={() => clickable && setOpenOps(isOpen ? null : label)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', cursor: clickable ? 'pointer' : 'default' }}
+                      >
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Icon size={16} color={color} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>{label}</p>
+                          <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{desc}</p>
+                        </div>
+                        {clickable && (
+                          <ChevronRight size={15} color="#cbd5e1"
+                            style={{ transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+                        )}
+                        <span style={{
+                          fontSize: 18, fontWeight: 800, color: count > 0 ? color : '#cbd5e1',
+                          minWidth: 28, textAlign: 'right', flexShrink: 0,
+                        }}>{count}</span>
+                      </div>
+                      {isOpen && (
+                        <div style={{ padding: '0 20px 12px 72px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {list.length === 0 ? (
+                            <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Tidak ada data.</p>
+                          ) : list.map(d => (
+                            <div key={d.id}
+                              onClick={() => navigate('/dashboard/documents', { state: { openId: d.id } })}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8, cursor: 'pointer' }}>
+                              <span style={{ fontSize: 12.5, fontWeight: 600, color: color, flexShrink: 0 }}>{d.number}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                                <span style={{ fontSize: 11.5, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.client_name || '—'}</span>
+                                <ChevronRight size={13} color="#cbd5e1" style={{ flexShrink: 0 }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>{label}</p>
-                      <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{desc}</p>
-                    </div>
-                    <span style={{
-                      fontSize: 18, fontWeight: 800, color: count > 0 ? color : '#cbd5e1',
-                      minWidth: 28, textAlign: 'right', flexShrink: 0,
-                    }}>{count}</span>
-                  </Link>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )
