@@ -1,3 +1,4 @@
+import { lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 // Clear legacy localStorage keys that contained hardcoded demo data
@@ -5,22 +6,25 @@ try { ['nwj_orders', 'nwj_stock', 'nwj_clients', 'nwj_attendance'].forEach(k => 
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './components/auth/LoginPage'
 import DashboardLayout from './components/layout/DashboardLayout'
-import DashboardHome from './pages/DashboardHome'
-import Orders from './pages/Orders'
-import Stock from './pages/Stock'
-import Reports from './pages/Reports'
-import Attendance from './pages/Attendance'
-import Clients from './pages/Clients'
-import Settings from './pages/Settings'
-import Deliveries from './pages/Deliveries'
-import Documents from './pages/Documents'
-import Jobdesk from './pages/Jobdesk'
-import Products from './pages/Products'
-import Employees from './pages/Employees'
-import Bookkeeping from './pages/Bookkeeping'
-import Suppliers from './pages/Suppliers'
-import Purchases from './pages/Purchases'
-import Invoices from './pages/Invoices'
+
+// Lazy-load pages so each screen (and its heavy libs like xlsx/pdfjs) only
+// downloads when the user actually opens it — keeps first load fast on mobile.
+const DashboardHome = lazy(() => import('./pages/DashboardHome'))
+const Orders        = lazy(() => import('./pages/Orders'))
+const Stock         = lazy(() => import('./pages/Stock'))
+const Reports       = lazy(() => import('./pages/Reports'))
+const Attendance    = lazy(() => import('./pages/Attendance'))
+const Clients       = lazy(() => import('./pages/Clients'))
+const Settings      = lazy(() => import('./pages/Settings'))
+const Deliveries    = lazy(() => import('./pages/Deliveries'))
+const Documents     = lazy(() => import('./pages/Documents'))
+const Jobdesk       = lazy(() => import('./pages/Jobdesk'))
+const Products      = lazy(() => import('./pages/Products'))
+const Employees     = lazy(() => import('./pages/Employees'))
+const Bookkeeping   = lazy(() => import('./pages/Bookkeeping'))
+const Suppliers     = lazy(() => import('./pages/Suppliers'))
+const Purchases     = lazy(() => import('./pages/Purchases'))
+const Invoices      = lazy(() => import('./pages/Invoices'))
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
