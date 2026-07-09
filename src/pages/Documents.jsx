@@ -438,6 +438,8 @@ export default function Documents() {
   const [liveMonth, setLiveMonth]         = useState(currentYM)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [deliveryMap, setDeliveryMap] = useState({}) // { [doId]: delivery_report[] }
+  // When navigated from Beranda with { openId }, auto-open that document's detail.
+  const [pendingOpenId, setPendingOpenId] = useState(location.state?.openId || null)
 
   const navigate = useNavigate()
   const createType = form?.type || null
@@ -490,6 +492,19 @@ export default function Documents() {
       window.history.replaceState({}, document.title)
     }
   }, [])
+
+  // Open the requested document detail once docs have loaded (from Beranda).
+  useEffect(() => {
+    if (location.state?.openId) window.history.replaceState({}, document.title)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    if (pendingOpenId && docs.length) {
+      const doc = docs.find(d => d.id === pendingOpenId)
+      if (doc) { setDetail(doc); setConfirmCancel(false); setConfirmDelete(false) }
+      setPendingOpenId(null)
+    }
+  }, [pendingOpenId, docs])
 
   useEffect(() => {
     supabase.from('clients').select('id,name,address,phone').eq('active', true)
