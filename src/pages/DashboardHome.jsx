@@ -49,9 +49,11 @@ function StaffDashboard() {
 
   useEffect(() => {
     const t = setInterval(() => {
-      setTodayLabel(format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
       const now = localToday()
-      if (now !== todayKey) setTodayKey(now)
+      if (now !== todayKey) {
+        setTodayKey(now)
+        setTodayLabel(format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
+      }
     }, 10_000)
     return () => clearInterval(t)
   }, [todayKey])
@@ -255,12 +257,11 @@ function OwnerAdminDashboard() {
 
   useEffect(() => {
     const t = setInterval(() => {
-      setTodayLabel(format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
       const nowDate  = localToday()
-      const nowMonth = nowDate.slice(0, 7)
       if (nowDate !== todayKey) {
         setTodayKey(nowDate)
-        setThisMonth(nowMonth)
+        setThisMonth(nowDate.slice(0, 7))
+        setTodayLabel(format(new Date(), "EEEE, d MMMM yyyy", { locale: idLocale }))
       }
     }, 10_000)
     return () => clearInterval(t)
