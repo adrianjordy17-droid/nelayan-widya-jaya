@@ -104,7 +104,7 @@ async function fetchProductPrices(items) {
   })
 }
 function emptyForm(type) {
-  const withPrice = type === 'SO' || type === 'Invoice'
+  const withPrice = type === 'SO' || type === 'Invoice' || type === 'DO'
   const today = todayStr()
   const defaultTerms = 'Net 14 hari'
   return {
@@ -360,7 +360,7 @@ function dbToDoc(r) {
 
 // ── ItemRow ──
 function ItemRow({ item, type, onChange, onDelete, isLast }) {
-  const withPrice    = type === 'SO' || type === 'Invoice'
+  const withPrice    = type === 'SO' || type === 'Invoice' || type === 'DO'
   const withReceived = type === 'GR'
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '9px 0', borderBottom: isLast ? 'none' : '0.5px solid #f0f0f0', flexWrap: 'wrap' }}>
@@ -594,14 +594,22 @@ export default function Documents() {
     await supabase.from('documents').update({ status }).eq('id', doc.id)
   }
 
-  function openEdit(doc) {
-    const withPrice = doc.type === 'SO' || doc.type === 'Invoice'
+  async function openEdit(doc) {
+    const withPrice = doc.type === 'SO' || doc.type === 'Invoice' || doc.type === 'DO'
+    let items = doc.items.map(it => ({ ...it, id: it.id || newId() }))
+    // For a DIRECT DO (no source SO), pre-fill missing prices from the product
+    // master so the value flows into omset. DOs made from an SO keep their SO
+    // pricing and are left untouched. User can still edit each price manually.
+    // Prices never print on the surat jalan.
+    if (doc.type === 'DO' && !doc.refNumber) {
+      try { items = await fetchProductPrices(items) } catch { /* keep items as-is */ }
+    }
     const f = {
       editId: doc.id,
       type: doc.type, date: doc.date, status: doc.status,
       clientName: doc.clientName, clientAddress: doc.clientAddress || '', clientPhone: doc.clientPhone || '', clientPoNumber: doc.clientPoNumber || '',
       refNumber: doc.refNumber || '', driverName: doc.driverName || '', vehicle: doc.vehicle || '',
-      items: doc.items.map(it => ({ ...it, id: it.id || newId() })),
+      items,
       subtotal: doc.subtotal || 0, taxPct: doc.taxPct || 0, discount: doc.discount || 0, total: doc.total || 0,
       dueDate: doc.dueDate || '', paymentTerms: doc.paymentTerms || 'Net 14 hari',
       bankName: doc.bankName || '', accountNumber: doc.accountNumber || '', accountName: doc.accountName || '',
@@ -616,7 +624,7 @@ export default function Documents() {
   function setF(patch) {
     setForm(prev => {
       const next = typeof patch === 'function' ? patch(prev) : { ...prev, ...patch }
-      return (next.type === 'SO' || next.type === 'Invoice') ? recalcForm(next) : next
+      return (next.type === 'SO' || next.type === 'Invoice' || next.type === 'DO') ? recalcForm(next) : next
     })
   }
 
@@ -1146,9 +1154,9 @@ export default function Documents() {
                   <span style={{ flex: 2, minWidth: 120, fontSize: 11, color: '#8e8e93', fontWeight: 600 }}>PRODUK</span>
                   <span style={{ width: 62, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>QTY</span>
                   <span style={{ width: 58, fontSize: 11, color: '#8e8e93', fontWeight: 600 }}>SAT.</span>
-                  {(createType === 'SO' || createType === 'Invoice') && <span style={{ width: 100, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>HARGA/UNIT</span>}
+                  {(createType === 'SO' || createType === 'Invoice' || createType === 'DO') && <span style={{ width: 100, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>HARGA/UNIT</span>}
                   {createType === 'GR' && <><span style={{ width: 68, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>TERIMA</span><span style={{ width: 72, fontSize: 11, color: '#8e8e93', fontWeight: 600 }}>KONDISI</span></>}
-                  {(createType === 'SO' || createType === 'Invoice') && <span style={{ width: 90, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>TOTAL</span>}
+                  {(createType === 'SO' || createType === 'Invoice' || createType === 'DO') && <span style={{ width: 90, fontSize: 11, color: '#8e8e93', fontWeight: 600, textAlign: 'right' }}>TOTAL</span>}
                   <span style={{ width: 22 }} />
                 </div>
                 {form.items.map((it, idx) => (
