@@ -362,6 +362,11 @@ export default function Deliveries() {
   }
 
   async function handleBuatGR(report) {
+    // Guard: a DO can only have one GR. If it already does, edit that GR instead.
+    if (report.doRef && grDoRefs.has(report.doRef)) {
+      alert('DO ini sudah di-GR. Jika ada kesalahan, edit GR-nya lewat menu Dokumen.')
+      return
+    }
     let prefillDoc = null
     if (report.doId) {
       const { data } = await supabase.from('documents').select('*').eq('id', report.doId).single()
@@ -1508,6 +1513,11 @@ export default function Deliveries() {
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {modal.doRef && (
+                      grDoRefs.has(modal.doRef) ? (
+                        <div style={{ padding: '13px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 13, display: 'flex', alignItems: 'center', gap: 8, color: '#15803d', fontSize: 13, fontWeight: 600, ...FF }}>
+                          <PackageCheck size={16} /> DO ini sudah di-GR — edit lewat menu Dokumen jika ada kesalahan
+                        </div>
+                      ) : (
                       <>
                         <button
                           onClick={allDOComplete ? () => handleBuatGR(modal) : undefined}
@@ -1530,6 +1540,7 @@ export default function Deliveries() {
                           </p>
                         )}
                       </>
+                      )
                     )}
                     <button
                       onClick={() => setConfirmDelete(true)}
