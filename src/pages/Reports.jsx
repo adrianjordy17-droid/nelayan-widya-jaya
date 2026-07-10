@@ -222,8 +222,11 @@ export default function Reports() {
     if (d.type !== 'DO') return
     const orderedKg = (d.items || []).reduce((s, it) => s + (parseFloat(it.qty) || 0), 0)
     if (orderedKg <= 0) { pricePerKgByDoId[d.id] = 0; return }
+    // Priority: DO's own value (direct DO with edited prices) -> source SO
+    // -> product master price by item name.
     const so = soByNumber[d.ref_number]
-    let orderedValue = so ? (so.total || itemsTotal(so.items)) : 0
+    let orderedValue = d.total || itemsTotal(d.items)
+    if (!orderedValue && so) orderedValue = so.total || itemsTotal(so.items)
     if (!orderedValue) {
       orderedValue = (d.items || []).reduce((s, it) =>
         s + (parseFloat(it.qty) || 0) * (productPrice[(it.name || '').toLowerCase()] || 0), 0)
