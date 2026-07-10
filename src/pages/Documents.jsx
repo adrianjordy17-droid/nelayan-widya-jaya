@@ -1496,12 +1496,32 @@ export default function Documents() {
                 </button>
               )}
               {canEdit && detail.type === 'DO' && detail.status === 'delivered' && (
-                <button
-                  onClick={() => openCreateFrom('GR', detail)}
-                  style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
-                  <PackageCheck size={16} /> Buat Goods Receipt
-                </button>
+                grByDoRef.has(detail.number) ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ padding: '13px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 13, display: 'flex', alignItems: 'center', gap: 8, color: '#15803d', fontSize: 13.5, fontWeight: 600, ...FF }}>
+                      <PackageCheck size={16} /> DO ini sudah di-GR
+                    </div>
+                    {(() => {
+                      const grDoc = docs.find(d => d.type === 'GR' && d.refNumber === detail.number)
+                      if (!grDoc) return null
+                      return (
+                        <button
+                          onClick={() => openEdit(grDoc)}
+                          style={{ width: '100%', padding: '13px', background: 'white', border: '1px solid #e5e5ea', borderRadius: 13, color: '#1c1c1e', fontSize: 14, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                        >
+                          <PackageCheck size={16} color="#34c759" /> Edit GR ({grDoc.number}) jika ada kesalahan
+                        </button>
+                      )
+                    })()}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => openCreateFrom('GR', detail)}
+                    style={{ width: '100%', padding: '15px', background: '#34c759', border: 'none', borderRadius: 13, color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer', ...FF, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
+                    <PackageCheck size={16} /> Buat Goods Receipt
+                  </button>
+                )
               )}
               {canEdit && detail.type === 'GR' && detail.status === 'received' && (
                 <button
