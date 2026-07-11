@@ -237,7 +237,11 @@ export default function Bookkeeping() {
   // ── Laba per GR (owner) — profit per item produk ──
   const doByNumber = {}
   doDocs.forEach(d => { if (d.number) doByNumber[d.number] = d })
-  const jualUnitFor = (gr, nameLower) => {
+  // Harga jual per item. Prioritas: yang diisi di GR (item.jual) -> harga item
+  // DO -> item SO sumbernya -> master produk.
+  const jualUnitFor = (gr, item) => {
+    if (item.jual !== undefined && item.jual !== null && item.jual !== '') return parseFloat(item.jual) || 0
+    const nameLower = (item.name || '').toLowerCase().trim()
     const dobj = doByNumber[gr.ref_number]
     const doPrice = parseFloat(dobj?.items?.find(it => (it.name || '').toLowerCase().trim() === nameLower)?.price) || 0
     if (doPrice) return doPrice
@@ -246,14 +250,18 @@ export default function Bookkeeping() {
     if (fromSo) return fromSo
     return priceMaps.prodJual[nameLower] || 0
   }
+  const grTotalJual = (g) => (g.items || []).reduce((s, it) => {
+    if (!it.name?.trim()) return s
+    const qty = parseFloat(it.receivedQty) || parseFloat(it.qty) || 0
+    return s + jualUnitFor(g, it) * qty
+  }, 0)
   const labaGR = grSales.map(g => {
     const items = (g.items || [])
       .map((it, origIdx) => ({ it, origIdx }))
       .filter(x => x.it.name?.trim())
       .map(({ it, origIdx }) => {
-        const nameLower  = it.name.toLowerCase().trim()
         const qty        = parseFloat(it.receivedQty) || parseFloat(it.qty) || 0
-        const jualUnit   = jualUnitFor(g, nameLower)
+        const jualUnit   = jualUnitFor(g, it)
         const modalUnit  = parseFloat(it.modal) || 0
         const jual  = jualUnit * qty
         const modal = modalUnit * qty
@@ -289,37 +297,25 @@ export default function Bookkeeping() {
     if (error) alert('Gagal menyimpan modal: ' + error.message)
   }
 
-  // Simpan harga jual per item (per unit) ke DO-nya — supaya ikut ke omset Beranda.
-  async function saveItemJual(gr, itemName, value) {
-    const price = parseFloat(value) || 0
-    const doNumber = gr.refNumber || gr.ref_number
-    const dobj = doByNumber[doNumber]
-    if (!dobj) { alert('DO untuk GR ini tidak ditemukan (No. DO: ' + (doNumber || '-') + '), harga jual tidak bisa disimpan.'); return }
-    const nl = (itemName || '').toLowerCase().trim()
-    const newItems = (dobj.items || []).map(it =>
-      (it.name || '').toLowerCase().trim() === nl
-        ? { ...it, price, total: Math.round((parseFloat(it.receivedQty) || parseFloat(it.qty) || 0) * price) }
-        : it
-    )
-    const newTotal = newItems.reduce((s, it) => s + (parseFloat(it.total) || (parseFloat(it.receivedQty) || parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0)), 0)
-    setDoDocs(prev => prev.map(d => d.id === dobj.id ? { ...d, items: newItems } : d))
-    const { error } = await supabase.from('documents').update({ items: newItems, total: newTotal }).eq('id', dobj.id)
+  // Simpan harga jual per item ke dalam GR-nya (field `jual` per item). Selalu
+  // bisa disimpan, tak tergantung DO. GR.total = total jual (dipakai omset Beranda).
+  async function saveItemJual(grId, origIdx, value) {
+    const jualUnit = parseFloat(value) || 0
+    const g = grSales.find(x => x.id === grId)
+    if (!g) return
+    const newItems = (g.items || []).map((it, i) => i === origIdx ? { ...it, jual: jualUnit } : it)
+    const newG = { ...g, items: newItems }
+    setGrSales(prev => prev.map(x => x.id === grId ? newG : x))
+    const { error } = await supabase.from('documents').update({ items: newItems, total: grTotalJual(newG) }).eq('id', grId)
     if (error) alert('Gagal menyimpan harga jual: ' + error.message)
   }
 
-  // Update LIVE saat ngetik (belum simpan ke server) — biar profit langsung keakumulasi.
-  function setJualLocal(gr, itemName, value) {
-    const price = value === '' ? 0 : (parseFloat(value) || 0)
-    const doNumber = gr.refNumber || gr.ref_number
-    const dobj = doByNumber[doNumber]
-    if (!dobj) return
-    const nl = (itemName || '').toLowerCase().trim()
-    const newItems = (dobj.items || []).map(it =>
-      (it.name || '').toLowerCase().trim() === nl
-        ? { ...it, price, total: Math.round((parseFloat(it.receivedQty) || parseFloat(it.qty) || 0) * price) }
-        : it
-    )
-    setDoDocs(prev => prev.map(d => d.id === dobj.id ? { ...d, items: newItems } : d))
+  // Update LIVE saat ngetik — biar profit & total langsung keakumulasi.
+  function setJualLocal(grId, origIdx, value) {
+    const jualUnit = value === '' ? 0 : (parseFloat(value) || 0)
+    setGrSales(prev => prev.map(x => x.id === grId
+      ? { ...x, items: (x.items || []).map((it, i) => i === origIdx ? { ...it, jual: jualUnit } : it) }
+      : x))
   }
   function setModalLocal(grId, origIdx, value) {
     const modalUnit = value === '' ? 0 : (parseFloat(value) || 0)
@@ -810,8 +806,8 @@ export default function Bookkeeping() {
                       <p style={{ fontSize: 10.5, color: '#8e8e93', margin: '1px 0 0' }}>{it.qty} {it.unit}</p>
                     </div>
                     <input type="number" min="0" value={it.jualUnit || ''} placeholder="isi jual"
-                      onChange={e => setJualLocal(g, it.name, e.target.value)}
-                      onBlur={e => saveItemJual(g, it.name, e.target.value)}
+                      onChange={e => setJualLocal(g.id, it.idx, e.target.value)}
+                      onBlur={e => saveItemJual(g.id, it.idx, e.target.value)}
                       style={{ width: '100%', border: '1px solid #d6e4ff', background: it.jualUnit > 0 ? 'white' : '#eff6ff', borderRadius: 8, padding: '5px 7px', fontSize: 11.5, textAlign: 'right', ...FF }} />
                     <input type="number" min="0" value={it.modalUnit || ''} placeholder="0"
                       onChange={e => setModalLocal(g.id, it.idx, e.target.value)}
