@@ -252,7 +252,7 @@ export default function Bookkeeping() {
       .filter(x => x.it.name?.trim())
       .map(({ it, origIdx }) => {
         const nameLower  = it.name.toLowerCase().trim()
-        const qty        = parseFloat(it.receivedQty ?? it.qty) || 0
+        const qty        = parseFloat(it.receivedQty) || parseFloat(it.qty) || 0
         const jualUnit   = jualUnitFor(g, nameLower)
         const modalUnit  = parseFloat(it.modal) || 0
         const jual  = jualUnit * qty
@@ -285,23 +285,26 @@ export default function Bookkeeping() {
     if (!g) return
     const newItems = (g.items || []).map((it, i) => i === origIdx ? { ...it, modal: modalUnit } : it)
     setGrSales(prev => prev.map(x => x.id === grId ? { ...x, items: newItems } : x))
-    await supabase.from('documents').update({ items: newItems }).eq('id', grId)
+    const { error } = await supabase.from('documents').update({ items: newItems }).eq('id', grId)
+    if (error) alert('Gagal menyimpan modal: ' + error.message)
   }
 
   // Simpan harga jual per item (per unit) ke DO-nya — supaya ikut ke omset Beranda.
   async function saveItemJual(gr, itemName, value) {
     const price = parseFloat(value) || 0
-    const dobj = doByNumber[gr.ref_number]
-    if (!dobj) return
+    const doNumber = gr.refNumber || gr.ref_number
+    const dobj = doByNumber[doNumber]
+    if (!dobj) { alert('DO untuk GR ini tidak ditemukan (No. DO: ' + (doNumber || '-') + '), harga jual tidak bisa disimpan.'); return }
     const nl = (itemName || '').toLowerCase().trim()
     const newItems = (dobj.items || []).map(it =>
       (it.name || '').toLowerCase().trim() === nl
-        ? { ...it, price, total: Math.round((parseFloat(it.qty) || 0) * price) }
+        ? { ...it, price, total: Math.round((parseFloat(it.receivedQty) || parseFloat(it.qty) || 0) * price) }
         : it
     )
-    const newTotal = newItems.reduce((s, it) => s + (parseFloat(it.total) || (parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0)), 0)
+    const newTotal = newItems.reduce((s, it) => s + (parseFloat(it.total) || (parseFloat(it.receivedQty) || parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0)), 0)
     setDoDocs(prev => prev.map(d => d.id === dobj.id ? { ...d, items: newItems } : d))
-    await supabase.from('documents').update({ items: newItems, total: newTotal }).eq('id', dobj.id)
+    const { error } = await supabase.from('documents').update({ items: newItems, total: newTotal }).eq('id', dobj.id)
+    if (error) alert('Gagal menyimpan harga jual: ' + error.message)
   }
 
   // ── Expenses derived ──
