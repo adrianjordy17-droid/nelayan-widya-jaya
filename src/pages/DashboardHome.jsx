@@ -328,14 +328,15 @@ function OwnerAdminDashboard() {
       // GR set (ref_number = DO number it covers)
       const grRefs = new Set(docs.filter(d => d.type === 'GR').map(d => d.ref_number).filter(Boolean))
 
-      // Omset Beranda = total jual per DO (nilai DO -> SO sumbernya), untuk GR bulan ini.
+      // Omset Beranda = total jual per GR bulan ini. Pakai total jual GR (diisi
+      // di Pembukuan) kalau ada, kalau tidak jatuh ke nilai DO -> SO sumbernya.
       const soTotalMap = {}
       soDocs.forEach(d => { if (d.number) soTotalMap[d.number] = d.total || 0 })
       const doJualMap = {}
       doDocs.forEach(d => { if (d.number) doJualMap[d.number] = d.total || soTotalMap[d.ref_number] || 0 })
       setPenjualan(
         docs.filter(d => d.type === 'GR' && (d.date || '').startsWith(thisMonth))
-          .reduce((s, gr) => s + (doJualMap[gr.ref_number] || 0), 0)
+          .reduce((s, gr) => s + ((gr.total || 0) || doJualMap[gr.ref_number] || 0), 0)
       )
 
       // DO delivered but no GR yet
