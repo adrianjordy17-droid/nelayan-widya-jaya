@@ -125,7 +125,7 @@ export default function Bookkeeping() {
           supabase.from('expenses').select('*').order('date', { ascending: false }),
           // GR penjualan. Harga modal per GR disimpan di kolom `total` (kolom ini
           // tak dipakai untuk GR di tempat lain), jadi tak perlu ubah database.
-          supabase.from('documents').select('id,number,date,client_name,ref_number,total').eq('type', 'GR').order('date', { ascending: false }),
+          supabase.from('documents').select('id,number,date,client_name,ref_number,total,items').eq('type', 'GR').order('date', { ascending: false }),
           supabase.from('documents').select('number,ref_number,total').eq('type', 'DO'),
           supabase.from('documents').select('number,total').eq('type', 'SO'),
         ])
@@ -227,7 +227,13 @@ export default function Bookkeeping() {
   const labaGR = grSales.map(g => {
     const jual  = doJualMap[g.ref_number] || 0
     const modal = parseFloat(g.total) || 0
-    return { id: g.id, number: g.number, date: g.date, clientName: g.client_name, jual, modal, profit: jual - modal }
+    const produk = (g.items || [])
+      .filter(it => it.name?.trim())
+      .map(it => {
+        const q = it.receivedQty ?? it.qty
+        return q !== '' && q != null ? `${it.name} (${q} ${it.unit || 'kg'})` : it.name
+      })
+    return { id: g.id, number: g.number, date: g.date, clientName: g.client_name, refNumber: g.ref_number, produk, jual, modal, profit: jual - modal }
   })
   const totalOmsetGR  = labaGR.reduce((s, r) => s + r.jual, 0)
   const totalModalGR  = labaGR.reduce((s, r) => s + r.modal, 0)
@@ -698,8 +704,13 @@ export default function Bookkeeping() {
                 {labaGR.map((r, idx) => (
                   <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', minWidth: 540, padding: '10px 16px', borderBottom: idx < labaGR.length - 1 ? '0.5px solid rgba(0,0,0,0.06)' : 'none', gap: 8, alignItems: 'center' }}>
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.number}</p>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.number}{r.refNumber ? ` · ${r.refNumber}` : ''}</p>
                       <p style={{ fontSize: 11, color: '#8e8e93', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.clientName || '–'}</p>
+                      {r.produk.length > 0 && (
+                        <p style={{ fontSize: 11, color: '#3c3c43', margin: '4px 0 0', lineHeight: 1.4 }}>
+                          {r.produk.join(' · ')}
+                        </p>
+                      )}
                     </div>
                     <span style={{ fontSize: 12.5, fontWeight: 600, color: '#007aff', textAlign: 'right' }}>{r.jual > 0 ? fmtRp(r.jual) : '–'}</span>
                     <input type="number" min="0" defaultValue={r.modal || ''} placeholder="0"
