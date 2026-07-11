@@ -105,6 +105,7 @@ export default function Bookkeeping() {
   const [deleteExpConfirm, setDeleteExpConfirm] = useState(null)
 
   const curYM = currentYM()
+  const [labaMonth, setLabaMonth] = useState(curYM)  // filter bulan Laba per GR
 
   useEffect(() => {
     async function fetchAll() {
@@ -235,8 +236,11 @@ export default function Bookkeeping() {
       })
     return { id: g.id, number: g.number, date: g.date, clientName: g.client_name, refNumber: g.ref_number, produk, jual, modal, profit: jual - modal }
   })
-  const totalOmsetGR  = labaGR.reduce((s, r) => s + r.jual, 0)
-  const totalModalGR  = labaGR.reduce((s, r) => s + r.modal, 0)
+  // Bulan yang tersedia (dari tanggal GR), terbaru dulu.
+  const labaMonths = [...new Set(labaGR.map(r => (r.date || '').slice(0, 7)).filter(Boolean))].sort().reverse()
+  const labaGRView = labaMonth === 'all' ? labaGR : labaGR.filter(r => (r.date || '').startsWith(labaMonth))
+  const totalOmsetGR  = labaGRView.reduce((s, r) => s + r.jual, 0)
+  const totalModalGR  = labaGRView.reduce((s, r) => s + r.modal, 0)
   const totalProfitGR = totalOmsetGR - totalModalGR
 
   // ── Invoice jatuh tempo & telat ──
@@ -683,16 +687,28 @@ export default function Bookkeeping() {
             </p>
           </div>
 
+          {/* Filter bulan */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[{ k: 'all', l: 'Semua' }, ...labaMonths.map(m => ({ k: m, l: fmtMonth(m) }))].map(({ k, l }) => (
+              <button key={k} onClick={() => setLabaMonth(k)} style={{
+                padding: '7px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', ...FF,
+                fontSize: 12.5, fontWeight: labaMonth === k ? 700 : 500, whiteSpace: 'nowrap',
+                background: labaMonth === k ? '#007aff' : 'rgba(0,0,0,0.06)',
+                color: labaMonth === k ? 'white' : '#6e6e73', transition: 'all 0.15s',
+              }}>{l}</button>
+            ))}
+          </div>
+
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <SummaryCard label="Total Omset" value={fmtRp(totalOmsetGR)} color="#007aff" bg="#eff6ff" icon={TrendingUp} sub={`${labaGR.length} GR`} />
+            <SummaryCard label="Total Omset" value={fmtRp(totalOmsetGR)} color="#007aff" bg="#eff6ff" icon={TrendingUp} sub={`${labaGRView.length} GR${labaMonth !== 'all' ? ' · ' + fmtMonth(labaMonth) : ''}`} />
             <SummaryCard label="Total Modal" value={fmtRp(totalModalGR)} color="#ff9500" bg="#fff8e1" icon={AlertCircle} sub="harga modal" />
             <SummaryCard label="Total Profit" value={fmtRp(totalProfitGR)} color={totalProfitGR >= 0 ? '#34c759' : '#ff3b30'} bg={totalProfitGR >= 0 ? '#f0fdf4' : '#fff0f0'} icon={CheckCircle} sub="jual − modal" />
           </div>
 
           <div>
             <SLabel text="Rincian per GR" />
-            {labaGR.length === 0 ? (
-              <div style={{ ...GLASS, padding: '24px', textAlign: 'center', color: '#8e8e93', fontSize: 13.5 }}>Belum ada GR.</div>
+            {labaGRView.length === 0 ? (
+              <div style={{ ...GLASS, padding: '24px', textAlign: 'center', color: '#8e8e93', fontSize: 13.5 }}>{labaGR.length === 0 ? 'Belum ada GR.' : 'Belum ada GR di bulan ini.'}</div>
             ) : (
               <div style={{ ...GLASS, overflow: 'hidden', overflowX: 'auto' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', minWidth: 540, padding: '10px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.02)', gap: 8 }}>
@@ -701,8 +717,8 @@ export default function Bookkeeping() {
                   <span style={{ ...thStyle, textAlign: 'right', color: '#ff9500' }}>Modal</span>
                   <span style={{ ...thStyle, textAlign: 'right', color: '#34c759' }}>Profit</span>
                 </div>
-                {labaGR.map((r, idx) => (
-                  <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', minWidth: 540, padding: '10px 16px', borderBottom: idx < labaGR.length - 1 ? '0.5px solid rgba(0,0,0,0.06)' : 'none', gap: 8, alignItems: 'center' }}>
+                {labaGRView.map((r, idx) => (
+                  <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', minWidth: 540, padding: '10px 16px', borderBottom: idx < labaGRView.length - 1 ? '0.5px solid rgba(0,0,0,0.06)' : 'none', gap: 8, alignItems: 'center' }}>
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.number}{r.refNumber ? ` · ${r.refNumber}` : ''}</p>
                       <p style={{ fontSize: 11, color: '#8e8e93', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.clientName || '–'}</p>
