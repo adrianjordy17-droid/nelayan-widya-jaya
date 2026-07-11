@@ -95,6 +95,8 @@ export default function Bookkeeping() {
   const [grpDocs, setGrpDocs]       = useState([])
   const [prodMap, setProdMap]       = useState({})
   const [expenses, setExpenses]     = useState([])
+  const [grSales, setGrSales]       = useState([])   // GR penjualan (owner)
+  const [doJualMap, setDoJualMap]   = useState({})   // no. DO -> nilai jual
   const [loading, setLoading]       = useState(true)
   const [sortClient, setSortClient] = useState('total')
   const [showAllOutstanding, setShowAllOutstanding] = useState(false)
@@ -117,16 +119,29 @@ export default function Bookkeeping() {
       })))
 
       if (isOwner) {
-        const [grpRes, prodRes, expRes] = await Promise.all([
+        const [grpRes, prodRes, expRes, grRes, doRes, soRes] = await Promise.all([
           supabase.from('purchases').select('id,number,date,items').eq('type', 'GRP').eq('status', 'received'),
           supabase.from('products').select('nama,harga_modal'),
           supabase.from('expenses').select('*').order('date', { ascending: false }),
+          // GR penjualan. Harga modal per GR disimpan di kolom `total` (kolom ini
+          // tak dipakai untuk GR di tempat lain), jadi tak perlu ubah database.
+          supabase.from('documents').select('id,number,date,client_name,ref_number,total').eq('type', 'GR').order('date', { ascending: false }),
+          supabase.from('documents').select('number,ref_number,total').eq('type', 'DO'),
+          supabase.from('documents').select('number,total').eq('type', 'SO'),
         ])
         setGrpDocs(grpRes.data || [])
         const map = {}
         ;(prodRes.data || []).forEach(p => { if (p.nama) map[p.nama.toLowerCase().trim()] = p.harga_modal || 0 })
         setProdMap(map)
         setExpenses(expRes.data || [])
+
+        // Nilai jual tiap DO: nilai DO sendiri -> nilai SO sumbernya.
+        const soTotal = {}
+        ;(soRes.data || []).forEach(s => { if (s.number) soTotal[s.number] = s.total || 0 })
+        const doJual = {}
+        ;(doRes.data || []).forEach(d => { if (d.number) doJual[d.number] = d.total || soTotal[d.ref_number] || 0 })
+        setDoJualMap(doJual)
+        setGrSales(grRes.data || [])
       }
       setLoading(false)
     }
@@ -208,6 +223,30 @@ export default function Bookkeeping() {
     return { ym, revenue, hpp, opex, grossProfit: revenue - hpp, netProfit: revenue - hpp - opex }
   })
 
+  // ── Laba per GR (owner) ──
+  const labaGR = grSales.map(g => {
+    const jual  = doJualMap[g.ref_number] || 0
+    const modal = parseFloat(g.total) || 0
+    return { id: g.id, number: g.number, date: g.date, clientName: g.client_name, jual, modal, profit: jual - modal }
+  })
+  const totalOmsetGR  = labaGR.reduce((s, r) => s + r.jual, 0)
+  const totalModalGR  = labaGR.reduce((s, r) => s + r.modal, 0)
+  const totalProfitGR = totalOmsetGR - totalModalGR
+
+  // ── Invoice jatuh tempo & telat ──
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const invTelat = outstanding.filter(d => d.status === 'overdue' || (d.dueDate && d.dueDate < todayISO))
+  const invJatuhTempo = outstanding.filter(d =>
+    !invTelat.includes(d) && d.dueDate && d.dueDate >= todayISO &&
+    (new Date(d.dueDate) - new Date(todayISO)) / 86400000 <= 7
+  )
+
+  async function saveHpp(grId, value) {
+    const modal = parseFloat(value) || 0
+    setGrSales(prev => prev.map(g => g.id === grId ? { ...g, total: modal } : g))
+    await supabase.from('documents').update({ total: modal }).eq('id', grId)
+  }
+
   // ── Expenses derived ──
   const expByMonth = {}
   expenses.forEach(e => {
@@ -258,6 +297,18 @@ export default function Bookkeeping() {
   return (
     <div style={{ maxWidth: 720, ...FF, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+      {/* Banner reminder invoice jatuh tempo / telat */}
+      {(invTelat.length > 0 || invJatuhTempo.length > 0) && (
+        <div onClick={() => setTab('piutang')} style={{ cursor: 'pointer', background: invTelat.length > 0 ? '#fff0f0' : '#fff8e1', border: `1px solid ${invTelat.length > 0 ? '#fecaca' : '#fde68a'}`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <AlertCircle size={18} color={invTelat.length > 0 ? '#dc2626' : '#d97706'} />
+          <p style={{ fontSize: 13, fontWeight: 600, color: invTelat.length > 0 ? '#dc2626' : '#92400e', margin: 0 }}>
+            {invTelat.length > 0 && `${invTelat.length} invoice telat bayar`}
+            {invTelat.length > 0 && invJatuhTempo.length > 0 && ' · '}
+            {invJatuhTempo.length > 0 && `${invJatuhTempo.length} invoice jatuh tempo ≤7 hari`}
+          </p>
+        </div>
+      )}
+
       {/* Header + Tabs */}
       <div>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#1c1c1e', margin: '0 0 16px' }}>
@@ -267,7 +318,7 @@ export default function Bookkeeping() {
           {[
             { key: 'piutang',    label: 'Piutang' },
             { key: 'pengeluaran', label: 'Pengeluaran', ownerOnly: false },
-            ...(isOwner ? [{ key: 'labarugi', label: 'Laba Rugi' }] : []),
+            ...(isOwner ? [{ key: 'labarugi', label: 'Laba Rugi' }, { key: 'labagr', label: 'Laba per GR' }] : []),
           ].map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)} style={{
               padding: '8px 18px', borderRadius: 12, border: 'none', cursor: 'pointer', ...FF,
@@ -296,6 +347,26 @@ export default function Bookkeeping() {
                 icon={AlertCircle} sub={overdueCount > 0 ? `${overdueCount} invoice overdue` : 'Tidak ada'} />
             </div>
           </div>
+
+          {/* Invoice Jatuh Tempo & Telat */}
+          {(invTelat.length > 0 || invJatuhTempo.length > 0) && (
+            <div>
+              <SLabel text="Perlu Ditagih — Jatuh Tempo & Telat" />
+              <div style={{ ...GLASS, overflow: 'hidden' }}>
+                {[...invTelat.map(d => ({ ...d, _late: true })), ...invJatuhTempo.map(d => ({ ...d, _late: false }))].map((d, i, arr) => (
+                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 16px', borderBottom: i < arr.length - 1 ? '0.5px solid rgba(0,0,0,0.06)' : 'none' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.number} · {d.clientName || '–'}</p>
+                      <p style={{ fontSize: 11.5, margin: '2px 0 0', color: d._late ? '#dc2626' : '#d97706', fontWeight: 500 }}>
+                        {d._late ? `⚠ Telat — jatuh tempo ${d.dueDate || '-'}` : `Jatuh tempo ${d.dueDate || '-'}`}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: d._late ? '#dc2626' : '#1c1c1e', flexShrink: 0 }}>{fmtRp(d.total)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Piutang Aging Analysis */}
           {outstanding.length > 0 && (
@@ -594,6 +665,52 @@ export default function Bookkeeping() {
               </div>
             )
           })()}
+        </>
+      )}
+
+      {/* ══════════ TAB: LABA PER GR ══════════ */}
+      {tab === 'labagr' && isOwner && (
+        <>
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '11px 16px' }}>
+            <p style={{ fontSize: 12.5, color: '#1e40af', margin: 0 }}>
+              Harga <strong>Jual</strong> otomatis dari nilai DO. Isi <strong>Modal</strong> tiap GR — <strong>Profit</strong> dihitung otomatis. Hanya owner yang bisa lihat.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <SummaryCard label="Total Omset" value={fmtRp(totalOmsetGR)} color="#007aff" bg="#eff6ff" icon={TrendingUp} sub={`${labaGR.length} GR`} />
+            <SummaryCard label="Total Modal" value={fmtRp(totalModalGR)} color="#ff9500" bg="#fff8e1" icon={AlertCircle} sub="harga modal" />
+            <SummaryCard label="Total Profit" value={fmtRp(totalProfitGR)} color={totalProfitGR >= 0 ? '#34c759' : '#ff3b30'} bg={totalProfitGR >= 0 ? '#f0fdf4' : '#fff0f0'} icon={CheckCircle} sub="jual − modal" />
+          </div>
+
+          <div>
+            <SLabel text="Rincian per GR" />
+            {labaGR.length === 0 ? (
+              <div style={{ ...GLASS, padding: '24px', textAlign: 'center', color: '#8e8e93', fontSize: 13.5 }}>Belum ada GR.</div>
+            ) : (
+              <div style={{ ...GLASS, overflow: 'hidden', overflowX: 'auto' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', minWidth: 540, padding: '10px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.02)', gap: 8 }}>
+                  <span style={thStyle}>GR / Klien</span>
+                  <span style={{ ...thStyle, textAlign: 'right', color: '#007aff' }}>Jual</span>
+                  <span style={{ ...thStyle, textAlign: 'right', color: '#ff9500' }}>Modal</span>
+                  <span style={{ ...thStyle, textAlign: 'right', color: '#34c759' }}>Profit</span>
+                </div>
+                {labaGR.map((r, idx) => (
+                  <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', minWidth: 540, padding: '10px 16px', borderBottom: idx < labaGR.length - 1 ? '0.5px solid rgba(0,0,0,0.06)' : 'none', gap: 8, alignItems: 'center' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.number}</p>
+                      <p style={{ fontSize: 11, color: '#8e8e93', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.clientName || '–'}</p>
+                    </div>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: '#007aff', textAlign: 'right' }}>{r.jual > 0 ? fmtRp(r.jual) : '–'}</span>
+                    <input type="number" min="0" defaultValue={r.modal || ''} placeholder="0"
+                      onBlur={e => saveHpp(r.id, e.target.value)}
+                      style={{ width: '100%', border: '1px solid #e5e5ea', borderRadius: 8, padding: '6px 8px', fontSize: 12.5, textAlign: 'right', ...FF }} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: r.profit >= 0 ? '#34c759' : '#ff3b30', textAlign: 'right' }}>{r.jual > 0 || r.modal > 0 ? fmtRp(r.profit) : '–'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
 
