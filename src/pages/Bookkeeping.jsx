@@ -307,6 +307,28 @@ export default function Bookkeeping() {
     if (error) alert('Gagal menyimpan harga jual: ' + error.message)
   }
 
+  // Update LIVE saat ngetik (belum simpan ke server) — biar profit langsung keakumulasi.
+  function setJualLocal(gr, itemName, value) {
+    const price = value === '' ? 0 : (parseFloat(value) || 0)
+    const doNumber = gr.refNumber || gr.ref_number
+    const dobj = doByNumber[doNumber]
+    if (!dobj) return
+    const nl = (itemName || '').toLowerCase().trim()
+    const newItems = (dobj.items || []).map(it =>
+      (it.name || '').toLowerCase().trim() === nl
+        ? { ...it, price, total: Math.round((parseFloat(it.receivedQty) || parseFloat(it.qty) || 0) * price) }
+        : it
+    )
+    setDoDocs(prev => prev.map(d => d.id === dobj.id ? { ...d, items: newItems } : d))
+  }
+  function setModalLocal(grId, origIdx, value) {
+    const modalUnit = value === '' ? 0 : (parseFloat(value) || 0)
+    setGrSales(prev => prev.map(x => {
+      if (x.id !== grId) return x
+      return { ...x, items: (x.items || []).map((it, i) => i === origIdx ? { ...it, modal: modalUnit } : it) }
+    }))
+  }
+
   // ── Expenses derived ──
   const expByMonth = {}
   expenses.forEach(e => {
@@ -787,10 +809,12 @@ export default function Bookkeeping() {
                       <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</p>
                       <p style={{ fontSize: 10.5, color: '#8e8e93', margin: '1px 0 0' }}>{it.qty} {it.unit}</p>
                     </div>
-                    <input key={`j-${it.idx}-${it.jualUnit}`} type="number" min="0" defaultValue={it.jualUnit || ''} placeholder="isi jual"
+                    <input type="number" min="0" value={it.jualUnit || ''} placeholder="isi jual"
+                      onChange={e => setJualLocal(g, it.name, e.target.value)}
                       onBlur={e => saveItemJual(g, it.name, e.target.value)}
                       style={{ width: '100%', border: '1px solid #d6e4ff', background: it.jualUnit > 0 ? 'white' : '#eff6ff', borderRadius: 8, padding: '5px 7px', fontSize: 11.5, textAlign: 'right', ...FF }} />
-                    <input type="number" min="0" defaultValue={it.modalUnit || ''} placeholder="0"
+                    <input type="number" min="0" value={it.modalUnit || ''} placeholder="0"
+                      onChange={e => setModalLocal(g.id, it.idx, e.target.value)}
                       onBlur={e => saveItemModal(g.id, it.idx, e.target.value)}
                       style={{ width: '100%', border: '1px solid #e5e5ea', borderRadius: 8, padding: '5px 7px', fontSize: 11.5, textAlign: 'right', ...FF }} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: it.profit >= 0 ? '#34c759' : '#ff3b30', textAlign: 'right' }}>{it.jual > 0 || it.modal > 0 ? fmtRp(it.profit) : '–'}</span>
