@@ -96,7 +96,7 @@ export default function Bookkeeping() {
   const [prodMap, setProdMap]       = useState({})
   const [expenses, setExpenses]     = useState([])
   const [grSales, setGrSales]       = useState([])   // GR penjualan (owner)
-  const [doJualMap, setDoJualMap]   = useState({})   // no. DO -> nilai jual
+  const [priceMaps, setPriceMaps]   = useState({ doItem: {}, doToSo: {}, soItem: {}, prodJual: {} })
   const [loading, setLoading]       = useState(true)
   const [sortClient, setSortClient] = useState('total')
   const [showAllOutstanding, setShowAllOutstanding] = useState(false)
@@ -122,26 +122,39 @@ export default function Bookkeeping() {
       if (isOwner) {
         const [grpRes, prodRes, expRes, grRes, doRes, soRes] = await Promise.all([
           supabase.from('purchases').select('id,number,date,items').eq('type', 'GRP').eq('status', 'received'),
-          supabase.from('products').select('nama,harga_modal'),
+          supabase.from('products').select('nama,harga_modal,harga_jual'),
           supabase.from('expenses').select('*').order('date', { ascending: false }),
-          // GR penjualan. Harga modal per GR disimpan di kolom `total` (kolom ini
-          // tak dipakai untuk GR di tempat lain), jadi tak perlu ubah database.
-          supabase.from('documents').select('id,number,date,client_name,ref_number,total,items').eq('type', 'GR').order('date', { ascending: false }),
-          supabase.from('documents').select('number,ref_number,total').eq('type', 'DO'),
-          supabase.from('documents').select('number,total').eq('type', 'SO'),
+          // GR penjualan. Harga modal per ITEM disimpan di dalam items GR
+          // (field `modal` per baris), jadi tak perlu ubah database.
+          supabase.from('documents').select('id,number,date,client_name,ref_number,items').eq('type', 'GR').order('date', { ascending: false }),
+          supabase.from('documents').select('number,ref_number,items').eq('type', 'DO'),
+          supabase.from('documents').select('number,items').eq('type', 'SO'),
         ])
         setGrpDocs(grpRes.data || [])
-        const map = {}
-        ;(prodRes.data || []).forEach(p => { if (p.nama) map[p.nama.toLowerCase().trim()] = p.harga_modal || 0 })
+        const map = {}, prodJual = {}
+        ;(prodRes.data || []).forEach(p => {
+          if (!p.nama) return
+          const k = p.nama.toLowerCase().trim()
+          map[k] = p.harga_modal || 0
+          prodJual[k] = p.harga_jual || 0
+        })
         setProdMap(map)
         setExpenses(expRes.data || [])
 
-        // Nilai jual tiap DO: nilai DO sendiri -> nilai SO sumbernya.
-        const soTotal = {}
-        ;(soRes.data || []).forEach(s => { if (s.number) soTotal[s.number] = s.total || 0 })
-        const doJual = {}
-        ;(doRes.data || []).forEach(d => { if (d.number) doJual[d.number] = d.total || soTotal[d.ref_number] || 0 })
-        setDoJualMap(doJual)
+        // Peta harga jual per item: dari item DO -> item SO sumbernya -> master produk.
+        const itemPriceMap = rows => {
+          const out = {}
+          ;(rows || []).forEach(d => {
+            if (!d.number) return
+            const m = {}
+            ;(d.items || []).forEach(it => { if (it.name) m[it.name.toLowerCase().trim()] = parseFloat(it.price) || 0 })
+            out[d.number] = m
+          })
+          return out
+        }
+        const doToSo = {}
+        ;(doRes.data || []).forEach(d => { if (d.number) doToSo[d.number] = d.ref_number })
+        setPriceMaps({ doItem: itemPriceMap(doRes.data), doToSo, soItem: itemPriceMap(soRes.data), prodJual })
         setGrSales(grRes.data || [])
       }
       setLoading(false)
@@ -224,17 +237,32 @@ export default function Bookkeeping() {
     return { ym, revenue, hpp, opex, grossProfit: revenue - hpp, netProfit: revenue - hpp - opex }
   })
 
-  // ── Laba per GR (owner) ──
+  // ── Laba per GR (owner) — profit per item produk ──
+  const jualUnitFor = (gr, nameLower) => {
+    const { doItem, doToSo, soItem, prodJual } = priceMaps
+    const fromDo = doItem[gr.ref_number]?.[nameLower]
+    if (fromDo) return fromDo
+    const soNo = doToSo[gr.ref_number]
+    const fromSo = soNo ? soItem[soNo]?.[nameLower] : 0
+    if (fromSo) return fromSo
+    return prodJual[nameLower] || 0
+  }
   const labaGR = grSales.map(g => {
-    const jual  = doJualMap[g.ref_number] || 0
-    const modal = parseFloat(g.total) || 0
-    const produk = (g.items || [])
-      .filter(it => it.name?.trim())
-      .map(it => {
-        const q = it.receivedQty ?? it.qty
-        return q !== '' && q != null ? `${it.name} (${q} ${it.unit || 'kg'})` : it.name
+    const items = (g.items || [])
+      .map((it, origIdx) => ({ it, origIdx }))
+      .filter(x => x.it.name?.trim())
+      .map(({ it, origIdx }) => {
+        const nameLower  = it.name.toLowerCase().trim()
+        const qty        = parseFloat(it.receivedQty ?? it.qty) || 0
+        const jualUnit   = jualUnitFor(g, nameLower)
+        const modalUnit  = parseFloat(it.modal) || 0
+        const jual  = jualUnit * qty
+        const modal = modalUnit * qty
+        return { idx: origIdx, name: it.name, unit: it.unit || 'kg', qty, jualUnit, modalUnit, jual, modal, profit: jual - modal }
       })
-    return { id: g.id, number: g.number, date: g.date, clientName: g.client_name, refNumber: g.ref_number, produk, jual, modal, profit: jual - modal }
+    const jual  = items.reduce((s, i) => s + i.jual, 0)
+    const modal = items.reduce((s, i) => s + i.modal, 0)
+    return { id: g.id, number: g.number, date: g.date, clientName: g.client_name, refNumber: g.ref_number, items, jual, modal, profit: jual - modal }
   })
   // Bulan yang tersedia (dari tanggal GR), terbaru dulu.
   const labaMonths = [...new Set(labaGR.map(r => (r.date || '').slice(0, 7)).filter(Boolean))].sort().reverse()
@@ -251,10 +279,14 @@ export default function Bookkeeping() {
     (new Date(d.dueDate) - new Date(todayISO)) / 86400000 <= 7
   )
 
-  async function saveHpp(grId, value) {
-    const modal = parseFloat(value) || 0
-    setGrSales(prev => prev.map(g => g.id === grId ? { ...g, total: modal } : g))
-    await supabase.from('documents').update({ total: modal }).eq('id', grId)
+  // Simpan harga modal per item (per unit) ke dalam items GR.
+  async function saveItemModal(grId, origIdx, value) {
+    const modalUnit = parseFloat(value) || 0
+    const g = grSales.find(x => x.id === grId)
+    if (!g) return
+    const newItems = (g.items || []).map((it, i) => i === origIdx ? { ...it, modal: modalUnit } : it)
+    setGrSales(prev => prev.map(x => x.id === grId ? { ...x, items: newItems } : x))
+    await supabase.from('documents').update({ items: newItems }).eq('id', grId)
   }
 
   // ── Expenses derived ──
@@ -705,38 +737,47 @@ export default function Bookkeeping() {
             <SummaryCard label="Total Profit" value={fmtRp(totalProfitGR)} color={totalProfitGR >= 0 ? '#34c759' : '#ff3b30'} bg={totalProfitGR >= 0 ? '#f0fdf4' : '#fff0f0'} icon={CheckCircle} sub="jual − modal" />
           </div>
 
-          <div>
-            <SLabel text="Rincian per GR" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <SLabel text="Rincian per GR — modal diisi per item" />
             {labaGRView.length === 0 ? (
               <div style={{ ...GLASS, padding: '24px', textAlign: 'center', color: '#8e8e93', fontSize: 13.5 }}>{labaGR.length === 0 ? 'Belum ada GR.' : 'Belum ada GR di bulan ini.'}</div>
-            ) : (
-              <div style={{ ...GLASS, overflow: 'hidden', overflowX: 'auto' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', minWidth: 540, padding: '10px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.02)', gap: 8 }}>
-                  <span style={thStyle}>GR / Klien</span>
+            ) : labaGRView.map(g => (
+              <div key={g.id} style={{ ...GLASS, overflow: 'hidden' }}>
+                {/* Header GR */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, padding: '12px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.02)' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.number}{g.refNumber ? ` · ${g.refNumber}` : ''}</p>
+                    <p style={{ fontSize: 11.5, color: '#8e8e93', margin: '2px 0 0' }}>{g.clientName || '–'}</p>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <p style={{ fontSize: 10.5, color: '#8e8e93', margin: 0 }}>Profit GR</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: g.profit >= 0 ? '#34c759' : '#ff3b30', margin: '1px 0 0' }}>{g.jual > 0 || g.modal > 0 ? fmtRp(g.profit) : '–'}</p>
+                  </div>
+                </div>
+                {/* Header kolom item */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.95fr 1fr 0.95fr', gap: 6, padding: '7px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.05)' }}>
+                  <span style={thStyle}>Produk</span>
                   <span style={{ ...thStyle, textAlign: 'right', color: '#007aff' }}>Jual</span>
-                  <span style={{ ...thStyle, textAlign: 'right', color: '#ff9500' }}>Modal</span>
+                  <span style={{ ...thStyle, textAlign: 'right', color: '#ff9500' }}>Modal/unit</span>
                   <span style={{ ...thStyle, textAlign: 'right', color: '#34c759' }}>Profit</span>
                 </div>
-                {labaGRView.map((r, idx) => (
-                  <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', minWidth: 540, padding: '10px 16px', borderBottom: idx < labaGRView.length - 1 ? '0.5px solid rgba(0,0,0,0.06)' : 'none', gap: 8, alignItems: 'center' }}>
+                {g.items.length === 0 ? (
+                  <div style={{ padding: '12px 16px', color: '#8e8e93', fontSize: 12 }}>Tidak ada item.</div>
+                ) : g.items.map((it, i) => (
+                  <div key={it.idx} style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.95fr 1fr 0.95fr', gap: 6, padding: '9px 16px', borderBottom: i < g.items.length - 1 ? '0.5px solid rgba(0,0,0,0.04)' : 'none', alignItems: 'center' }}>
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.number}{r.refNumber ? ` · ${r.refNumber}` : ''}</p>
-                      <p style={{ fontSize: 11, color: '#8e8e93', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.clientName || '–'}</p>
-                      {r.produk.length > 0 && (
-                        <p style={{ fontSize: 11, color: '#3c3c43', margin: '4px 0 0', lineHeight: 1.4 }}>
-                          {r.produk.join(' · ')}
-                        </p>
-                      )}
+                      <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</p>
+                      <p style={{ fontSize: 10.5, color: '#8e8e93', margin: '1px 0 0' }}>{it.qty} {it.unit} · jual {it.jualUnit > 0 ? fmtRp(it.jualUnit) + '/' + it.unit : '–'}</p>
                     </div>
-                    <span style={{ fontSize: 12.5, fontWeight: 600, color: '#007aff', textAlign: 'right' }}>{r.jual > 0 ? fmtRp(r.jual) : '–'}</span>
-                    <input type="number" min="0" defaultValue={r.modal || ''} placeholder="0"
-                      onBlur={e => saveHpp(r.id, e.target.value)}
-                      style={{ width: '100%', border: '1px solid #e5e5ea', borderRadius: 8, padding: '6px 8px', fontSize: 12.5, textAlign: 'right', ...FF }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: r.profit >= 0 ? '#34c759' : '#ff3b30', textAlign: 'right' }}>{r.jual > 0 || r.modal > 0 ? fmtRp(r.profit) : '–'}</span>
+                    <span style={{ fontSize: 11.5, color: '#007aff', textAlign: 'right' }}>{it.jual > 0 ? fmtRp(it.jual) : '–'}</span>
+                    <input type="number" min="0" defaultValue={it.modalUnit || ''} placeholder="0"
+                      onBlur={e => saveItemModal(g.id, it.idx, e.target.value)}
+                      style={{ width: '100%', border: '1px solid #e5e5ea', borderRadius: 8, padding: '5px 7px', fontSize: 11.5, textAlign: 'right', ...FF }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: it.profit >= 0 ? '#34c759' : '#ff3b30', textAlign: 'right' }}>{it.jual > 0 || it.modal > 0 ? fmtRp(it.profit) : '–'}</span>
                   </div>
                 ))}
               </div>
-            )}
+            ))}
           </div>
         </>
       )}
