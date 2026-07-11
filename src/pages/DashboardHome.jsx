@@ -301,13 +301,14 @@ function OwnerAdminDashboard() {
     // Load all docs + partial delivery reports in parallel
     Promise.all([
       supabase.from('documents')
-        .select('id,number,type,status,total,date,ref_number,client_name,created_at')
+        .select('id,number,type,status,total,date,ref_number,client_name,items,created_at')
         .order('created_at', { ascending: false }),
       supabase.from('delivery_reports')
         .select('do_id')
         .eq('is_partial', true)
         .not('do_id', 'is', null),
-    ]).then(([{ data: docs }, { data: partialReports }]) => {
+      supabase.from('products').select('nama,harga_jual'),
+    ]).then(([{ data: docs }, { data: partialReports }, { data: prods }]) => {
       if (!docs) return
 
       // Recent docs (last 5)
@@ -328,15 +329,38 @@ function OwnerAdminDashboard() {
       // GR set (ref_number = DO number it covers)
       const grRefs = new Set(docs.filter(d => d.type === 'GR').map(d => d.ref_number).filter(Boolean))
 
-      // Omset Beranda = total jual per GR bulan ini. Pakai total jual GR (diisi
-      // di Pembukuan) kalau ada, kalau tidak jatuh ke nilai DO -> SO sumbernya.
-      const soTotalMap = {}
-      soDocs.forEach(d => { if (d.number) soTotalMap[d.number] = d.total || 0 })
-      const doJualMap = {}
-      doDocs.forEach(d => { if (d.number) doJualMap[d.number] = d.total || soTotalMap[d.ref_number] || 0 })
+      // Omset Beranda dihitung PERSIS seperti "Laba per GR" di Pembukuan:
+      // Σ (harga jual per item × kg diterima) untuk semua GR bulan ini.
+      // Harga jual per item: yang diisi di GR -> item DO -> item SO -> master.
+      const doByNumber = {}
+      doDocs.forEach(d => { if (d.number) doByNumber[d.number] = d })
+      const soItemMap = {}
+      soDocs.forEach(d => {
+        if (!d.number) return
+        const m = {}
+        ;(d.items || []).forEach(it => { if (it.name) m[it.name.toLowerCase().trim()] = parseFloat(it.price) || 0 })
+        soItemMap[d.number] = m
+      })
+      const prodJual = {}
+      ;(prods || []).forEach(p => { if (p.nama) prodJual[p.nama.toLowerCase().trim()] = p.harga_jual || 0 })
+      const jualUnitFor = (gr, item) => {
+        if (item.jual !== undefined && item.jual !== null && item.jual !== '') return parseFloat(item.jual) || 0
+        const nameLower = (item.name || '').toLowerCase().trim()
+        const dobj = doByNumber[gr.ref_number]
+        const doPrice = parseFloat(dobj?.items?.find(it => (it.name || '').toLowerCase().trim() === nameLower)?.price) || 0
+        if (doPrice) return doPrice
+        const soNo = dobj?.ref_number
+        const fromSo = soNo ? (soItemMap[soNo]?.[nameLower] || 0) : 0
+        if (fromSo) return fromSo
+        return prodJual[nameLower] || 0
+      }
       setPenjualan(
         docs.filter(d => d.type === 'GR' && (d.date || '').startsWith(thisMonth))
-          .reduce((s, gr) => s + ((gr.total || 0) || doJualMap[gr.ref_number] || 0), 0)
+          .reduce((sGr, gr) => sGr + (gr.items || []).reduce((s, it) => {
+            if (!it.name?.trim()) return s
+            const qty = parseFloat(it.receivedQty) || parseFloat(it.qty) || 0
+            return s + jualUnitFor(gr, it) * qty
+          }, 0), 0)
       )
 
       // DO delivered but no GR yet
