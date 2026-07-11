@@ -444,6 +444,14 @@ export default function Deliveries() {
     return inTransit || r.deliveryDate === selectedDate
   })
 
+  // Total lebihan (akumulasi): hanya selisih POSITIF (terima > kirim) yang dijumlah.
+  // Susut (terima < kirim) tidak mengurangi / tidak ditampilkan.
+  const totalLebihan = reports.reduce((s, r) => {
+    if (r.weightSent == null || r.weightReceived == null) return s
+    const d = r.weightReceived - r.weightSent
+    return d > 0 ? s + d : s
+  }, 0)
+
   // Partial DO groups: DOs with at least one partial delivery and no GR yet
   const partialDoGroups = (() => {
     const partialKeys = new Set(
@@ -558,6 +566,17 @@ export default function Deliveries() {
         </button>
       </div>
 
+      {/* Total Lebihan (akumulasi) */}
+      {totalLebihan > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fff4', border: '1px solid #b7f5c9', borderRadius: 14, padding: '13px 16px', boxShadow: '0 2px 20px rgba(0,0,0,0.04)' }}>
+          <div>
+            <p style={{ fontSize: 12.5, color: '#15803d', fontWeight: 600, margin: 0 }}>Total Lebihan (akumulasi)</p>
+            <p style={{ fontSize: 11, color: '#4d9e6a', margin: '2px 0 0' }}>selisih lebih dari semua pengiriman (susut tidak dihitung)</p>
+          </div>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#16a34a', flexShrink: 0 }}>+{totalLebihan.toFixed(1)} kg</span>
+        </div>
+      )}
+
       {/* List */}
       {displayedReports.length === 0 ? (
         <div style={{
@@ -642,13 +661,12 @@ export default function Deliveries() {
                         {' → '}
                         Terima <strong>{r.weightReceived ?? '–'} kg</strong>
                       </p>
-                      {diff !== null && (
+                      {diff !== null && diff > 0 && (
                         <span style={{
-                          fontSize: 11.5, fontWeight: 600, padding: '1px 6px', borderRadius: 6,
-                          background: diff < 0 ? '#fff0f0' : '#f0fff4',
-                          color: diff < 0 ? '#ff3b30' : '#34c759',
+                          fontSize: 11.5, fontWeight: 700, padding: '1px 6px', borderRadius: 6,
+                          background: '#f0fff4', color: '#16a34a',
                         }}>
-                          {diff > 0 ? '+' : ''}{diff.toFixed(1)} kg
+                          Lebihan +{diff.toFixed(1)} kg
                         </span>
                       )}
                       {r.isPartial && (
