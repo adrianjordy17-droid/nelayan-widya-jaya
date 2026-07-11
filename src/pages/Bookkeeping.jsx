@@ -96,7 +96,8 @@ export default function Bookkeeping() {
   const [prodMap, setProdMap]       = useState({})
   const [expenses, setExpenses]     = useState([])
   const [grSales, setGrSales]       = useState([])   // GR penjualan (owner)
-  const [priceMaps, setPriceMaps]   = useState({ doItem: {}, doToSo: {}, soItem: {}, prodJual: {} })
+  const [doDocs, setDoDocs]         = useState([])   // DO lengkap (buat edit harga jual)
+  const [priceMaps, setPriceMaps]   = useState({ soItem: {}, prodJual: {} })
   const [loading, setLoading]       = useState(true)
   const [sortClient, setSortClient] = useState('total')
   const [showAllOutstanding, setShowAllOutstanding] = useState(false)
@@ -127,7 +128,7 @@ export default function Bookkeeping() {
           // GR penjualan. Harga modal per ITEM disimpan di dalam items GR
           // (field `modal` per baris), jadi tak perlu ubah database.
           supabase.from('documents').select('id,number,date,client_name,ref_number,items').eq('type', 'GR').order('date', { ascending: false }),
-          supabase.from('documents').select('number,ref_number,items').eq('type', 'DO'),
+          supabase.from('documents').select('id,number,ref_number,items,total').eq('type', 'DO'),
           supabase.from('documents').select('number,items').eq('type', 'SO'),
         ])
         setGrpDocs(grpRes.data || [])
@@ -141,20 +142,16 @@ export default function Bookkeeping() {
         setProdMap(map)
         setExpenses(expRes.data || [])
 
-        // Peta harga jual per item: dari item DO -> item SO sumbernya -> master produk.
-        const itemPriceMap = rows => {
-          const out = {}
-          ;(rows || []).forEach(d => {
-            if (!d.number) return
-            const m = {}
-            ;(d.items || []).forEach(it => { if (it.name) m[it.name.toLowerCase().trim()] = parseFloat(it.price) || 0 })
-            out[d.number] = m
-          })
-          return out
-        }
-        const doToSo = {}
-        ;(doRes.data || []).forEach(d => { if (d.number) doToSo[d.number] = d.ref_number })
-        setPriceMaps({ doItem: itemPriceMap(doRes.data), doToSo, soItem: itemPriceMap(soRes.data), prodJual })
+        // Peta harga jual item SO (buat fallback).
+        const soItem = {}
+        ;(soRes.data || []).forEach(d => {
+          if (!d.number) return
+          const m = {}
+          ;(d.items || []).forEach(it => { if (it.name) m[it.name.toLowerCase().trim()] = parseFloat(it.price) || 0 })
+          soItem[d.number] = m
+        })
+        setPriceMaps({ soItem, prodJual })
+        setDoDocs(doRes.data || [])
         setGrSales(grRes.data || [])
       }
       setLoading(false)
@@ -238,14 +235,16 @@ export default function Bookkeeping() {
   })
 
   // ── Laba per GR (owner) — profit per item produk ──
+  const doByNumber = {}
+  doDocs.forEach(d => { if (d.number) doByNumber[d.number] = d })
   const jualUnitFor = (gr, nameLower) => {
-    const { doItem, doToSo, soItem, prodJual } = priceMaps
-    const fromDo = doItem[gr.ref_number]?.[nameLower]
-    if (fromDo) return fromDo
-    const soNo = doToSo[gr.ref_number]
-    const fromSo = soNo ? soItem[soNo]?.[nameLower] : 0
+    const dobj = doByNumber[gr.ref_number]
+    const doPrice = parseFloat(dobj?.items?.find(it => (it.name || '').toLowerCase().trim() === nameLower)?.price) || 0
+    if (doPrice) return doPrice
+    const soNo = dobj?.ref_number
+    const fromSo = soNo ? (priceMaps.soItem[soNo]?.[nameLower] || 0) : 0
     if (fromSo) return fromSo
-    return prodJual[nameLower] || 0
+    return priceMaps.prodJual[nameLower] || 0
   }
   const labaGR = grSales.map(g => {
     const items = (g.items || [])
@@ -287,6 +286,22 @@ export default function Bookkeeping() {
     const newItems = (g.items || []).map((it, i) => i === origIdx ? { ...it, modal: modalUnit } : it)
     setGrSales(prev => prev.map(x => x.id === grId ? { ...x, items: newItems } : x))
     await supabase.from('documents').update({ items: newItems }).eq('id', grId)
+  }
+
+  // Simpan harga jual per item (per unit) ke DO-nya — supaya ikut ke omset Beranda.
+  async function saveItemJual(gr, itemName, value) {
+    const price = parseFloat(value) || 0
+    const dobj = doByNumber[gr.ref_number]
+    if (!dobj) return
+    const nl = (itemName || '').toLowerCase().trim()
+    const newItems = (dobj.items || []).map(it =>
+      (it.name || '').toLowerCase().trim() === nl
+        ? { ...it, price, total: Math.round((parseFloat(it.qty) || 0) * price) }
+        : it
+    )
+    const newTotal = newItems.reduce((s, it) => s + (parseFloat(it.total) || (parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0)), 0)
+    setDoDocs(prev => prev.map(d => d.id === dobj.id ? { ...d, items: newItems } : d))
+    await supabase.from('documents').update({ items: newItems, total: newTotal }).eq('id', dobj.id)
   }
 
   // ── Expenses derived ──
@@ -755,21 +770,23 @@ export default function Bookkeeping() {
                   </div>
                 </div>
                 {/* Header kolom item */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.95fr 1fr 0.95fr', gap: 6, padding: '7px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 0.9fr', gap: 6, padding: '7px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.05)' }}>
                   <span style={thStyle}>Produk</span>
-                  <span style={{ ...thStyle, textAlign: 'right', color: '#007aff' }}>Jual</span>
+                  <span style={{ ...thStyle, textAlign: 'right', color: '#007aff' }}>Jual/unit</span>
                   <span style={{ ...thStyle, textAlign: 'right', color: '#ff9500' }}>Modal/unit</span>
                   <span style={{ ...thStyle, textAlign: 'right', color: '#34c759' }}>Profit</span>
                 </div>
                 {g.items.length === 0 ? (
                   <div style={{ padding: '12px 16px', color: '#8e8e93', fontSize: 12 }}>Tidak ada item.</div>
                 ) : g.items.map((it, i) => (
-                  <div key={it.idx} style={{ display: 'grid', gridTemplateColumns: '1.5fr 0.95fr 1fr 0.95fr', gap: 6, padding: '9px 16px', borderBottom: i < g.items.length - 1 ? '0.5px solid rgba(0,0,0,0.04)' : 'none', alignItems: 'center' }}>
+                  <div key={it.idx} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 0.9fr', gap: 6, padding: '9px 16px', borderBottom: i < g.items.length - 1 ? '0.5px solid rgba(0,0,0,0.04)' : 'none', alignItems: 'center' }}>
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1c1e', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</p>
-                      <p style={{ fontSize: 10.5, color: '#8e8e93', margin: '1px 0 0' }}>{it.qty} {it.unit} · jual {it.jualUnit > 0 ? fmtRp(it.jualUnit) + '/' + it.unit : '–'}</p>
+                      <p style={{ fontSize: 10.5, color: '#8e8e93', margin: '1px 0 0' }}>{it.qty} {it.unit}</p>
                     </div>
-                    <span style={{ fontSize: 11.5, color: '#007aff', textAlign: 'right' }}>{it.jual > 0 ? fmtRp(it.jual) : '–'}</span>
+                    <input key={`j-${it.idx}-${it.jualUnit}`} type="number" min="0" defaultValue={it.jualUnit || ''} placeholder="isi jual"
+                      onBlur={e => saveItemJual(g, it.name, e.target.value)}
+                      style={{ width: '100%', border: '1px solid #d6e4ff', background: it.jualUnit > 0 ? 'white' : '#eff6ff', borderRadius: 8, padding: '5px 7px', fontSize: 11.5, textAlign: 'right', ...FF }} />
                     <input type="number" min="0" defaultValue={it.modalUnit || ''} placeholder="0"
                       onBlur={e => saveItemModal(g.id, it.idx, e.target.value)}
                       style={{ width: '100%', border: '1px solid #e5e5ea', borderRadius: 8, padding: '5px 7px', fontSize: 11.5, textAlign: 'right', ...FF }} />
