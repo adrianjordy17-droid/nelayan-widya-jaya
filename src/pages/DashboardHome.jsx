@@ -316,11 +316,6 @@ function OwnerAdminDashboard() {
       // SO metrics
       const soDocs = docs.filter(d => d.type === 'SO')
       setOrderPending(soDocs.filter(d => d.status === 'draft').length)
-      setPenjualan(
-        soDocs
-          .filter(d => ['confirmed','delivered'].includes(d.status) && (d.date||'').startsWith(thisMonth))
-          .reduce((s, d) => s + (d.total || 0), 0)
-      )
 
       const soDraftList = soDocs.filter(d => d.status === 'draft')
 
@@ -332,6 +327,16 @@ function OwnerAdminDashboard() {
 
       // GR set (ref_number = DO number it covers)
       const grRefs = new Set(docs.filter(d => d.type === 'GR').map(d => d.ref_number).filter(Boolean))
+
+      // Omset Beranda = total jual per DO (nilai DO -> SO sumbernya), untuk GR bulan ini.
+      const soTotalMap = {}
+      soDocs.forEach(d => { if (d.number) soTotalMap[d.number] = d.total || 0 })
+      const doJualMap = {}
+      doDocs.forEach(d => { if (d.number) doJualMap[d.number] = d.total || soTotalMap[d.ref_number] || 0 })
+      setPenjualan(
+        docs.filter(d => d.type === 'GR' && (d.date || '').startsWith(thisMonth))
+          .reduce((s, gr) => s + (doJualMap[gr.ref_number] || 0), 0)
+      )
 
       // DO delivered but no GR yet
       const noGrList = doDocs.filter(d => d.status === 'delivered' && !grRefs.has(d.number))
@@ -359,7 +364,7 @@ function OwnerAdminDashboard() {
   const stokTipis = products.filter(p => (p.qty || 0) <= (p.min_qty > 0 ? p.min_qty : 10)).length
 
   const STATS = [
-    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'dari SO dikonfirmasi bulan ini', Icon: TrendingUp,    iconColor: '#2563eb', iconBg: 'rgba(37,99,235,0.12)',  bar: '#2563eb' },
+    { label: 'Penjualan Bulan Ini', value: rpFmt(penjualanBulanIni), sub: 'total jual DO (GR) bulan ini', Icon: TrendingUp,    iconColor: '#2563eb', iconBg: 'rgba(37,99,235,0.12)',  bar: '#2563eb' },
     { label: 'SO Pending',          value: String(orderPending),     sub: 'sales order draft',              Icon: ShoppingCart,  iconColor: '#d97706', iconBg: 'rgba(217,119,6,0.12)', bar: '#d97706' },
     { label: 'Hadir Hari Ini',      value: `${hadirCount}/${totalExpected}`, sub: 'karyawan hadir',        Icon: UserCheck,     iconColor: '#16a34a', iconBg: 'rgba(22,163,74,0.12)', bar: '#16a34a' },
     {
