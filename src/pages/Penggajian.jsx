@@ -15,12 +15,23 @@ function fmtRp(n) { return 'Rp ' + Math.round(n || 0).toLocaleString('id-ID') }
 function curYM() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` }
 function fmtMonth(ym) { const [y, m] = ym.split('-').map(Number); return `${MONTHS[m - 1]} ${y}` }
 function shiftYM(ym, d) { const [y, m] = ym.split('-').map(Number); const dt = new Date(y, m - 1 + d, 1); return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}` }
+function monthsBetween(startYM, curYM) { const [sy, sm] = startYM.split('-').map(Number); const [cy, cm] = curYM.split('-').map(Number); return (cy - sy) * 12 + (cm - sm) }
+// Cicilan yang jatuh di bulan `ym` untuk 1 catatan finance (pinjaman/kasbon).
+// tenor = jumlah bulan; cicilan mulai dari bulan tanggal, sampai lunas.
+function cicilanBulan(f, ym) {
+  const startYM = (f.tanggal || '').slice(0, 7)
+  if (!startYM) return 0
+  const tenor = Math.max(1, parseInt(f.tenor) || 1)
+  const off = monthsBetween(startYM, ym)
+  if (off < 0 || off >= tenor) return 0
+  return (parseFloat(f.amount) || 0) / tenor
+}
 
 const inputStyle = { width: '100%', border: '1px solid #d1d1d6', borderRadius: 9, padding: '8px 11px', fontSize: 13.5, outline: 'none', background: 'white', color: '#1c1c1e', boxSizing: 'border-box', ...FF }
 
 export default function Penggajian() {
   const { isRole, profile } = useAuth()
-  const isOwner = isRole('owner')
+  const canAccess = isRole('owner') || isRole('admin')
 
   const [employees, setEmployees] = useState([])
   const [attendance, setAttendance] = useState([])
@@ -33,7 +44,7 @@ export default function Penggajian() {
   const [openEmp, setOpenEmp] = useState(null)   // expanded rincian
 
   useEffect(() => {
-    if (!isOwner) { setLoading(false); return }
+    if (!canAccess) { setLoading(false); return }
     ;(async () => {
       setLoading(true)
       const [empRes, attRes, finRes] = await Promise.all([
@@ -47,13 +58,20 @@ export default function Penggajian() {
       setFinance(finRes.data || [])
       setLoading(false)
     })()
-  }, [isOwner, month])
+  }, [canAccess, month])
 
   async function saveGaji(empId, value) {
     const gaji = parseFloat(value) || 0
     setEmployees(prev => prev.map(e => e.id === empId ? { ...e, gaji } : e))
     const { error } = await supabase.from('employees').update({ gaji }).eq('id', empId)
     if (error) alert('Gagal menyimpan gaji: ' + error.message)
+  }
+
+  async function savePotonganTelat(empId, value) {
+    const potongan_telat = parseFloat(value) || 0
+    setEmployees(prev => prev.map(e => e.id === empId ? { ...e, potongan_telat } : e))
+    const { error } = await supabase.from('employees').update({ potongan_telat }).eq('id', empId)
+    if (error) alert('Gagal menyimpan potongan telat: ' + error.message)
   }
 
   async function addFinance() {
@@ -63,6 +81,7 @@ export default function Penggajian() {
       employee_id: finForm.employee.id,
       jenis: finForm.jenis,
       amount: parseFloat(finForm.amount) || 0,
+      tenor: finForm.jenis === 'pinjaman' ? (parseInt(finForm.tenor) || 1) : 1,
       tanggal: finForm.tanggal || new Date().toISOString().slice(0, 10),
       catatan: finForm.catatan?.trim() || null,
       created_by: profile?.name || null,
@@ -79,8 +98,8 @@ export default function Penggajian() {
     await supabase.from('employee_finance').delete().eq('id', id)
   }
 
-  if (!isOwner) {
-    return <div style={{ padding: '40px 0', textAlign: 'center', color: '#8e8e93', ...FF }}>Hanya owner yang bisa mengakses Penggajian.</div>
+  if (!canAccess) {
+    return <div style={{ padding: '40px 0', textAlign: 'center', color: '#8e8e93', ...FF }}>Hanya owner atau admin yang bisa mengakses Penggajian.</div>
   }
   if (loading) {
     return <div style={{ padding: '48px 0', textAlign: 'center', color: '#8e8e93', fontSize: 15, ...FF }}>Memuat data...</div>
@@ -104,10 +123,13 @@ export default function Penggajian() {
     const hadir = att.filter(a => a.status === 'hadir').length
     const telat = att.filter(a => a.status === 'telat').length
     const fin = finance.filter(f => f.employee_id === emp.id)
-    const kasbon = fin.filter(f => f.jenis === 'kasbon').reduce((s, f) => s + (f.amount || 0), 0)
-    const pinjaman = fin.filter(f => f.jenis === 'pinjaman').reduce((s, f) => s + (f.amount || 0), 0)
+    // Kasbon & pinjaman = cicilan yang jatuh di BULAN ini (pinjaman bisa dibagi 2/4 bulan)
+    const kasbon = fin.filter(f => f.jenis === 'kasbon').reduce((s, f) => s + cicilanBulan(f, month), 0)
+    const pinjaman = fin.filter(f => f.jenis === 'pinjaman').reduce((s, f) => s + cicilanBulan(f, month), 0)
     const gaji = parseFloat(emp.gaji) || 0
-    return { emp, hadir, telat, fin, kasbon, pinjaman, gaji, bersih: gaji - kasbon - pinjaman }
+    const potTelat = parseFloat(emp.potongan_telat) || 0
+    const telatPotongan = telat * potTelat
+    return { emp, hadir, telat, fin, kasbon, pinjaman, gaji, potTelat, telatPotongan, bersih: gaji - kasbon - pinjaman - telatPotongan }
   })
 
   return (
@@ -129,7 +151,7 @@ export default function Penggajian() {
         </div>
       )}
 
-      {rows.map(({ emp, hadir, telat, fin, kasbon, pinjaman, gaji, bersih }) => {
+      {rows.map(({ emp, hadir, telat, fin, kasbon, pinjaman, gaji, potTelat, telatPotongan, bersih }) => {
         const isOpen = openEmp === emp.id
         return (
           <div key={emp.id} style={{ ...GLASS, overflow: 'hidden' }}>
@@ -169,6 +191,20 @@ export default function Penggajian() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <span style={{ fontSize: 13, color: '#3c3c43', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Clock size={14} color="#ca8a04" /> Potongan / Telat</span>
+                <input type="number" min="0" defaultValue={potTelat || ''} placeholder="0"
+                  onBlur={e => savePotonganTelat(emp.id, e.target.value)}
+                  style={{ ...inputStyle, width: 150, textAlign: 'right' }} />
+              </div>
+
+              {telatPotongan > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontSize: 12.5, color: '#8e8e93', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Clock size={13} color="#ca8a04" /> Total potongan telat ({telat}× {fmtRp(potTelat)})</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#ca8a04' }}>− {fmtRp(telatPotongan)}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <span style={{ fontSize: 13, color: '#3c3c43', display: 'inline-flex', alignItems: 'center', gap: 6 }}><HandCoins size={14} color="#ff9500" /> Kasbon</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: kasbon > 0 ? '#ff9500' : '#8e8e93' }}>{fmtRp(kasbon)}</span>
@@ -180,7 +216,7 @@ export default function Penggajian() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <span style={{ fontSize: 13, color: '#3c3c43', display: 'inline-flex', alignItems: 'center', gap: 6 }}><HandCoins size={14} color="#af52de" /> Pinjaman</span>
+                <span style={{ fontSize: 13, color: '#3c3c43', display: 'inline-flex', alignItems: 'center', gap: 6 }}><HandCoins size={14} color="#af52de" /> Pinjaman <span style={{ fontSize: 11, color: '#aeaeb2' }}>(cicilan bln ini)</span></span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: pinjaman > 0 ? '#af52de' : '#8e8e93' }}>{fmtRp(pinjaman)}</span>
                   <button onClick={() => setFinForm({ employee: emp, jenis: 'pinjaman', amount: '', tanggal: new Date().toISOString().slice(0, 10), catatan: '' })}
@@ -200,15 +236,26 @@ export default function Penggajian() {
                   {isOpen ? 'Tutup rincian' : `Lihat rincian (${fin.length})`}
                 </button>
               )}
-              {isOpen && fin.map(f => (
-                <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '7px 10px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: f.jenis === 'kasbon' ? '#ff9500' : '#af52de', margin: 0, textTransform: 'capitalize' }}>{f.jenis} · {fmtRp(f.amount)}</p>
-                    <p style={{ fontSize: 10.5, color: '#8e8e93', margin: '1px 0 0' }}>{f.tanggal}{f.catatan ? ` · ${f.catatan}` : ''}</p>
+              {isOpen && fin.map(f => {
+                const tenor = Math.max(1, parseInt(f.tenor) || 1)
+                const off = monthsBetween((f.tanggal || '').slice(0, 7), month)
+                const perBulan = (parseFloat(f.amount) || 0) / tenor
+                let status
+                if (tenor <= 1) status = 'langsung (1x)'
+                else if (off < 0) status = `cicilan ${tenor}x · mulai ${(f.tanggal || '').slice(0, 7)}`
+                else if (off >= tenor) status = `cicilan ${tenor}x · LUNAS`
+                else status = `cicilan ke-${off + 1}/${tenor} · ${fmtRp(perBulan)}/bln`
+                return (
+                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '7px 10px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: f.jenis === 'kasbon' ? '#ff9500' : '#af52de', margin: 0, textTransform: 'capitalize' }}>{f.jenis} · {fmtRp(f.amount)}</p>
+                      {f.jenis === 'pinjaman' && <p style={{ fontSize: 10.5, fontWeight: 600, color: off >= 0 && off < tenor ? '#af52de' : '#8e8e93', margin: '1px 0 0' }}>{status}</p>}
+                      <p style={{ fontSize: 10.5, color: '#8e8e93', margin: '1px 0 0' }}>{f.tanggal}{f.catatan ? ` · ${f.catatan}` : ''}</p>
+                    </div>
+                    <button onClick={() => delFinance(f.id)} style={{ background: 'none', border: 'none', color: '#ff3b30', cursor: 'pointer', padding: 4, flexShrink: 0 }}><Trash2 size={13} /></button>
                   </div>
-                  <button onClick={() => delFinance(f.id)} style={{ background: 'none', border: 'none', color: '#ff3b30', cursor: 'pointer', padding: 4, flexShrink: 0 }}><Trash2 size={13} /></button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )
@@ -228,6 +275,27 @@ export default function Penggajian() {
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>NOMINAL (Rp) *</label>
                 <input type="number" min="0" value={finForm.amount} onChange={e => setFinForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" style={inputStyle} autoFocus />
               </div>
+              {finForm.jenis === 'pinjaman' && (
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>POTONG / CICILAN</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[{ v: 1, l: 'Langsung' }, { v: 2, l: '2x (2 bln)' }, { v: 4, l: '4x (4 bln)' }].map(opt => {
+                      const active = (parseInt(finForm.tenor) || 1) === opt.v
+                      return (
+                        <button key={opt.v} onClick={() => setFinForm(f => ({ ...f, tenor: opt.v }))}
+                          style={{ flex: 1, padding: '8px 6px', borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', border: active ? '1.5px solid #af52de' : '1px solid #d1d1d6', background: active ? 'rgba(175,82,222,0.1)' : 'white', color: active ? '#af52de' : '#3c3c43', ...FF }}>
+                          {opt.l}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {(parseInt(finForm.tenor) || 1) > 1 && parseFloat(finForm.amount) > 0 && (
+                    <p style={{ fontSize: 11.5, color: '#af52de', margin: '7px 0 0', fontWeight: 600 }}>
+                      Terpotong {fmtRp((parseFloat(finForm.amount) || 0) / (parseInt(finForm.tenor) || 1))} / bulan selama {parseInt(finForm.tenor)} bulan.
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>TANGGAL</label>
                 <input type="date" value={finForm.tanggal} onChange={e => setFinForm(f => ({ ...f, tanggal: e.target.value }))} style={inputStyle} />
