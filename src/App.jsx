@@ -25,6 +25,7 @@ const Bookkeeping   = lazy(() => import('./pages/Bookkeeping'))
 const Suppliers     = lazy(() => import('./pages/Suppliers'))
 const Purchases     = lazy(() => import('./pages/Purchases'))
 const Invoices      = lazy(() => import('./pages/Invoices'))
+const Penggajian    = lazy(() => import('./pages/Penggajian'))
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -85,6 +86,7 @@ function AppRoutes() {
         <Route path="suppliers" element={<FeatureRoute feature="suppliers"><Suppliers /></FeatureRoute>} />
         <Route path="purchases" element={<FeatureRoute feature="purchases"><Purchases /></FeatureRoute>} />
         <Route path="invoices" element={<FeatureRoute feature="documents"><Invoices /></FeatureRoute>} />
+        <Route path="payroll" element={<FeatureRoute feature="payroll"><Penggajian /></FeatureRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
