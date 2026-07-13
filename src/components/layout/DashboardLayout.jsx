@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, BookOpen, Wallet,
+  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, BookOpen, Wallet, Sun, Moon,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
@@ -298,7 +298,16 @@ export default function DashboardLayout() {
   const [notifications, setNotifications] = useState([])
   const [isMobile, setIsMobile]           = useState(window.innerWidth < 768)
   const [sidebarOpen, setSidebarOpen]     = useState(false)
+  const [theme, setTheme]                 = useState(() => {
+    try { return localStorage.getItem('nwj_theme') || 'light' } catch { return 'light' }
+  })
+  const isDark = theme === 'dark'
   const notifRef = useRef(null)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { localStorage.setItem('nwj_theme', theme) } catch {}
+  }, [theme])
 
   useWAScheduler()
 
@@ -325,13 +334,15 @@ export default function DashboardLayout() {
     <div style={{
       display: 'flex', height: '100vh', overflow: 'hidden', position: 'relative',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif",
-      background: 'linear-gradient(155deg, #eef3f9 0%, #f5f7fa 42%, #eceff5 100%)',
+      background: isDark
+        ? 'linear-gradient(160deg, #071B34 0%, #0D2952 52%, #0A2040 100%)'
+        : 'linear-gradient(155deg, #eef3f9 0%, #f5f7fa 42%, #eceff5 100%)',
     }}>
       {/* Decorative soft blobs — kasih "kehidupan" di balik kaca (liquid glass) */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -140, left: 200, width: 540, height: 540, borderRadius: '50%', background: 'radial-gradient(circle, rgba(10,132,255,0.10), transparent 70%)', filter: 'blur(50px)' }} />
-        <div style={{ position: 'absolute', bottom: -180, right: -60, width: 580, height: 580, borderRadius: '50%', background: 'radial-gradient(circle, rgba(48,209,88,0.07), transparent 70%)', filter: 'blur(60px)' }} />
-        <div style={{ position: 'absolute', top: '38%', right: '34%', width: 440, height: 440, borderRadius: '50%', background: 'radial-gradient(circle, rgba(94,92,230,0.06), transparent 70%)', filter: 'blur(60px)' }} />
+        <div style={{ position: 'absolute', top: -140, left: 200, width: 540, height: 540, borderRadius: '50%', background: isDark ? 'radial-gradient(circle, rgba(37,99,235,0.22), transparent 70%)' : 'radial-gradient(circle, rgba(10,132,255,0.10), transparent 70%)', filter: 'blur(50px)' }} />
+        <div style={{ position: 'absolute', bottom: -180, right: -60, width: 580, height: 580, borderRadius: '50%', background: isDark ? 'radial-gradient(circle, rgba(14,165,233,0.14), transparent 70%)' : 'radial-gradient(circle, rgba(48,209,88,0.07), transparent 70%)', filter: 'blur(60px)' }} />
+        <div style={{ position: 'absolute', top: '38%', right: '34%', width: 440, height: 440, borderRadius: '50%', background: isDark ? 'radial-gradient(circle, rgba(94,92,230,0.12), transparent 70%)' : 'radial-gradient(circle, rgba(94,92,230,0.06), transparent 70%)', filter: 'blur(60px)' }} />
       </div>
 
       {isMobile && sidebarOpen && (
@@ -423,9 +434,9 @@ export default function DashboardLayout() {
         {/* Topbar — frosted glass */}
         <header style={{
           height: 48, flexShrink: 0,
-          background: 'rgba(255,255,255,0.6)',
+          background: isDark ? 'rgba(13,27,52,0.55)' : 'rgba(255,255,255,0.6)',
           backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-          borderBottom: '0.5px solid rgba(0,0,0,0.06)',
+          borderBottom: isDark ? '0.5px solid rgba(255,255,255,0.07)' : '0.5px solid rgba(0,0,0,0.06)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -438,15 +449,20 @@ export default function DashboardLayout() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} title={isDark ? 'Mode Terang' : 'Mode Gelap'}
+              style={{ width: 32, height: 32, borderRadius: 8, background: isDark ? 'rgba(255,255,255,0.08)' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {isDark ? <Sun size={16} color="#ffd60a" strokeWidth={1.9} /> : <Moon size={16} color="#3c3c43" strokeWidth={1.8} />}
+            </button>
+
             <div style={{ position: 'relative' }} ref={notifRef}>
-              <button onClick={() => setNotifOpen(v => !v)} style={{ width: 32, height: 32, borderRadius: 8, background: notifOpen ? '#f2f2f7' : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                <Bell size={16} color={totalCount > 0 ? '#ff3b30' : '#3c3c43'} strokeWidth={1.8} />
-                {totalCount > 0 && <span style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, borderRadius: '50%', background: '#ff3b30', border: '1.5px solid white' }} />}
+              <button onClick={() => setNotifOpen(v => !v)} style={{ width: 32, height: 32, borderRadius: 8, background: notifOpen ? (isDark ? 'rgba(255,255,255,0.08)' : '#f2f2f7') : 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                <Bell size={16} color={totalCount > 0 ? '#ff3b30' : (isDark ? 'rgba(255,255,255,0.7)' : '#3c3c43')} strokeWidth={1.8} />
+                {totalCount > 0 && <span style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, borderRadius: '50%', background: '#ff3b30', border: `1.5px solid ${isDark ? '#0D2952' : 'white'}` }} />}
               </button>
               {/* NotifPanel rendered at root level to avoid backdrop-filter stacking context */}
             </div>
 
-            <div style={{ width: 0.5, height: 20, background: 'rgba(0,0,0,0.12)' }} />
+            <div style={{ width: 0.5, height: 20, background: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)' }} />
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px 4px 4px', borderRadius: 99, background: '#f2f2f7' }}>
               <div style={{ width: 26, height: 26, borderRadius: '50%', overflow: 'hidden', background: `linear-gradient(135deg,${roleColor},${roleColor}bb)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'white' }}>
