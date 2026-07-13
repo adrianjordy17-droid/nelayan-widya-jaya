@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, BookOpen, Wallet,
+  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, BookOpen,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
@@ -29,7 +29,6 @@ const NAV_ITEMS = [
   { path: '/dashboard/jobdesk',     label: 'Jobdesk',        icon: ClipboardList,   feature: 'jobdesk' },
   { path: '/dashboard/products',    label: 'Produk & Harga', icon: Tag,             feature: 'products' },
   { path: '/dashboard/bookkeeping', label: 'Pembukuan',      icon: BookOpen,        feature: 'bookkeeping' },
-  { path: '/dashboard/payroll',     label: 'Penggajian',     icon: Wallet,          feature: 'payroll' },
   { path: '/dashboard/settings',    label: 'Pengaturan',     icon: Settings2,       feature: 'settings' },
 ]
 
@@ -48,7 +47,6 @@ const PAGE_TITLE = {
   '/dashboard/jobdesk':     'Jobdesk — Tugas Staf',
   '/dashboard/products':    'Produk & Daftar Harga',
   '/dashboard/bookkeeping': 'Pembukuan',
-  '/dashboard/payroll':     'Penggajian Karyawan',
   '/dashboard/settings':    'Pengaturan',
 }
 
@@ -157,16 +155,13 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
         padding: '8px 11px', borderRadius: 11, marginBottom: 2,
         textDecoration: 'none',
         background: isActive
-          ? 'rgba(10,132,255,0.28)'
+          ? 'rgba(10,132,255,0.12)'
           : hover
-            ? 'rgba(255,255,255,0.08)'
+            ? 'rgba(0,0,0,0.04)'
             : 'transparent',
         boxShadow: isActive
-          ? '0 0 0 0.5px rgba(10,132,255,0.55), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(0,0,0,0.12), 0 3px 14px rgba(10,132,255,0.22)'
-          : hover
-            ? 'inset 0 1px 0 rgba(255,255,255,0.1)'
-            : 'none',
-        backdropFilter: isActive ? 'blur(12px) saturate(180%)' : 'none',
+          ? '0 0 0 0.5px rgba(10,132,255,0.28), inset 0 1px 0 rgba(255,255,255,0.7), 0 3px 12px rgba(10,132,255,0.14)'
+          : 'none',
         transition: 'all 0.18s cubic-bezier(0.4,0,0.2,1)',
       })}
       onMouseEnter={() => setHover(true)}
@@ -174,11 +169,11 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
     >
       {({ isActive }) => (
         <>
-          <Icon size={15} strokeWidth={isActive ? 2.2 : 1.7}
-            color={isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.38)'} />
+          <Icon size={15} strokeWidth={isActive ? 2.3 : 1.8}
+            color={isActive ? '#0a84ff' : '#8e8e93'} />
           <span style={{
-            fontSize: 13.5, fontWeight: isActive ? 600 : 400,
-            color: isActive ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.52)',
+            fontSize: 13.5, fontWeight: isActive ? 600 : 500,
+            color: isActive ? '#0a84ff' : '#3c3c43',
             letterSpacing: '-0.01em',
           }}>
             {label}
@@ -205,83 +200,84 @@ function NotifPanel({ notifs, onClose }) {
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
       <div style={{
         position: 'fixed', right: 22, top: 58, width: 310, zIndex: 999, overflow: 'hidden',
-      background: 'rgba(22,28,44,0.82)',
+      background: 'rgba(255,255,255,0.82)',
       backdropFilter: 'blur(48px) saturate(200%)',
+      WebkitBackdropFilter: 'blur(48px) saturate(200%)',
       borderRadius: 18,
-      border: '0.5px solid rgba(255,255,255,0.14)',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.18)',
+      border: '0.5px solid rgba(255,255,255,0.9)',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.16), 0 0 0 0.5px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 17px 12px', borderBottom: '0.5px solid rgba(255,255,255,0.08)' }}>
-        <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.92)', margin: 0 }}>Notifikasi</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 17px 12px', borderBottom: '0.5px solid rgba(0,0,0,0.06)' }}>
+        <p style={{ fontSize: 15, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>Notifikasi</p>
         {notifs.length > 0 && <span style={{ background: '#ff453a', color: 'white', fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 99, boxShadow: '0 2px 8px rgba(255,69,58,0.4)' }}>{notifs.length}</span>}
       </div>
 
       {notifs.length === 0 ? (
         <div style={{ padding: '28px 17px', textAlign: 'center' }}>
           <p style={{ fontSize: 28, marginBottom: 8 }}>✅</p>
-          <p style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.8)', fontWeight: 500, margin: 0 }}>Semua aman</p>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Tidak ada notifikasi baru</p>
+          <p style={{ fontSize: 13.5, color: '#1c1c1e', fontWeight: 500, margin: 0 }}>Semua aman</p>
+          <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>Tidak ada notifikasi baru</p>
         </div>
       ) : (
         <div style={{ maxHeight: 280, overflowY: 'auto' }}>
           {stockN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff453a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Stok Kritis</p>}
           {stockN.map(n => (
             <div key={n.id} onClick={() => goTo('/dashboard/stock')}
-              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(0,0,0,0.04)'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{n.desc}</p>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
           {delayN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff453a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Pengiriman Terlambat</p>}
           {delayN.map(n => (
             <div key={n.id} onClick={() => { onClose(); navigate('/dashboard/documents', { state: { tab: 'delayed' } }) }}
-              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(0,0,0,0.04)'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{n.desc}</p>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
           {invOvN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff453a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Invoice Jatuh Tempo</p>}
           {invOvN.map(n => (
             <div key={n.id} onClick={() => goTo('/dashboard/bookkeeping')}
-              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(0,0,0,0.04)'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
               <p style={{ fontSize: 12, color: '#ff6b6b', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
           {invSoonN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff9f0a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>Invoice Segera Jatuh Tempo</p>}
           {invSoonN.map(n => (
             <div key={n.id} onClick={() => goTo('/dashboard/bookkeeping')}
-              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(0,0,0,0.04)'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
               <p style={{ fontSize: 12, color: '#ff9f0a', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
           {orderN.length > 0 && <p style={{ fontSize: 10.5, fontWeight: 600, color: '#ff9f0a', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '10px 17px 4px', margin: 0 }}>SO Draft</p>}
           {orderN.map(n => (
             <div key={n.id} onClick={() => { onClose(); navigate('/dashboard/documents', { state: { tab: 'so-draft' } }) }}
-              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.06)'}
+              style={{ padding: '9px 17px', borderBottom: '0.5px solid rgba(0,0,0,0.05)', cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(0,0,0,0.04)'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              <p style={{ fontSize: 13.5, fontWeight: 500, color: 'rgba(255,255,255,0.88)', margin: 0 }}>{n.title}</p>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{n.desc}</p>
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: '#1c1c1e', margin: 0 }}>{n.title}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>{n.desc}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ padding: '12px 17px', borderTop: '0.5px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ padding: '12px 17px', borderTop: '0.5px solid rgba(0,0,0,0.06)' }}>
         <NavLink to="/dashboard/settings" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none' }}>
           <span style={{ fontSize: 13, color: '#0a84ff', fontWeight: 500 }}>Atur notifikasi WA</span>
-          <ChevronRight size={13} color="rgba(255,255,255,0.25)" />
+          <ChevronRight size={13} color="#c7c7cc" />
         </NavLink>
       </div>
     </div>
@@ -325,21 +321,30 @@ export default function DashboardLayout() {
 
   return (
     <div style={{
-      display: 'flex', height: '100vh', overflow: 'hidden',
+      display: 'flex', height: '100vh', overflow: 'hidden', position: 'relative',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif",
-      background: '#f2f2f7',
+      background: 'linear-gradient(155deg, #eef3f9 0%, #f5f7fa 42%, #eceff5 100%)',
     }}>
+      {/* Decorative soft blobs — kasih "kehidupan" di balik kaca (liquid glass) */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -140, left: 200, width: 540, height: 540, borderRadius: '50%', background: 'radial-gradient(circle, rgba(10,132,255,0.10), transparent 70%)', filter: 'blur(50px)' }} />
+        <div style={{ position: 'absolute', bottom: -180, right: -60, width: 580, height: 580, borderRadius: '50%', background: 'radial-gradient(circle, rgba(48,209,88,0.07), transparent 70%)', filter: 'blur(60px)' }} />
+        <div style={{ position: 'absolute', top: '38%', right: '34%', width: 440, height: 440, borderRadius: '50%', background: 'radial-gradient(circle, rgba(94,92,230,0.06), transparent 70%)', filter: 'blur(60px)' }} />
+      </div>
+
       {isMobile && sidebarOpen && (
         <div onClick={closeSidebar} style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }} />
       )}
 
       {/* SIDEBAR — Liquid Glass dark panel */}
       <aside style={{
-        width: 224, flexShrink: 0, height: '100vh', overflow: 'hidden',
+        width: 224, flexShrink: 0, height: '100vh', overflow: 'hidden', position: 'relative',
         display: 'flex', flexDirection: 'column', zIndex: 10,
-        background: 'linear-gradient(180deg, #0f1724 0%, #111a2e 100%)',
-        borderRight: '1px solid rgba(255,255,255,0.07)',
-        boxShadow: '2px 0 24px rgba(0,0,0,0.18), inset -0.5px 0 0 rgba(255,255,255,0.05)',
+        background: 'rgba(255,255,255,0.72)',
+        backdropFilter: 'blur(34px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(34px) saturate(180%)',
+        borderRight: '0.5px solid rgba(0,0,0,0.06)',
+        boxShadow: '1px 0 28px rgba(0,0,0,0.04), inset -0.5px 0 0 rgba(255,255,255,0.7)',
         ...(isMobile ? {
           position: 'fixed', top: 0, left: 0, zIndex: 100,
           transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
@@ -361,13 +366,13 @@ export default function DashboardLayout() {
               <Waves size={17} color="white" strokeWidth={2.2} />
             </div>
             <div>
-              <p style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.92)', margin: 0, lineHeight: 1.3, letterSpacing: '-0.01em' }}>UD. Nelayan Widya Jaya</p>
-              <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)', margin: 0, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Seafood Supplier</p>
+              <p style={{ fontSize: 11.5, fontWeight: 700, color: '#1c1c1e', margin: 0, lineHeight: 1.3, letterSpacing: '-0.01em' }}>UD. Nelayan Widya Jaya</p>
+              <p style={{ fontSize: 9, color: '#8e8e93', margin: 0, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Seafood Supplier</p>
             </div>
           </div>
         </div>
 
-        <div style={{ height: 0.5, background: 'rgba(255,255,255,0.07)', margin: '0 14px 10px' }} />
+        <div style={{ height: 0.5, background: 'rgba(0,0,0,0.06)', margin: '0 14px 10px' }} />
 
         <nav style={{ flex: 1, padding: '0 9px', overflowY: 'auto' }}>
           {NAV_ITEMS.map(({ path, label, icon: Icon, feature }) => (
@@ -376,13 +381,12 @@ export default function DashboardLayout() {
         </nav>
 
         {/* User footer — glass card */}
-        <div style={{ padding: '10px 10px 16px', borderTop: '0.5px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ padding: '10px 10px 16px', borderTop: '0.5px solid rgba(0,0,0,0.06)' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 13,
-            background: 'rgba(255,255,255,0.07)',
-            border: '0.5px solid rgba(255,255,255,0.10)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
-            backdropFilter: 'blur(12px)',
+            background: 'rgba(0,0,0,0.03)',
+            border: '0.5px solid rgba(0,0,0,0.06)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)',
           }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{
@@ -396,13 +400,13 @@ export default function DashboardLayout() {
                   ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : initials}
               </div>
-              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: '#30d158', border: '1.5px solid rgba(10,20,40,0.8)', boxShadow: '0 0 6px rgba(48,209,88,0.6)' }} />
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: '#30d158', border: '1.5px solid white', boxShadow: '0 0 6px rgba(48,209,88,0.6)' }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.9)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.name}</p>
+              <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.name}</p>
               <p style={{ fontSize: 10.5, color: roleColor, margin: 0, fontWeight: 500 }}>{ROLE_LABEL[profile?.role] || profile?.role}</p>
             </div>
-            <button onClick={signOut} title="Keluar" style={{ background: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 7, cursor: 'pointer', color: 'rgba(255,255,255,0.32)', padding: '5px 6px', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+            <button onClick={signOut} title="Keluar" style={{ background: 'rgba(0,0,0,0.04)', border: '0.5px solid rgba(0,0,0,0.06)', borderRadius: 7, cursor: 'pointer', color: '#8e8e93', padding: '5px 6px', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
               <LogOut size={13} />
             </button>
           </div>
@@ -410,13 +414,14 @@ export default function DashboardLayout() {
       </aside>
 
       {/* MAIN AREA */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
 
-        {/* Topbar — light Apple */}
+        {/* Topbar — frosted glass */}
         <header style={{
           height: 48, flexShrink: 0,
-          background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)',
-          borderBottom: '0.5px solid rgba(0,0,0,0.1)',
+          background: 'rgba(255,255,255,0.6)',
+          backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)',
+          borderBottom: '0.5px solid rgba(0,0,0,0.06)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -450,7 +455,7 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'clip', padding: isMobile ? '20px 12px' : '24px 28px', background: '#f2f2f7' }}>
+        <main style={{ flex: 1, overflowY: 'auto', overflowX: 'clip', padding: isMobile ? '20px 12px' : '24px 28px', background: 'transparent' }}>
           <Suspense fallback={<PageLoader />}>
             <Outlet />
           </Suspense>
