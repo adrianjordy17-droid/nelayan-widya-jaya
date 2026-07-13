@@ -49,6 +49,25 @@ body {
 :root[data-theme="dark"] [style*="rgb(240, 240, 240)"] {
   background-color: rgba(40, 58, 96, 0.55) !important;
 }
+/* Baris tabel / sel dgn latar putih -> navy (scoped ke tr/td biar ga kena teks putih di tombol) */
+:root[data-theme="dark"] tr[style*="rgb(255, 255, 255)"],
+:root[data-theme="dark"] td[style*="rgb(255, 255, 255)"],
+:root[data-theme="dark"] thead[style*="rgb(255, 255, 255)"] {
+  background-color: rgba(20, 34, 64, 0.35) !important;
+}
+/* Neutral abu (e5e5ea, e2e8f0, d1d1d6) — dipakai byk sbg BORDER: bikin halus */
+:root[data-theme="dark"] [style*="rgb(229, 229, 234)"],
+:root[data-theme="dark"] [style*="rgb(226, 232, 240)"],
+:root[data-theme="dark"] [style*="rgb(209, 209, 214)"] {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+/* Chip / pill / tombol berlatar abu terang -> navy biar teks kebaca */
+:root[data-theme="dark"] button[style*="rgb(229, 229, 234)"],
+:root[data-theme="dark"] button[style*="rgb(241, 245, 249)"],
+:root[data-theme="dark"] [style*="rgb(241, 245, 249)"][style*="border-radius: 99"],
+:root[data-theme="dark"] [style*="rgb(226, 232, 240)"][style*="border-radius: 99"] {
+  background-color: rgba(40, 58, 96, 0.6) !important;
+}
 /* Teks gelap utama -> terang (1c1c1e, 0f172a, 1d1d1f, 1e293b, 3c3c43) */
 :root[data-theme="dark"] [style*="rgb(28, 28, 30)"],
 :root[data-theme="dark"] [style*="rgb(15, 23, 42)"],
