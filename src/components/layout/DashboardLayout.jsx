@@ -155,12 +155,12 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
         padding: '8px 11px', borderRadius: 11, marginBottom: 2,
         textDecoration: 'none',
         background: isActive
-          ? 'rgba(10,132,255,0.12)'
+          ? 'rgba(37,99,235,0.32)'
           : hover
-            ? 'rgba(0,0,0,0.04)'
+            ? 'rgba(255,255,255,0.08)'
             : 'transparent',
         boxShadow: isActive
-          ? '0 0 0 0.5px rgba(10,132,255,0.28), inset 0 1px 0 rgba(255,255,255,0.7), 0 3px 12px rgba(10,132,255,0.14)'
+          ? '0 0 0 0.5px rgba(96,165,250,0.45), inset 0 1px 0 rgba(255,255,255,0.22), 0 4px 16px rgba(37,99,235,0.30)'
           : 'none',
         transition: 'all 0.18s cubic-bezier(0.4,0,0.2,1)',
       })}
@@ -169,11 +169,11 @@ function SidebarLink({ path, label, Icon, feature, hasPermission, onNavClick }) 
     >
       {({ isActive }) => (
         <>
-          <Icon size={15} strokeWidth={isActive ? 2.3 : 1.8}
-            color={isActive ? '#0a84ff' : '#8e8e93'} />
+          <Icon size={15} strokeWidth={isActive ? 2.2 : 1.7}
+            color={isActive ? 'rgba(255,255,255,0.95)' : 'rgba(148,163,184,0.7)'} />
           <span style={{
             fontSize: 13.5, fontWeight: isActive ? 600 : 500,
-            color: isActive ? '#0a84ff' : '#3c3c43',
+            color: isActive ? 'rgba(255,255,255,0.97)' : 'rgba(203,213,225,0.75)',
             letterSpacing: '-0.01em',
           }}>
             {label}
@@ -340,11 +340,9 @@ export default function DashboardLayout() {
       <aside style={{
         width: 224, flexShrink: 0, height: '100vh', overflow: 'hidden', position: 'relative',
         display: 'flex', flexDirection: 'column', zIndex: 10,
-        background: 'rgba(255,255,255,0.72)',
-        backdropFilter: 'blur(34px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(34px) saturate(180%)',
-        borderRight: '0.5px solid rgba(0,0,0,0.06)',
-        boxShadow: '1px 0 28px rgba(0,0,0,0.04), inset -0.5px 0 0 rgba(255,255,255,0.7)',
+        background: 'linear-gradient(160deg, #071B34 0%, #0D2952 52%, #0A2040 100%)',
+        borderRight: '0.5px solid rgba(255,255,255,0.06)',
+        boxShadow: '2px 0 28px rgba(7,27,52,0.28), inset -0.5px 0 0 rgba(255,255,255,0.05)',
         ...(isMobile ? {
           position: 'fixed', top: 0, left: 0, zIndex: 100,
           transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
@@ -352,8 +350,12 @@ export default function DashboardLayout() {
           boxShadow: sidebarOpen ? '8px 0 40px rgba(0,0,0,0.4)' : 'none',
         } : {}),
       }}>
+        {/* Glow lembut ala halaman login */}
+        <div style={{ position: 'absolute', top: -60, left: -40, width: 260, height: 260, borderRadius: '50%', background: 'radial-gradient(circle, rgba(37,99,235,0.28) 0%, transparent 65%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: 40, right: -60, width: 240, height: 240, borderRadius: '50%', background: 'radial-gradient(circle, rgba(14,165,233,0.12) 0%, transparent 65%)', pointerEvents: 'none' }} />
+
         {/* Logo */}
-        <div style={{ padding: '22px 15px 15px' }}>
+        <div style={{ padding: '22px 15px 15px', position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 11, flexShrink: 0,
@@ -366,27 +368,27 @@ export default function DashboardLayout() {
               <Waves size={17} color="white" strokeWidth={2.2} />
             </div>
             <div>
-              <p style={{ fontSize: 11.5, fontWeight: 700, color: '#1c1c1e', margin: 0, lineHeight: 1.3, letterSpacing: '-0.01em' }}>UD. Nelayan Widya Jaya</p>
-              <p style={{ fontSize: 9, color: '#8e8e93', margin: 0, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Seafood Supplier</p>
+              <p style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255,255,255,0.92)', margin: 0, lineHeight: 1.3, letterSpacing: '-0.01em' }}>UD. Nelayan Widya Jaya</p>
+              <p style={{ fontSize: 9, color: 'rgba(148,163,184,0.6)', margin: 0, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Seafood Supplier</p>
             </div>
           </div>
         </div>
 
-        <div style={{ height: 0.5, background: 'rgba(0,0,0,0.06)', margin: '0 14px 10px' }} />
+        <div style={{ height: 0.5, background: 'rgba(255,255,255,0.08)', margin: '0 14px 10px' }} />
 
-        <nav style={{ flex: 1, padding: '0 9px', overflowY: 'auto' }}>
+        <nav style={{ flex: 1, padding: '0 9px', overflowY: 'auto', position: 'relative', zIndex: 1 }}>
           {NAV_ITEMS.map(({ path, label, icon: Icon, feature }) => (
             <SidebarLink key={path} path={path} label={label} Icon={Icon} feature={feature} hasPermission={hasPermission} onNavClick={isMobile ? closeSidebar : undefined} />
           ))}
         </nav>
 
         {/* User footer — glass card */}
-        <div style={{ padding: '10px 10px 16px', borderTop: '0.5px solid rgba(0,0,0,0.06)' }}>
+        <div style={{ padding: '10px 10px 16px', borderTop: '0.5px solid rgba(255,255,255,0.07)', position: 'relative', zIndex: 1 }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 13,
-            background: 'rgba(0,0,0,0.03)',
-            border: '0.5px solid rgba(0,0,0,0.06)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)',
+            background: 'rgba(255,255,255,0.07)',
+            border: '0.5px solid rgba(255,255,255,0.10)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
           }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div style={{
@@ -400,13 +402,13 @@ export default function DashboardLayout() {
                   ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : initials}
               </div>
-              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: '#30d158', border: '1.5px solid white', boxShadow: '0 0 6px rgba(48,209,88,0.6)' }} />
+              <div style={{ position: 'absolute', bottom: 0, right: 0, width: 8, height: 8, borderRadius: '50%', background: '#30d158', border: '1.5px solid #0A2040', boxShadow: '0 0 6px rgba(48,209,88,0.6)' }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.name}</p>
+              <p style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.9)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.name}</p>
               <p style={{ fontSize: 10.5, color: roleColor, margin: 0, fontWeight: 500 }}>{ROLE_LABEL[profile?.role] || profile?.role}</p>
             </div>
-            <button onClick={signOut} title="Keluar" style={{ background: 'rgba(0,0,0,0.04)', border: '0.5px solid rgba(0,0,0,0.06)', borderRadius: 7, cursor: 'pointer', color: '#8e8e93', padding: '5px 6px', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+            <button onClick={signOut} title="Keluar" style={{ background: 'rgba(255,255,255,0.07)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 7, cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: '5px 6px', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
               <LogOut size={13} />
             </button>
           </div>
