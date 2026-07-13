@@ -1,10 +1,27 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { Plus, Edit2, Trash2, X, Tag, Clock, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Edit2, Trash2, X, Tag, Clock, TrendingUp, TrendingDown, RefreshCw, Check } from 'lucide-react'
 
 const KATEGORI_LIST = ['UDANG PANCET', 'UDANG VANAMEI', 'CUMI', 'IKAN', 'OTHER']
 const SATUAN_LIST   = ['PER KG', 'PER PACK', 'PER EKOR']
+
+// Tebak kategori & satuan dari nama/unit produk di DO/GR
+function guessKat(name) {
+  const n = (name || '').toUpperCase()
+  if (n.includes('PANCET')) return 'UDANG PANCET'
+  if (n.includes('VANAMEI') || n.includes('VANNAMEI') || n.includes('VANAME')) return 'UDANG VANAMEI'
+  if (n.includes('UDANG')) return 'UDANG VANAMEI'
+  if (n.includes('CUMI') || n.includes('SOTONG')) return 'CUMI'
+  if (n.includes('IKAN') || n.includes('KAKAP') || n.includes('TENGGIRI') || n.includes('BANDENG') || n.includes('KERAPU') || n.includes('DORI') || n.includes('SALMON') || n.includes('TUNA')) return 'IKAN'
+  return 'OTHER'
+}
+function guessSatuan(unit) {
+  const u = (unit || '').toLowerCase()
+  if (u.includes('pack') || u.includes('pak') || u.includes('pcs') || u.includes('bungkus')) return 'PER PACK'
+  if (u.includes('ekor') || u.includes('ptg')) return 'PER EKOR'
+  return 'PER KG'
+}
 
 const KATEGORI_LABEL = {
   'UDANG PANCET':  'Udang Pancet',
@@ -67,6 +84,12 @@ export default function Products() {
   const [historyProduct,  setHistoryProduct]  = useState(null)
   const [priceHistory,    setPriceHistory]    = useState([])
   const [historyLoading,  setHistoryLoading]  = useState(false)
+
+  // Sync dari DO/GR state
+  const [syncOpen,    setSyncOpen]    = useState(false)
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [syncItems,   setSyncItems]   = useState([])
+  const [syncSaving,  setSyncSaving]  = useState(false)
 
   async function loadProducts() {
     setLoading(true)
@@ -180,6 +203,79 @@ export default function Products() {
     loadProducts()
   }
 
+  // Kumpulkan produk unik dari DO & GR, bandingkan dgn daftar produk yg ada.
+  async function openSync() {
+    setSyncOpen(true)
+    setSyncLoading(true)
+    setSyncItems([])
+    try {
+      const [doRes, grRes] = await Promise.all([
+        supabase.from('documents').select('date,items').eq('type', 'DO'),
+        supabase.from('documents').select('date,items').eq('type', 'GR'),
+      ])
+      // name(lower) -> { name, jual, unit, date, rank }  rank: GR(jual)=2 > DO(price)=1
+      const map = {}
+      function consider(name, jual, unit, date, rank) {
+        const key = (name || '').toLowerCase().trim()
+        if (!key || jual < 0) return
+        const cur = map[key]
+        const d = date || ''
+        if (!cur) { map[key] = { name: name.trim(), jual, unit: unit || '', date: d, rank }; return }
+        const replace = jual > 0 && (rank > cur.rank || (rank === cur.rank && d >= cur.date) || cur.jual === 0)
+        if (replace) map[key] = { name: cur.name, jual, unit: unit || cur.unit, date: d, rank }
+        else if (!cur.unit && unit) cur.unit = unit
+      }
+      ;(grRes.data || []).forEach(doc => (doc.items || []).forEach(it => {
+        if (!it.name) return
+        consider(it.name, parseFloat(it.jual) || parseFloat(it.price) || 0, it.unit, doc.date, 2)
+      }))
+      ;(doRes.data || []).forEach(doc => (doc.items || []).forEach(it => {
+        if (!it.name) return
+        consider(it.name, parseFloat(it.price) || 0, it.unit, doc.date, 1)
+      }))
+      const existingByName = {}
+      products.forEach(p => { existingByName[(p.nama || '').toLowerCase().trim()] = p })
+      const items = []
+      Object.values(map).forEach(m => {
+        const ex = existingByName[m.name.toLowerCase().trim()]
+        if (!ex) {
+          items.push({ action: 'add', nama: m.name, kategori: guessKat(m.name), harga_jual: m.jual || '', satuan: guessSatuan(m.unit), selected: true })
+        } else if ((ex.harga_jual === null || ex.harga_jual === undefined || ex.harga_jual === '') && m.jual > 0) {
+          items.push({ action: 'update', id: ex.id, nama: ex.nama, kategori: ex.kategori, harga_jual: m.jual, satuan: ex.satuan, selected: true })
+        }
+      })
+      items.sort((a, b) => (a.action === b.action ? a.nama.localeCompare(b.nama) : a.action === 'add' ? -1 : 1))
+      setSyncItems(items)
+    } catch (e) { alert('Gagal membaca DO/GR: ' + (e.message || e)) }
+    setSyncLoading(false)
+  }
+
+  function toggleSync(i) {
+    setSyncItems(prev => prev.map((s, idx) => idx === i ? { ...s, selected: !s.selected } : s))
+  }
+  function setSyncField(i, field, value) {
+    setSyncItems(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s))
+  }
+
+  async function confirmSync() {
+    const chosen = syncItems.filter(s => s.selected)
+    if (!chosen.length) { setSyncOpen(false); return }
+    setSyncSaving(true)
+    try {
+      const toInsert = chosen.filter(s => s.action === 'add').map(s => ({
+        nama: s.nama.trim(), kategori: s.kategori, satuan: s.satuan,
+        harga_jual: s.harga_jual !== '' ? Number(s.harga_jual) : null,
+      }))
+      if (toInsert.length) await supabase.from('products').insert(toInsert)
+      for (const s of chosen.filter(s => s.action === 'update')) {
+        await supabase.from('products').update({ harga_jual: s.harga_jual !== '' ? Number(s.harga_jual) : null }).eq('id', s.id)
+      }
+    } catch (e) { alert('Gagal sinkron: ' + (e.message || e)) }
+    setSyncSaving(false)
+    setSyncOpen(false)
+    loadProducts()
+  }
+
   return (
     <div className="rw" style={{ maxWidth: 900, margin: '0 auto' }}>
 
@@ -193,15 +289,26 @@ export default function Products() {
           </p>
         </div>
         {canEdit && (
-          <button onClick={openAdd} style={{
-            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-            padding: '9px 16px', borderRadius: 10,
-            background: '#0a84ff', color: 'white', border: 'none',
-            fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
-          }}>
-            <Plus size={15} strokeWidth={2.5} />
-            Tambah Produk
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button onClick={openSync} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '9px 14px', borderRadius: 10,
+              background: '#f2f2f7', color: '#0a84ff', border: 'none',
+              fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+            }}>
+              <RefreshCw size={14} strokeWidth={2.5} />
+              Sinkron dari DO/GR
+            </button>
+            <button onClick={openAdd} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '9px 16px', borderRadius: 10,
+              background: '#0a84ff', color: 'white', border: 'none',
+              fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+            }}>
+              <Plus size={15} strokeWidth={2.5} />
+              Tambah Produk
+            </button>
+          </div>
         )}
       </div>
 
@@ -401,6 +508,80 @@ export default function Products() {
                 {saving ? 'Menyimpan...' : editId ? 'Simpan' : 'Tambah'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Sync dari DO/GR Modal ══ */}
+      {syncOpen && (
+        <div style={overlay}>
+          <div style={{ ...card, maxWidth: 600, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div>
+                <h3 style={{ fontSize: 17, fontWeight: 700, color: '#1c1c1e', margin: 0 }}>Sinkron dari DO/GR</h3>
+                <p style={{ fontSize: 12.5, color: '#8e8e93', margin: '3px 0 0' }}>Produk yang biasa dipakai di surat jalan / penerimaan barang.</p>
+              </div>
+              <button onClick={() => setSyncOpen(false)} style={closeBtn}><X size={15} color="#3c3c43" /></button>
+            </div>
+
+            {syncLoading ? (
+              <div style={{ padding: '40px 0', textAlign: 'center', color: '#8e8e93', fontSize: 13 }}>Membaca produk dari DO/GR...</div>
+            ) : syncItems.length === 0 ? (
+              <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+                <Check size={34} color="#30d158" style={{ marginBottom: 10 }} />
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1c1c1e', margin: 0 }}>Semua produk sudah sinkron.</p>
+                <p style={{ fontSize: 12.5, color: '#8e8e93', marginTop: 4 }}>Tidak ada produk baru dari DO/GR yang perlu ditambahkan.</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 10px' }}>
+                  <button onClick={() => setSyncItems(prev => prev.map(s => ({ ...s, selected: true })))} style={{ fontSize: 12, fontWeight: 600, color: '#0a84ff', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Pilih semua</button>
+                  <span style={{ color: '#d1d1d6' }}>·</span>
+                  <button onClick={() => setSyncItems(prev => prev.map(s => ({ ...s, selected: false })))} style={{ fontSize: 12, fontWeight: 600, color: '#8e8e93', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Kosongkan</button>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: '#8e8e93' }}>{syncItems.filter(s => s.selected).length} dipilih</span>
+                </div>
+                <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 2 }}>
+                  {syncItems.map((s, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid #eef0f2', background: s.selected ? '#f5faff' : '#fafafa' }}>
+                      <button onClick={() => toggleSync(i)} style={{
+                        width: 22, height: 22, borderRadius: 6, flexShrink: 0, cursor: 'pointer',
+                        border: s.selected ? 'none' : '1.5px solid #c7c7cc', background: s.selected ? '#0a84ff' : 'white',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {s.selected && <Check size={14} color="white" strokeWidth={3} />}
+                      </button>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: '#1c1c1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nama}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, flexShrink: 0, background: s.action === 'add' ? 'rgba(48,209,88,0.14)' : 'rgba(255,149,0,0.14)', color: s.action === 'add' ? '#1f9e42' : '#c47600' }}>
+                            {s.action === 'add' ? 'BARU' : 'ISI HARGA'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <select value={s.kategori} onChange={e => setSyncField(i, 'kategori', e.target.value)} disabled={s.action === 'update'}
+                            style={{ fontSize: 11.5, padding: '4px 6px', borderRadius: 7, border: '1px solid #e5e5ea', background: 'white', color: '#3c3c43' }}>
+                            {KATEGORI_LIST.map(k => <option key={k} value={k}>{KATEGORI_LABEL[k]}</option>)}
+                          </select>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <span style={{ fontSize: 11.5, color: '#8e8e93' }}>Jual Rp</span>
+                            <input type="number" value={s.harga_jual} onChange={e => setSyncField(i, 'harga_jual', e.target.value)} placeholder="0"
+                              style={{ width: 90, fontSize: 12.5, padding: '4px 7px', borderRadius: 7, border: '1px solid #e5e5ea', textAlign: 'right' }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: '#aeb0b5' }}>{s.satuan}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                  <button onClick={() => setSyncOpen(false)} style={btnSecondary}>Batal</button>
+                  <button onClick={confirmSync} disabled={syncSaving || syncItems.filter(s => s.selected).length === 0}
+                    style={{ ...btnPrimary, background: (syncSaving || syncItems.filter(s => s.selected).length === 0) ? '#c7c7cc' : '#0a84ff', cursor: syncSaving ? 'not-allowed' : 'pointer' }}>
+                    {syncSaving ? 'Menyimpan...' : `Tambahkan (${syncItems.filter(s => s.selected).length})`}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
