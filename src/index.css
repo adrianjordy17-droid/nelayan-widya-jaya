@@ -49,11 +49,20 @@ body {
 :root[data-theme="dark"] [style*="rgb(240, 240, 240)"] {
   background-color: rgba(40, 58, 96, 0.55) !important;
 }
-/* Baris tabel / sel dgn latar putih -> navy (scoped ke tr/td biar ga kena teks putih di tombol) */
-:root[data-theme="dark"] tr[style*="rgb(255, 255, 255)"],
-:root[data-theme="dark"] td[style*="rgb(255, 255, 255)"],
-:root[data-theme="dark"] thead[style*="rgb(255, 255, 255)"] {
-  background-color: rgba(20, 34, 64, 0.35) !important;
+/* Latar putih -> navy. PENTING: named color 'white' TIDAK di-convert browser ke
+   rgb (beda dgn hex), jadi harus match keyword 'white'. Aman: 'background: white'
+   ga akan kena teks putih (yg itu 'color: white'). */
+:root[data-theme="dark"] [style*="background: white"],
+:root[data-theme="dark"] [style*="background:white"],
+:root[data-theme="dark"] [style*="background: rgb(255, 255, 255)"],
+:root[data-theme="dark"] [style*="background-color: white"],
+:root[data-theme="dark"] [style*="background-color: rgb(255, 255, 255)"] {
+  background-color: rgba(20, 34, 64, 0.5) !important;
+}
+/* Teks biru gelap (yg biasanya di atas latar putih) -> biru terang biar kebaca */
+:root[data-theme="dark"] [style*="rgb(30, 58, 138)"],
+:root[data-theme="dark"] [style*="rgb(30, 64, 175)"] {
+  color: #93c5fd !important;
 }
 /* Neutral abu (e5e5ea, e2e8f0, d1d1d6) — dipakai byk sbg BORDER: bikin halus */
 :root[data-theme="dark"] [style*="rgb(229, 229, 234)"],
