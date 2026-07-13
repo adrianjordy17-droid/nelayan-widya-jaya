@@ -11,7 +11,7 @@ const GLASS = {
   boxShadow: '0 2px 20px rgba(0,0,0,0.055), inset 0 1px 0 rgba(255,255,255,1)',
 }
 
-const EXPENSE_CATS = ['Operasional', 'Transport', 'Utilitas', 'Gaji', 'Lainnya']
+const EXPENSE_CATS = ['Operasional', 'Operasional Kirim', 'Transport', 'Utilitas', 'Gaji', 'Lainnya']
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
 const MONTH_NAMES_FULL = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
@@ -287,6 +287,19 @@ export default function Bookkeeping() {
   const totalModalGR  = labaGRView.reduce((s, r) => s + r.modal, 0)
   const totalProfitGR = totalOmsetGR - totalModalGR
 
+  // ── Rekap terjual per produk (akumulasi kiloan) — owner & admin ──
+  const produkRecapMap = {}
+  labaGRView.forEach(g => (g.items || []).forEach(it => {
+    const key = ((it.name || '').trim() || '(tanpa nama)').toLowerCase()
+    if (!produkRecapMap[key]) produkRecapMap[key] = { name: (it.name || '').trim() || '(tanpa nama)', qty: 0, unit: it.unit || 'kg', jual: 0 }
+    produkRecapMap[key].qty  += it.qty || 0
+    produkRecapMap[key].jual += it.jual || 0
+    if (!produkRecapMap[key].unit && it.unit) produkRecapMap[key].unit = it.unit
+  }))
+  const produkRecap = Object.values(produkRecapMap).sort((a, b) => b.qty - a.qty)
+  const totalKgGR   = produkRecap.reduce((s, p) => s + p.qty, 0)
+  const fmtKg = n => (Math.round((n || 0) * 100) / 100).toLocaleString('id-ID')
+
   // ── Invoice jatuh tempo & telat ──
   const todayISO = new Date().toISOString().slice(0, 10)
   const invTelat = outstanding.filter(d => d.status === 'overdue' || (d.dueDate && d.dueDate < todayISO))
@@ -347,14 +360,25 @@ export default function Bookkeeping() {
   const expThisMonth = (expByMonth[curYM]?.total) || 0
 
   async function saveExpense() {
-    if (!expenseForm?.amount || !expenseForm?.date) return
+    const isKirim = expenseForm?.category === 'Operasional Kirim'
+    const uangJalan = parseFloat(expenseForm?.uang_jalan) || 0
+    const tip = parseFloat(expenseForm?.tip) || 0
+    const amount = isKirim ? uangJalan + tip : parseFloat(expenseForm?.amount)
+    if (!expenseForm?.date) return
+    if (isKirim ? amount <= 0 : !expenseForm?.amount) return
     setExpenseSaving(true)
     try {
       const payload = {
         date: expenseForm.date,
         category: expenseForm.category || 'Operasional',
-        description: expenseForm.description?.trim() || null,
-        amount: parseFloat(expenseForm.amount),
+        description: isKirim
+          ? [expenseForm.restoran?.trim(), expenseForm.karyawan?.trim() && `karyawan: ${expenseForm.karyawan.trim()}`].filter(Boolean).join(' · ') || null
+          : (expenseForm.description?.trim() || null),
+        amount,
+        restoran: isKirim ? (expenseForm.restoran?.trim() || null) : null,
+        karyawan: isKirim ? (expenseForm.karyawan?.trim() || null) : null,
+        uang_jalan: isKirim ? uangJalan : 0,
+        tip: isKirim ? tip : 0,
         created_by: profile?.name || null,
       }
       if (expenseForm.id) {
@@ -621,7 +645,7 @@ export default function Bookkeeping() {
                 <p style={{ fontSize: 13, color: '#8e8e93', margin: 0 }}>Bulan ini: <strong style={{ color: '#ff3b30' }}>{fmtRp(expThisMonth)}</strong></p>
               </div>
               {isOwner && (
-                <button onClick={() => setExpenseForm({ date: new Date().toISOString().slice(0, 10), category: 'Operasional', description: '', amount: '' })}
+                <button onClick={() => setExpenseForm({ date: new Date().toISOString().slice(0, 10), category: 'Operasional', description: '', amount: '', restoran: '', karyawan: '', uang_jalan: '', tip: '' })}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: 'none', background: '#ff3b30', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', ...FF }}>
                   <Plus size={14} /> Catat Pengeluaran
                 </button>
@@ -645,15 +669,23 @@ export default function Bookkeeping() {
                       <div key={e.id} style={{ display: 'flex', alignItems: 'center', padding: '11px 16px', borderBottom: idx < items.length - 1 ? '0.5px solid rgba(0,0,0,0.06)' : 'none', gap: 12 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: '#f2f2f7', color: '#6e6e73' }}>{e.category}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: e.category === 'Operasional Kirim' ? 'rgba(0,122,255,0.1)' : '#f2f2f7', color: e.category === 'Operasional Kirim' ? '#007aff' : '#6e6e73' }}>{e.category}</span>
                             <span style={{ fontSize: 12, color: '#8e8e93' }}>{fmtDate(e.date)}</span>
                           </div>
-                          {e.description && <p style={{ fontSize: 13, color: '#3c3c43', margin: 0 }}>{e.description}</p>}
+                          {e.restoran && <p style={{ fontSize: 13.5, fontWeight: 700, color: '#1c1c1e', margin: '0 0 1px' }}>🍽️ {e.restoran}{e.karyawan ? ` · ${e.karyawan}` : ''}</p>}
+                          {(e.uang_jalan > 0 || e.tip > 0) && (
+                            <p style={{ fontSize: 12, color: '#8e8e93', margin: 0 }}>
+                              {e.uang_jalan > 0 && <>Uang jalan {fmtRp(e.uang_jalan)}</>}
+                              {e.uang_jalan > 0 && e.tip > 0 && ' · '}
+                              {e.tip > 0 && <>Tip chef/SK {fmtRp(e.tip)}</>}
+                            </p>
+                          )}
+                          {!e.restoran && e.description && <p style={{ fontSize: 13, color: '#3c3c43', margin: 0 }}>{e.description}</p>}
                         </div>
                         <p style={{ fontSize: 14, fontWeight: 700, color: '#ff3b30', margin: 0, flexShrink: 0 }}>{fmtRp(e.amount)}</p>
                         {isOwner && (
                           <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-                            <button onClick={() => setExpenseForm({ id: e.id, date: e.date, category: e.category, description: e.description || '', amount: String(e.amount) })}
+                            <button onClick={() => setExpenseForm({ id: e.id, date: e.date, category: e.category, description: e.description || '', amount: String(e.amount), restoran: e.restoran || '', karyawan: e.karyawan || '', uang_jalan: e.uang_jalan ? String(e.uang_jalan) : '', tip: e.tip ? String(e.tip) : '' })}
                               style={{ padding: 6, border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', color: '#c7c7cc' }}
                               onMouseEnter={ev => ev.currentTarget.style.color = '#007aff'}
                               onMouseLeave={ev => ev.currentTarget.style.color = '#c7c7cc'}>
@@ -784,6 +816,30 @@ export default function Bookkeeping() {
             {isOwner && <SummaryCard label="Total Profit" value={fmtRp(totalProfitGR)} color={totalProfitGR >= 0 ? '#34c759' : '#ff3b30'} bg={totalProfitGR >= 0 ? '#f0fdf4' : '#fff0f0'} icon={CheckCircle} sub="jual − modal" />}
           </div>
 
+          {/* Rekap terjual per produk (akumulasi kiloan) */}
+          {produkRecap.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <SLabel text="Terjual per Produk (akumulasi kg)" />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#007aff' }}>Total {fmtKg(totalKgGR)} kg</span>
+              </div>
+              <div style={{ ...GLASS, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1.1fr', gap: 6, padding: '8px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.06)', background: 'rgba(0,0,0,0.02)' }}>
+                  <span style={thStyle}>Produk</span>
+                  <span style={{ ...thStyle, textAlign: 'right', color: '#007aff' }}>Terjual</span>
+                  <span style={{ ...thStyle, textAlign: 'right', color: '#34c759' }}>Omset</span>
+                </div>
+                {produkRecap.map((p, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1.1fr', gap: 6, padding: '10px 16px', borderBottom: i < produkRecap.length - 1 ? '0.5px solid rgba(0,0,0,0.04)' : 'none', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#007aff', textAlign: 'right' }}>{fmtKg(p.qty)} <span style={{ fontSize: 10.5, fontWeight: 500, color: '#8e8e93' }}>{p.unit}</span></span>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: '#1c1c1e', textAlign: 'right' }}>{fmtRp(p.jual)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <SLabel text={isOwner ? 'Rincian per GR — modal diisi per item' : 'Rincian per GR — belanjaan diisi per item'} />
             {labaGRView.length === 0 ? (
@@ -857,14 +913,43 @@ export default function Bookkeeping() {
                   </select>
                 </div>
               </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>NOMINAL (Rp) *</label>
-                <input type="number" min="0" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" style={inputStyle} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>KETERANGAN</label>
-                <input value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder="opsional — cth: bensin, bayar listrik" style={inputStyle} />
-              </div>
+              {expenseForm.category === 'Operasional Kirim' ? (
+                <>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>RESTORAN *</label>
+                    <input value={expenseForm.restoran} onChange={e => setExpenseForm(f => ({ ...f, restoran: e.target.value }))} placeholder="cth: Akasta" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>KARYAWAN (yg antar)</label>
+                    <input value={expenseForm.karyawan} onChange={e => setExpenseForm(f => ({ ...f, karyawan: e.target.value }))} placeholder="opsional — nama karyawan" style={inputStyle} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>ADM / UANG JALAN (Rp)</label>
+                      <input type="number" min="0" value={expenseForm.uang_jalan} onChange={e => setExpenseForm(f => ({ ...f, uang_jalan: e.target.value }))} placeholder="0" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>TIP CHEF/SK (Rp)</label>
+                      <input type="number" min="0" value={expenseForm.tip} onChange={e => setExpenseForm(f => ({ ...f, tip: e.target.value }))} placeholder="0" style={inputStyle} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'rgba(255,59,48,0.08)', borderRadius: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#6e6e73' }}>Total Pengeluaran</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: '#ff3b30' }}>{fmtRp((parseFloat(expenseForm.uang_jalan) || 0) + (parseFloat(expenseForm.tip) || 0))}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>NOMINAL (Rp) *</label>
+                    <input type="number" min="0" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#6e6e73', display: 'block', marginBottom: 5 }}>KETERANGAN</label>
+                    <input value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} placeholder="opsional — cth: bensin, bayar listrik" style={inputStyle} />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
