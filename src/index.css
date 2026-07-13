@@ -49,18 +49,36 @@ body {
 :root[data-theme="dark"] [style*="rgb(240, 240, 240)"] {
   background-color: rgba(40, 58, 96, 0.55) !important;
 }
-/* Teks gelap utama -> terang */
+/* Teks gelap utama -> terang (1c1c1e, 0f172a, 1d1d1f, 1e293b, 3c3c43) */
 :root[data-theme="dark"] [style*="rgb(28, 28, 30)"],
+:root[data-theme="dark"] [style*="rgb(15, 23, 42)"],
+:root[data-theme="dark"] [style*="rgb(29, 29, 31)"],
 :root[data-theme="dark"] [style*="rgb(30, 41, 59)"],
 :root[data-theme="dark"] [style*="rgb(60, 60, 67)"] {
   color: #eef2f8 !important;
 }
-/* Teks abu sekunder -> lebih terang */
+/* Teks abu sekunder -> lebih terang (8e8e93, 6e6e73, 64748b, 475569, 94a3b8, aeaeb2) */
 :root[data-theme="dark"] [style*="rgb(142, 142, 147)"],
 :root[data-theme="dark"] [style*="rgb(110, 110, 115)"],
-:root[data-theme="dark"] [style*="rgb(100, 116, 139)"] {
-  color: rgba(203, 213, 225, 0.62) !important;
+:root[data-theme="dark"] [style*="rgb(100, 116, 139)"],
+:root[data-theme="dark"] [style*="rgb(71, 85, 105)"],
+:root[data-theme="dark"] [style*="rgb(148, 163, 184)"],
+:root[data-theme="dark"] [style*="rgb(174, 174, 178)"] {
+  color: rgba(203, 213, 225, 0.66) !important;
 }
+/* Ikon lucide (stroke = warna literal). Yang gelap/abu -> terang; aksen dibiarkan */
+:root[data-theme="dark"] svg[stroke="#1c1c1e"],
+:root[data-theme="dark"] svg[stroke="#0f172a"],
+:root[data-theme="dark"] svg[stroke="#1d1d1f"],
+:root[data-theme="dark"] svg[stroke="#3c3c43"],
+:root[data-theme="dark"] svg[stroke="#1e293b"],
+:root[data-theme="dark"] svg[stroke="#475569"] { stroke: #dbe4f0 !important; }
+:root[data-theme="dark"] svg[stroke="#8e8e93"],
+:root[data-theme="dark"] svg[stroke="#6e6e73"],
+:root[data-theme="dark"] svg[stroke="#64748b"],
+:root[data-theme="dark"] svg[stroke="#94a3b8"],
+:root[data-theme="dark"] svg[stroke="#aeaeb2"],
+:root[data-theme="dark"] svg[stroke="#c7c7cc"] { stroke: rgba(203, 213, 225, 0.6) !important; }
 /* Input / select / textarea */
 :root[data-theme="dark"] input,
 :root[data-theme="dark"] select,
