@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   LayoutDashboard, ShoppingBag, Users, Package,
   BarChart2, CalendarCheck, Settings2,
-  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, BookOpen,
+  Bell, LogOut, Waves, ChevronRight, Truck, FileText, ClipboardList, Menu, Tag, BookOpen, Wallet,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { generateDailyReport, sendToWhatsApp } from '../../lib/whatsapp'
@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { path: '/dashboard/jobdesk',     label: 'Jobdesk',        icon: ClipboardList,   feature: 'jobdesk' },
   { path: '/dashboard/products',    label: 'Produk & Harga', icon: Tag,             feature: 'products' },
   { path: '/dashboard/bookkeeping', label: 'Pembukuan',      icon: BookOpen,        feature: 'bookkeeping' },
+  { path: '/dashboard/payroll',     label: 'Penggajian',     icon: Wallet,          feature: 'payroll' },
   { path: '/dashboard/settings',    label: 'Pengaturan',     icon: Settings2,       feature: 'settings' },
 ]
 
@@ -47,6 +48,7 @@ const PAGE_TITLE = {
   '/dashboard/jobdesk':     'Jobdesk — Tugas Staf',
   '/dashboard/products':    'Produk & Daftar Harga',
   '/dashboard/bookkeeping': 'Pembukuan',
+  '/dashboard/payroll':     'Penggajian Karyawan',
   '/dashboard/settings':    'Pengaturan',
 }
 
